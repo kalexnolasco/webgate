@@ -2,7 +2,26 @@
 name = "webgate"
 version = "0.1.0"
 description = "Self-hosted web application for remote server management via SSH terminal and SFTP file browser"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
+authors = [{ name = "Kevin Nolasco", email = "kalex.nolasco@gmail.com" }]
+keywords = ["ssh", "sftp", "terminal", "web", "server-management", "fastapi", "asyncssh"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Internet :: WWW/HTTP",
+    "Typing :: Typed",
+]
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
@@ -20,6 +39,13 @@ dependencies = [
     "websockets>=14.0",
     "slowapi>=0.1.9",
 ]
+
+[project.urls]
+Homepage = "https://github.com/kalexnolasco/webgate"
+Documentation = "https://kalexnolasco.github.io/webgate/"
+Repository = "https://github.com/kalexnolasco/webgate"
+Changelog = "https://github.com/kalexnolasco/webgate/blob/main/CHANGELOG.md"
+Issues = "https://github.com/kalexnolasco/webgate/issues"
 
 [project.scripts]
 webgate = "webgate.__main__:main"
