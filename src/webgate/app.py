@@ -5,6 +5,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from webgate.auth.routes import limiter
 from webgate.auth.routes import router as auth_router
 from webgate.auth.service import seed_admin
 from webgate.config import settings
@@ -27,7 +31,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="webgate", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="webgate", version="0.1.0", lifespan=lifespan)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     origins = [o.strip() for o in settings.allowed_origins.split(",")]
     app.add_middleware(

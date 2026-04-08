@@ -183,6 +183,7 @@ window._showToastImpl = function(message, type) {
             <button @click="view='dashboard'" class="fz-btn" style="font-size:11px">Site Manager</button>
             <button x-show="currentUser?.is_admin" @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:11px">New Server</button>
             <button x-show="currentUser?.is_admin" @click="openUsersModal()" class="fz-btn" style="font-size:11px">Users</button>
+            <button x-show="currentUser?.is_admin" @click="openAuditLog()" class="fz-btn" style="font-size:11px">Audit</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:12px;color:#8b949e;font-weight:500" x-text="currentUser?.username"></span>
@@ -236,7 +237,12 @@ window._showToastImpl = function(message, type) {
             <div style="width:260px;border-right:1px solid #30363d;display:flex;flex-direction:column;background:#0d1117;flex-shrink:0">
                 <div class="fz-panel-header">
                     <span>Servers</span>
-                    <button @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:10px;padding:1px 6px">+</button>
+                    <div style="display:flex;gap:3px">
+                        <button x-show="currentUser?.is_admin" @click="exportServers()" class="fz-btn" style="font-size:10px;padding:1px 5px" title="Export">&#8595;</button>
+                        <button x-show="currentUser?.is_admin" @click="$refs.importFile.click()" class="fz-btn" style="font-size:10px;padding:1px 5px" title="Import">&#8593;</button>
+                        <input type="file" x-ref="importFile" accept=".json" style="display:none" @change="importServers($event)">
+                        <button x-show="currentUser?.is_admin" @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:10px;padding:1px 6px">+</button>
+                    </div>
                 </div>
                 <!-- Group filter -->
                 <div style="padding:6px 8px;border-bottom:1px solid #21262d">
@@ -256,11 +262,15 @@ window._showToastImpl = function(message, type) {
                     <template x-for="srv in filteredServers" :key="srv.id">
                         <div class="fz-srv-item" :class="selectedServerId===srv.id ? 'active' : ''" @click="selectedServerId=srv.id">
                             <div class="srv-name" x-text="srv.name"></div>
-                            <div class="srv-host" x-text="srv.username + '@' + srv.hostname + ':' + srv.port"></div>
+                            <div class="srv-host">
+                                <span x-text="srv.username + '@' + srv.hostname + ':' + srv.port"></span>
+                                <span x-show="srv.auth_method==='key'" style="color:#3fb950;margin-left:4px" title="Key auth">&#128273;</span>
+                            </div>
                             <span x-show="srv.group" class="srv-group" x-text="srv.group"></span>
                             <div class="fz-srv-actions">
                                 <button @click.stop="openServerTerminal(srv)" class="fz-btn fz-btn-success" style="font-size:10px;padding:1px 6px">SSH</button>
                                 <button @click.stop="openServerFiles(srv)" class="fz-btn fz-btn-primary" style="font-size:10px;padding:1px 6px">SFTP</button>
+                                <button @click.stop="openSplit(srv)" class="fz-btn" style="font-size:10px;padding:1px 5px" title="SSH + SFTP split">Split</button>
                                 <button @click.stop="testServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px" :disabled="testingServerId===srv.id" x-text="testingServerId===srv.id ? '...' : 'Test'"></button>
                                 <button x-show="currentUser?.is_admin" @click.stop="editServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px">Edit</button>
                                 <button x-show="currentUser?.is_admin" @click.stop="confirmDeleteServer(srv)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 6px">Del</button>
@@ -289,6 +299,29 @@ window._showToastImpl = function(message, type) {
                 <!-- ---- Terminal tab ---- -->
                 <div x-show="tab.type==='terminal'" style="flex:1;min-height:0" :id="tab.id"></div>
 
+                <!-- ---- Split tab (terminal + files) ---- -->
+                <div x-show="tab.type==='split'" style="flex:1;display:flex;min-height:0">
+                    <div :id="tab.id + '-term'" style="flex:1;min-height:0"></div>
+                    <div style="width:4px;background:#30363d;cursor:col-resize;flex-shrink:0"></div>
+                    <div :id="tab.id + '-files'" style="flex:1;min-height:0;overflow:auto;background:#0d1117;font-size:12px">
+                        <!-- Inline mini file browser -->
+                        <div style="padding:6px 10px;background:#161b22;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:4px">
+                            <span style="color:#58a6ff;font-size:11px;font-weight:600">SFTP</span>
+                            <span style="color:#8b949e;font-family:'JetBrains Mono',monospace;font-size:11px" x-text="tab.splitPath || '/'"></span>
+                            <button @click="splitNavigateUp(tab)" class="fz-btn" style="font-size:10px;padding:1px 5px">&#11014;</button>
+                        </div>
+                        <div style="padding:0">
+                            <template x-for="f in (tab.splitEntries || [])" :key="f.path">
+                                <div @dblclick="f.is_dir && splitNavigate(tab, f.path)" style="padding:3px 10px;cursor:default;display:flex;gap:6px;align-items:center;border-bottom:1px solid #21262d" :style="f.is_dir ? '' : ''" @contextmenu.prevent>
+                                    <span style="font-size:13px" x-text="f.is_dir ? '&#128193;' : '&#128196;'"></span>
+                                    <span style="flex:1;color:#c9d1d9" :style="f.is_dir ? 'font-weight:600;cursor:pointer' : ''" @click="f.is_dir && splitNavigate(tab, f.path)" x-text="f.name"></span>
+                                    <span style="color:#484f58;font-size:11px" x-text="f.is_dir ? '' : formatSize(f.size)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ---- Files tab ---- -->
                 <div x-show="tab.type==='files'" class="fz-flex-col">
 
@@ -302,6 +335,8 @@ window._showToastImpl = function(message, type) {
                         <label class="fz-btn" style="font-size:11px;cursor:pointer">
                             Upload<input type="file" multiple style="display:none" @change="uploadFiles(tab,$event)">
                         </label>
+                        <span style="color:#30363d;margin:0 2px">|</span>
+                        <input type="text" x-model="tab.fileFilter" placeholder="Filter files..." style="width:140px;font-size:11px;padding:4px 8px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8">
                     </div>
 
                     <!-- Breadcrumbs -->
@@ -336,7 +371,7 @@ window._showToastImpl = function(message, type) {
                                         <td><span class="ficon">&#128193;</span><span class="fname fdir">..</span></td>
                                         <td class="fmeta"></td><td class="fmeta">Directory</td><td class="fmeta"></td><td class="fmeta"></td><td class="fmeta"></td>
                                     </tr>
-                                    <template x-for="f in tab.entries" :key="f.path">
+                                    <template x-for="f in filteredEntries(tab)" :key="f.path">
                                         <tr class="fz-row" @dblclick="f.is_dir ? navigateTo(tab,f.path) : editFile(tab,f)" @contextmenu.prevent="showCtxMenu($event,tab,f)">
                                             <td>
                                                 <span class="ficon" x-text="f.is_dir ? '&#128193;' : '&#128196;'"></span>
@@ -514,6 +549,40 @@ window._showToastImpl = function(message, type) {
     </div>
 </div>
 
+<!-- ======== AUDIT LOG MODAL ======== -->
+<div x-show="showAuditModal" class="fz-modal-bg" @click.self="showAuditModal=false">
+    <div class="fz-modal" style="width:720px" @click.stop>
+        <div class="fz-modal-title">Audit Log</div>
+        <div class="fz-modal-body" style="padding:0;max-height:60vh;overflow-y:auto">
+            <table style="width:100%;font-size:12px;border-collapse:collapse">
+                <thead style="position:sticky;top:0;background:#21262d">
+                    <tr>
+                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">Time</th>
+                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">User</th>
+                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">Action</th>
+                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">Detail</th>
+                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="e in auditEntries" :key="e.id">
+                        <tr style="border-bottom:1px solid #21262d">
+                            <td style="padding:6px 8px;color:#8b949e;font-size:11px;white-space:nowrap" x-text="new Date(e.created_at).toLocaleString()"></td>
+                            <td style="padding:6px 8px;color:#e1e4e8;font-weight:500" x-text="e.username"></td>
+                            <td style="padding:6px 8px"><span style="font-size:11px;padding:2px 6px;border-radius:10px;background:#1f6feb20;color:#58a6ff" x-text="e.action"></span></td>
+                            <td style="padding:6px 8px;color:#8b949e;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" x-text="e.detail"></td>
+                            <td style="padding:6px 8px;color:#484f58;font-size:11px;font-family:'JetBrains Mono',monospace" x-text="e.ip_address"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <div class="fz-modal-footer">
+            <button @click="showAuditModal=false" class="fz-btn">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- ======== EDIT GROUPS MODAL ======== -->
 <div x-show="showGroupsModal" class="fz-modal-bg" @click.self="showGroupsModal=false">
     <div class="fz-modal" style="width:400px" @click.stop>
@@ -551,6 +620,7 @@ function app() {
         showUsersModal: false, showGroupsModal: false,
         managedUsers: [], newUser: { username: '', password: '', groupsStr: '' },
         editingUserObj: null, editingGroupsStr: '',
+        showAuditModal: false, auditEntries: [],
         view: 'dashboard',
         ssh: { host: '', port: 22, username: '', password: '' },
         servers: [], groups: [], selectedGroup: '', searchQuery: '',
@@ -585,7 +655,12 @@ function app() {
         },
 
         async init() {
-            if (this.token) { await this.fetchMe(); await this.loadServers(); await this.loadGroups(); }
+            if (this.token) {
+                await this.fetchMe();
+                if (this.currentUser?.must_change_password) return;
+                await this.loadServers(); await this.loadGroups();
+                this._restoreTabs();
+            }
             this.log('status', 'webgate initialized');
         },
 
@@ -636,7 +711,7 @@ function app() {
                 this.log('status', 'Logged in as ' + this.currentUser?.username);
             } catch (e) { this.showToast(e.message, 'error'); }
         },
-        logout() { this.token = ''; this.currentUser = null; localStorage.removeItem('webgate_token'); this.tabs.forEach(t => this._destroyTab(t)); this.tabs = []; this.activeTabId = null; this.view = 'dashboard'; },
+        logout() { this.token = ''; this.currentUser = null; localStorage.removeItem('webgate_token'); localStorage.removeItem('webgate_tabs'); this.tabs.forEach(t => this._destroyTab(t)); this.tabs = []; this.activeTabId = null; this.view = 'dashboard'; },
 
         // Servers
         async loadServers() { try { let url = '/api/servers'; if (this.searchQuery) url += `?search=${encodeURIComponent(this.searchQuery)}`; this.servers = await this.apiCall(url); } catch (e) { this.showToast(e.message, 'error'); } },
@@ -669,6 +744,27 @@ function app() {
             } catch (e) { this.showToast(e.message, 'error'); }
             this.testingServerId = null;
         },
+        async exportServers() {
+            try {
+                const data = await this.apiCall('/api/servers/export');
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'webgate-servers.json'; a.click(); URL.revokeObjectURL(url);
+                this.showToast(`Exported ${data.length} server(s)`);
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async importServers(event) {
+            const file = event.target.files?.[0]; if (!file) return;
+            try {
+                const text = await file.text();
+                const servers = JSON.parse(text);
+                const payload = Array.isArray(servers) ? servers : [servers];
+                await this.apiCall('/api/servers/import', { method: 'POST', body: JSON.stringify({ servers: payload }) });
+                this.showToast(`Imported ${payload.length} server(s)`);
+                await this.loadServers(); await this.loadGroups();
+            } catch (e) { this.showToast(e.message, 'error'); }
+            event.target.value = '';
+        },
         async confirmDeleteServer(srv) { if (!confirm(`Delete "${srv.name}"?`)) return; try { await this.apiCall(`/api/servers/${srv.id}`, { method: 'DELETE' }); this.showToast('Deleted'); await this.loadServers(); await this.loadGroups(); } catch (e) { this.showToast(e.message, 'error'); } },
 
         // Tabs
@@ -678,6 +774,7 @@ function app() {
             this.tabs.push(tab);
             this.activeTabId = id;
             this.view = 'active';
+            this.$nextTick(() => this._saveTabs());
             return this.tabs[this.tabs.length - 1];
         },
         switchTab(id) { this.activeTabId = id; this.view = 'active'; const tab = this.tabs.find(t => t.id === id); if (tab?.type === 'terminal' && tab._fitAddon) { this.$nextTick(() => tab._fitAddon.fit()); } },
@@ -689,10 +786,26 @@ function app() {
                 if (this.tabs.length) { this.activeTabId = this.tabs[this.tabs.length - 1].id; }
                 else { this.activeTabId = null; this.view = 'dashboard'; }
             }
+            this._saveTabs();
         },
         _destroyTab(tab) {
             if (tab.type === 'terminal') { tab._resizeObserver?.disconnect(); if (tab._ws?.readyState === WebSocket.OPEN) tab._ws.close(); tab._term?.dispose(); }
             if (tab._editorView) { tab._editorView.destroy(); tab._editorView = null; }
+        },
+        _saveTabs() {
+            const data = this.tabs.map(t => ({ type: t.type, title: t.title, serverId: t.serverId, currentPath: t.currentPath })).filter(t => t.serverId);
+            localStorage.setItem('webgate_tabs', JSON.stringify(data));
+        },
+        _restoreTabs() {
+            try {
+                const data = JSON.parse(localStorage.getItem('webgate_tabs') || '[]');
+                for (const t of data) {
+                    const srv = this.servers.find(s => s.id === t.serverId);
+                    if (!srv) continue;
+                    if (t.type === 'terminal') this.openServerTerminal(srv);
+                    else if (t.type === 'files') { this.openServerFiles(srv); if (t.currentPath && t.currentPath !== '/') { const tab = this.tabs[this.tabs.length - 1]; this.$nextTick(() => this.loadDirectory(tab, t.currentPath)); } }
+                }
+            } catch {}
         },
 
         // Terminal
@@ -709,7 +822,8 @@ function app() {
             this.$nextTick(() => this._initTerminal(tab, '/api/ws/terminal/quick', connInfo));
         },
         _initTerminal(tab, wsPath, connInfo) {
-            const container = document.getElementById(tab.id);
+            const containerId = tab.type === 'split' ? tab.id + '-term' : tab.id;
+            const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
             const term = new Terminal({ cursorBlink: true, fontSize: 13, fontFamily: '"Consolas","Courier New",monospace', theme: { background: '#1a1b26', foreground: '#c0caf5', cursor: '#c0caf5', selectionBackground: '#33467c' } });
@@ -732,13 +846,36 @@ function app() {
             });
         },
 
+        // Split pane
+        openSplit(srv) {
+            this.log('cmd', `Opening split view for ${srv.name}...`);
+            const tab = this._createTab('split', `${srv.name}`, { serverId: srv.id, splitPath: '/', splitEntries: [] });
+            this.$nextTick(() => {
+                this._initTerminal(tab, `/api/ws/terminal/${srv.id}`, {});
+                this.splitLoadDir(tab, '/');
+            });
+        },
+        async splitLoadDir(tab, path) {
+            try {
+                const data = await this.apiCall(`/api/files/${tab.serverId}/ls?path=${encodeURIComponent(path)}`);
+                tab.splitEntries = data.entries; tab.splitPath = data.path;
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        splitNavigate(tab, path) { this.splitLoadDir(tab, path); },
+        splitNavigateUp(tab) { const parts = (tab.splitPath || '/').split('/').filter(Boolean); parts.pop(); this.splitLoadDir(tab, '/' + parts.join('/')); },
+
         // Files
         openServerFiles(srv) {
             this.log('cmd', `Opening SFTP to ${srv.hostname}...`);
             const tab = this._createTab('files', `${srv.name}`, {
-                serverId: srv.id, currentPath: '/', entries: [], loading: false, dragOver: false, editingFile: null, _editorView: null
+                serverId: srv.id, currentPath: '/', entries: [], loading: false, dragOver: false, editingFile: null, _editorView: null, fileFilter: ''
             });
             this.loadDirectory(tab, '/');
+        },
+        filteredEntries(tab) {
+            if (!tab.fileFilter) return tab.entries || [];
+            const q = tab.fileFilter.toLowerCase();
+            return (tab.entries || []).filter(f => f.name.toLowerCase().includes(q));
         },
         getBreadcrumbs(tab) {
             const parts = (tab.currentPath || '/').split('/').filter(Boolean);
@@ -873,6 +1010,12 @@ function app() {
         async promptMkdir(tab) { const name = prompt('New folder name:'); if (!name) return; const path = tab.currentPath === '/' ? '/' + name : tab.currentPath + '/' + name; try { await this.apiCall(`/api/files/${tab.serverId}/mkdir`, { method: 'POST', body: JSON.stringify({ path }) }); this.showToast('Directory created'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },
         async promptRename(tab, f) { const n = prompt('New name:', f.name); if (!n || n === f.name) return; const dir = f.path.substring(0, f.path.lastIndexOf('/')); try { await this.apiCall(`/api/files/${tab.serverId}/rename`, { method: 'POST', body: JSON.stringify({ old_path: f.path, new_path: dir + '/' + n }) }); this.showToast('Renamed'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },
         async confirmDeleteFile(tab, f) { if (!confirm(`Delete "${f.name}"?`)) return; try { await this.apiCall(`/api/files/${tab.serverId}/delete?path=${encodeURIComponent(f.path)}`, { method: 'DELETE' }); this.showToast('Deleted'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },
+
+        // Admin: audit log
+        async openAuditLog() {
+            try { this.auditEntries = await this.apiCall('/api/auth/audit?limit=200'); } catch (e) { this.showToast(e.message, 'error'); return; }
+            this.showAuditModal = true;
+        },
 
         // Admin: user management
         async openUsersModal() {

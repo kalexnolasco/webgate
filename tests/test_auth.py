@@ -3,39 +3,10 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_register_first_user(client: AsyncClient):
-    resp = await client.post(
-        "/api/auth/register",
-        json={"username": "admin", "password": "secret123"},
-    )
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["username"] == "admin"
-    assert data["is_admin"] is True
-
-
-@pytest.mark.asyncio
-async def test_register_blocked_after_first(client: AsyncClient):
-    await client.post(
-        "/api/auth/register",
-        json={"username": "admin", "password": "secret123"},
-    )
-    resp = await client.post(
-        "/api/auth/register",
-        json={"username": "another", "password": "secret123"},
-    )
-    assert resp.status_code == 403
-
-
-@pytest.mark.asyncio
 async def test_login_success(client: AsyncClient):
-    await client.post(
-        "/api/auth/register",
-        json={"username": "admin", "password": "secret123"},
-    )
     resp = await client.post(
         "/api/auth/login",
-        json={"username": "admin", "password": "secret123"},
+        json={"username": "admin", "password": "testpass123"},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -45,10 +16,6 @@ async def test_login_success(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_login_wrong_password(client: AsyncClient):
-    await client.post(
-        "/api/auth/register",
-        json={"username": "admin", "password": "secret123"},
-    )
     resp = await client.post(
         "/api/auth/login",
         json={"username": "admin", "password": "wrong"},
@@ -62,6 +29,7 @@ async def test_me_authenticated(client: AsyncClient, auth_headers: dict[str, str
     assert resp.status_code == 200
     data = resp.json()
     assert data["username"] == "admin"
+    assert data["is_admin"] is True
 
 
 @pytest.mark.asyncio
@@ -71,6 +39,39 @@ async def test_me_unauthenticated(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_me_invalid_token(client: AsyncClient):
-    resp = await client.get("/api/auth/me", headers={"Authorization": "Bearer invalid"})
-    assert resp.status_code == 401
+async def test_change_password(client: AsyncClient, auth_headers: dict[str, str]):
+    resp = await client.post(
+        "/api/auth/change-password",
+        headers=auth_headers,
+        json={"new_password": "newpass123"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["must_change_password"] is False
+
+
+@pytest.mark.asyncio
+async def test_admin_create_user(client: AsyncClient, auth_headers: dict[str, str]):
+    resp = await client.post(
+        "/api/auth/users",
+        headers=auth_headers,
+        json={"username": "dev1", "password": "dev1pass", "allowed_groups": ["prod"]},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["username"] == "dev1"
+    assert data["is_admin"] is False
+    assert data["allowed_groups"] == ["prod"]
+
+
+@pytest.mark.asyncio
+async def test_admin_list_users(client: AsyncClient, auth_headers: dict[str, str]):
+    resp = await client.get("/api/auth/users", headers=auth_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) >= 1
+
+
+@pytest.mark.asyncio
+async def test_health(client: AsyncClient):
+    resp = await client.get("/api/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}

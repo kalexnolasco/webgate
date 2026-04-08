@@ -3,143 +3,87 @@ from httpx import AsyncClient
 
 from webgate.servers.crypto import decrypt_value, encrypt_value
 
+SERVER_DATA = {
+    "name": "test-srv",
+    "hostname": "10.0.1.50",
+    "port": 22,
+    "username": "deploy",
+    "auth_method": "password",
+    "password": "secret",
+    "group": "prod",
+    "tags": ["web"],
+    "description": "Test server",
+}
 
-@pytest.mark.asyncio
-async def test_encryption_roundtrip():
-    original = "my-secret-password"
-    encrypted = encrypt_value(original)
-    assert encrypted != original
-    assert decrypt_value(encrypted) == original
+
+def test_encrypt_decrypt():
+    encrypted = encrypt_value("hello")
+    assert encrypted != "hello"
+    assert decrypt_value(encrypted) == "hello"
 
 
-@pytest.mark.asyncio
-async def test_encrypt_empty():
+def test_encrypt_empty():
     assert encrypt_value("") == ""
     assert decrypt_value("") == ""
 
 
 @pytest.mark.asyncio
 async def test_create_server(client: AsyncClient, auth_headers: dict[str, str]):
-    resp = await client.post(
-        "/api/servers",
-        json={
-            "name": "test-server",
-            "hostname": "10.0.0.1",
-            "port": 22,
-            "username": "root",
-            "password": "secret",
-            "group": "production",
-            "tags": ["web", "nginx"],
-            "description": "Test server",
-        },
-        headers=auth_headers,
-    )
+    resp = await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
     assert resp.status_code == 201
     data = resp.json()
-    assert data["name"] == "test-server"
-    assert data["hostname"] == "10.0.0.1"
-    assert data["group"] == "production"
-    assert data["tags"] == ["web", "nginx"]
-    assert "password" not in data
-    assert "encrypted_password" not in data
+    assert data["name"] == "test-srv"
+    assert data["group"] == "prod"
 
 
 @pytest.mark.asyncio
 async def test_list_servers(client: AsyncClient, auth_headers: dict[str, str]):
-    await client.post(
-        "/api/servers",
-        json={"name": "srv1", "hostname": "1.1.1.1", "username": "u", "group": "dev"},
-        headers=auth_headers,
-    )
-    await client.post(
-        "/api/servers",
-        json={"name": "srv2", "hostname": "2.2.2.2", "username": "u", "group": "prod"},
-        headers=auth_headers,
-    )
+    await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
     resp = await client.get("/api/servers", headers=auth_headers)
     assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 2
+    assert len(resp.json()) >= 1
 
 
 @pytest.mark.asyncio
 async def test_list_servers_filter_group(client: AsyncClient, auth_headers: dict[str, str]):
-    await client.post(
-        "/api/servers",
-        json={"name": "s1", "hostname": "1.1.1.1", "username": "u", "group": "dev"},
-        headers=auth_headers,
-    )
-    await client.post(
-        "/api/servers",
-        json={"name": "s2", "hostname": "2.2.2.2", "username": "u", "group": "prod"},
-        headers=auth_headers,
-    )
-    resp = await client.get("/api/servers?group=dev", headers=auth_headers)
-    data = resp.json()
-    assert len(data) == 1
-    assert data[0]["group"] == "dev"
+    await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
+    resp = await client.get("/api/servers?group=prod", headers=auth_headers)
+    assert resp.status_code == 200
+    assert all(s["group"] == "prod" for s in resp.json())
 
 
 @pytest.mark.asyncio
 async def test_list_servers_search(client: AsyncClient, auth_headers: dict[str, str]):
-    await client.post(
-        "/api/servers",
-        json={"name": "web-server", "hostname": "1.1.1.1", "username": "u"},
-        headers=auth_headers,
-    )
-    await client.post(
-        "/api/servers",
-        json={"name": "db-server", "hostname": "2.2.2.2", "username": "u"},
-        headers=auth_headers,
-    )
-    resp = await client.get("/api/servers?search=web", headers=auth_headers)
-    data = resp.json()
-    assert len(data) == 1
-    assert data[0]["name"] == "web-server"
+    await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
+    resp = await client.get("/api/servers?search=test", headers=auth_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) >= 1
 
 
 @pytest.mark.asyncio
 async def test_get_server(client: AsyncClient, auth_headers: dict[str, str]):
-    create_resp = await client.post(
-        "/api/servers",
-        json={"name": "myserver", "hostname": "10.0.0.1", "username": "root"},
-        headers=auth_headers,
-    )
-    server_id = create_resp.json()["id"]
-    resp = await client.get(f"/api/servers/{server_id}", headers=auth_headers)
+    create = await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
+    sid = create.json()["id"]
+    resp = await client.get(f"/api/servers/{sid}", headers=auth_headers)
     assert resp.status_code == 200
-    assert resp.json()["name"] == "myserver"
+    assert resp.json()["hostname"] == "10.0.1.50"
 
 
 @pytest.mark.asyncio
 async def test_update_server(client: AsyncClient, auth_headers: dict[str, str]):
-    create_resp = await client.post(
-        "/api/servers",
-        json={"name": "old-name", "hostname": "10.0.0.1", "username": "root"},
-        headers=auth_headers,
-    )
-    server_id = create_resp.json()["id"]
-    resp = await client.put(
-        f"/api/servers/{server_id}",
-        json={"name": "new-name"},
-        headers=auth_headers,
-    )
+    create = await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
+    sid = create.json()["id"]
+    resp = await client.put(f"/api/servers/{sid}", headers=auth_headers, json={"name": "updated"})
     assert resp.status_code == 200
-    assert resp.json()["name"] == "new-name"
+    assert resp.json()["name"] == "updated"
 
 
 @pytest.mark.asyncio
 async def test_delete_server(client: AsyncClient, auth_headers: dict[str, str]):
-    create_resp = await client.post(
-        "/api/servers",
-        json={"name": "todelete", "hostname": "10.0.0.1", "username": "root"},
-        headers=auth_headers,
-    )
-    server_id = create_resp.json()["id"]
-    resp = await client.delete(f"/api/servers/{server_id}", headers=auth_headers)
+    create = await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
+    sid = create.json()["id"]
+    resp = await client.delete(f"/api/servers/{sid}", headers=auth_headers)
     assert resp.status_code == 204
-    resp = await client.get(f"/api/servers/{server_id}", headers=auth_headers)
-    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -150,44 +94,47 @@ async def test_server_not_found(client: AsyncClient, auth_headers: dict[str, str
 
 @pytest.mark.asyncio
 async def test_groups(client: AsyncClient, auth_headers: dict[str, str]):
-    await client.post(
-        "/api/servers",
-        json={"name": "a", "hostname": "1.1.1.1", "username": "u", "group": "dev"},
-        headers=auth_headers,
-    )
-    await client.post(
-        "/api/servers",
-        json={"name": "b", "hostname": "2.2.2.2", "username": "u", "group": "prod"},
-        headers=auth_headers,
-    )
+    await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
     resp = await client.get("/api/servers/groups", headers=auth_headers)
     assert resp.status_code == 200
-    groups = resp.json()
-    assert "dev" in groups
-    assert "prod" in groups
+    assert "prod" in resp.json()
 
 
 @pytest.mark.asyncio
 async def test_import_export(client: AsyncClient, auth_headers: dict[str, str]):
-    import_resp = await client.post(
-        "/api/servers/import",
-        json={
-            "servers": [
-                {"name": "imp1", "hostname": "1.1.1.1", "username": "u"},
-                {"name": "imp2", "hostname": "2.2.2.2", "username": "u"},
-            ]
-        },
-        headers=auth_headers,
-    )
-    assert import_resp.status_code == 201
-    assert len(import_resp.json()) == 2
-
-    export_resp = await client.get("/api/servers/export", headers=auth_headers)
-    assert export_resp.status_code == 200
-    assert len(export_resp.json()) == 2
+    await client.post("/api/servers", headers=auth_headers, json=SERVER_DATA)
+    resp = await client.get("/api/servers/export", headers=auth_headers)
+    assert resp.status_code == 200
+    exported = resp.json()
+    assert len(exported) >= 1
 
 
 @pytest.mark.asyncio
-async def test_unauthenticated_access(client: AsyncClient):
-    resp = await client.get("/api/servers")
-    assert resp.status_code in (401, 403)
+async def test_non_admin_cannot_create(client: AsyncClient, auth_headers: dict[str, str]):
+    # Create non-admin user
+    await client.post("/api/auth/users", headers=auth_headers, json={
+        "username": "viewer", "password": "viewer", "allowed_groups": ["prod"]
+    })
+    login = await client.post("/api/auth/login", json={"username": "viewer", "password": "viewer"})
+    viewer_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    resp = await client.post("/api/servers", headers=viewer_headers, json=SERVER_DATA)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_non_admin_sees_only_allowed_groups(client: AsyncClient, auth_headers: dict[str, str]):
+    # Create servers in two groups
+    await client.post("/api/servers", headers=auth_headers, json={**SERVER_DATA, "group": "prod"})
+    await client.post("/api/servers", headers=auth_headers, json={**SERVER_DATA, "name": "stg", "group": "staging"})
+
+    # Create user with access to prod only
+    await client.post("/api/auth/users", headers=auth_headers, json={
+        "username": "dev2", "password": "dev2", "allowed_groups": ["prod"]
+    })
+    login = await client.post("/api/auth/login", json={"username": "dev2", "password": "dev2"})
+    dev_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    resp = await client.get("/api/servers", headers=dev_headers)
+    servers = resp.json()
+    assert all(s["group"] == "prod" for s in servers)

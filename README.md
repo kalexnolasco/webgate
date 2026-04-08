@@ -309,6 +309,7 @@ flowchart LR
 | `PUT` | `/api/auth/users/{id}/groups` | Update user's allowed groups (admin only) |
 | `PUT` | `/api/auth/users/{id}/password` | Reset user's password (admin only) |
 | `DELETE` | `/api/auth/users/{id}` | Delete user (admin only) |
+| `GET` | `/api/auth/audit` | Audit log with filters (admin only) |
 
 ### Server Registry
 
@@ -456,7 +457,7 @@ uv run coverage run -m pytest tests/ -v && uv run coverage report
 | Layer | Technology |
 |-------|-----------|
 | **Backend** | Python 3.11+, FastAPI, uvicorn, asyncssh, SQLAlchemy, aiosqlite, Pydantic v2 |
-| **Auth** | JWT (python-jose), bcrypt, Fernet (cryptography) |
+| **Auth** | JWT (python-jose), bcrypt, Fernet (cryptography), slowapi (rate limiting) |
 | **Frontend** | Vanilla JS, Alpine.js, xterm.js, CodeMirror 6 |
 | **Database** | SQLite (default), any SQLAlchemy-supported DB |
 | **Container** | Docker, multi-stage build, python:3.13-slim |
@@ -485,13 +486,13 @@ uv run coverage run -m pytest tests/ -v && uv run coverage report
 - [x] Fernet credential encryption
 - [x] Admin user management with group-based access
 - [x] SFTP connection pool (reuse connections, 5 min TTL)
-- [ ] Multi-tab split pane (terminal + files side by side)
-- [ ] SSH key management UI
-- [ ] File search within SFTP listings
-- [ ] Server import/export from UI
-- [ ] Session persistence across page reloads
-- [ ] Rate limiting on auth endpoints
-- [ ] Audit log
+- [x] Multi-tab split pane (terminal + files side by side)
+- [x] SSH key management (per-server key upload with visual indicator)
+- [x] File search / filter within SFTP listings
+- [x] Server import/export from UI (JSON)
+- [x] Session persistence across page reloads
+- [x] Rate limiting on auth endpoints (slowapi)
+- [x] Audit log (admin-viewable action history)
 
 ## Requirements
 

@@ -1,9 +1,15 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
+limiter = Limiter(key_func=get_remote_address)
+
+from webgate.audit.models import AuditOut
+from webgate.audit.service import get_audit_log, log_action
 from webgate.auth.models import (
     ChangePassword,
     TokenOut,
@@ -55,13 +61,15 @@ def _require_admin(user: UserOut) -> None:
 
 
 @router.post("/login", response_model=TokenOut)
-async def login(body: UserLogin, session: SessionDep) -> TokenOut:
+@limiter.limit("10/minute")
+async def login(request: Request, body: UserLogin, session: SessionDep) -> TokenOut:
     user = await get_user_by_username(session, body.username)
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
     token = create_access_token({"sub": str(user.id), "username": user.username})
+    await log_action(user.id, user.username, "login", ip_address=request.client.host if request.client else "")
     return TokenOut(access_token=token)
 
 
@@ -71,8 +79,9 @@ async def me(current_user: CurrentUserDep) -> UserOut:
 
 
 @router.post("/change-password", response_model=UserOut)
+@limiter.limit("5/minute")
 async def change_password(
-    body: ChangePassword, session: SessionDep, current_user: CurrentUserDep
+    request: Request, body: ChangePassword, session: SessionDep, current_user: CurrentUserDep
 ) -> UserOut:
     if len(body.new_password) < 4:
         raise HTTPException(
@@ -151,3 +160,16 @@ async def remove_user(
     if user.is_admin:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete admin")
     await delete_user(session, user)
+
+
+@router.get("/audit", response_model=list[AuditOut])
+async def audit_log_endpoint(
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    limit: int = 100,
+    offset: int = 0,
+    username: str | None = None,
+    action: str | None = None,
+) -> list[AuditOut]:
+    _require_admin(current_user)
+    return await get_audit_log(session, limit=limit, offset=offset, username=username, action=action)

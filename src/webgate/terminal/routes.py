@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from webgate.audit.service import log_action
 from webgate.auth.models import UserOut
 from webgate.auth.service import get_user_by_id
 from webgate.db.engine import async_session_factory
@@ -95,6 +96,7 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
             pass
 
         await update_last_connected(session, server)
+        await log_action(user_out.id, user_out.username, "ssh_connect", f"{server.hostname}:{server.port}")
 
     await handle_terminal_ws(
         ws,

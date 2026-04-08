@@ -5,6 +5,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from webgate.auth.routes import limiter
+from webgate.auth.service import create_user
 from webgate.db.engine import Base, get_session
 
 
@@ -25,7 +27,12 @@ async def app():
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    # Seed admin user for tests
+    async with test_session_factory() as session:
+        await create_user(session, "admin", "testpass123", is_admin=True)
+
     application = create_app()
+    limiter.enabled = False  # Disable rate limiting in tests
 
     async def override_get_session() -> AsyncGenerator[AsyncSession]:
         async with test_session_factory() as session:
@@ -49,10 +56,6 @@ async def client(app) -> AsyncGenerator[AsyncClient]:
 
 @pytest.fixture
 async def auth_token(client: AsyncClient) -> str:
-    await client.post(
-        "/api/auth/register",
-        json={"username": "admin", "password": "testpass123"},
-    )
     resp = await client.post(
         "/api/auth/login",
         json={"username": "admin", "password": "testpass123"},
