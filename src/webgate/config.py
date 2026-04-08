@@ -1,0 +1,28 @@
+from pathlib import Path
+
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    model_config = {"env_prefix": "WEBGATE_"}
+
+    host: str = "0.0.0.0"
+    port: int = 8443
+    secret_key: str = "change-me-in-production"
+    db_url: str = "sqlite+aiosqlite:///./webgate.db"
+    allowed_origins: str = "*"
+    log_level: str = "info"
+    session_timeout: int = 3600
+    max_upload_size: int = 104857600  # 100MB
+    first_run: bool = True
+
+    # JWT settings
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 1440  # 24 hours
+
+    @property
+    def static_dir(self) -> Path:
+        return Path(__file__).parent / "static"
+
+
+settings = Settings()

@@ -1,0 +1,15 @@
+services:
+  webgate:
+    build: .
+    container_name: webgate
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    volumes:
+      - webgate-data:/data
+    environment:
+      WEBGATE_SECRET_KEY: "${WEBGATE_SECRET_KEY:-change-me-in-production}"
+      WEBGATE_FIRST_RUN: "true"
+
+volumes:
+  webgate-data:

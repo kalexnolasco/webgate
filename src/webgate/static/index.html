@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>webgate</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script type="module">
+        import {EditorView, basicSetup} from 'https://esm.sh/codemirror@6.0.1';
+        import {oneDark} from 'https://esm.sh/@codemirror/theme-one-dark@6.1.2';
+        window.CM = { EditorView, basicSetup, oneDark };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; background: #0f1117; color: #e1e4e8; }
+
+        /* ---- Modern dark theme ---- */
+        .fz-toolbar { background: #161b22; border-bottom: 1px solid #30363d; padding: 6px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .fz-toolbar label { font-size: 11px; color: #8b949e; white-space: nowrap; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .fz-toolbar input, .fz-toolbar select { font-size: 12px; padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e1e4e8; transition: border-color 0.2s; }
+        .fz-toolbar input:focus, .fz-toolbar select:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
+
+        .fz-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #30363d; border-radius: 6px; background: #21262d; color: #c9d1d9; cursor: pointer; white-space: nowrap; font-weight: 500; transition: all 0.15s; }
+        .fz-btn:hover { background: #30363d; border-color: #8b949e; }
+        .fz-btn:active { transform: scale(0.97); }
+        .fz-btn-primary { background: #238636; color: #fff; border-color: #2ea043; }
+        .fz-btn-primary:hover { background: #2ea043; border-color: #3fb950; }
+        .fz-btn-danger { color: #f85149; border-color: #f8514930; }
+        .fz-btn-danger:hover { background: #f8514915; border-color: #f85149; }
+        .fz-btn-success { background: #1f6feb; color: #fff; border-color: #388bfd; }
+        .fz-btn-success:hover { background: #388bfd; border-color: #58a6ff; }
+
+        /* Log area */
+        .fz-log { background: #0d1117; border-bottom: 1px solid #30363d; overflow-y: auto; padding: 4px 10px; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; line-height: 1.6; flex-shrink: 0; }
+        .fz-log .msg-status { color: #3fb950; }
+        .fz-log .msg-error { color: #f85149; }
+        .fz-log .msg-info { color: #8b949e; }
+        .fz-log .msg-cmd { color: #58a6ff; }
+
+        /* Tab strip */
+        .fz-tabs { background: #161b22; border-bottom: 1px solid #30363d; display: flex; align-items: stretch; overflow-x: auto; min-height: 34px; gap: 2px; padding: 4px 4px 0; }
+        .fz-tab { font-size: 12px; padding: 6px 14px; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; background: transparent; color: #8b949e; transition: all 0.15s; font-weight: 500; }
+        .fz-tab:hover { background: #21262d; color: #c9d1d9; }
+        .fz-tab.active { background: #0d1117; border-color: #30363d; border-bottom-color: #0d1117; color: #e1e4e8; }
+        .fz-tab .close { font-size: 14px; color: #484f58; cursor: pointer; line-height: 1; border-radius: 4px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+        .fz-tab .close:hover { color: #f85149; background: #f8514920; }
+
+        /* Path bar */
+        .fz-pathbar { background: #161b22; border-bottom: 1px solid #30363d; padding: 6px 10px; display: flex; align-items: center; gap: 6px; }
+        .fz-pathbar .path-label { font-size: 11px; color: #58a6ff; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .fz-pathbar .path-input { flex: 1; font-size: 12px; padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e1e4e8; font-family: 'JetBrains Mono', monospace; }
+
+        /* File list */
+        .fz-filelist { flex: 1; overflow: auto; background: #0d1117; }
+        .fz-filelist table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .fz-filelist thead { background: #161b22; position: sticky; top: 0; z-index: 1; }
+        .fz-filelist th { text-align: left; padding: 8px 12px; border-bottom: 1px solid #30363d; font-weight: 600; color: #8b949e; cursor: default; user-select: none; white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .fz-filelist td { padding: 6px 12px; border-bottom: 1px solid #21262d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .fz-filelist tr.fz-row:hover { background: #161b22; }
+        .fz-filelist tr.fz-row.selected { background: #1f6feb20; }
+        .fz-filelist tr.fz-row { cursor: default; }
+        .fz-filelist .fname { color: #c9d1d9; cursor: pointer; transition: color 0.15s; }
+        .fz-filelist .fname:hover { color: #58a6ff; }
+        .fz-filelist .fdir { color: #e1e4e8; font-weight: 600; }
+        .fz-filelist .ficon { width: 16px; height: 16px; vertical-align: middle; margin-right: 6px; display: inline-block; text-align: center; font-size: 14px; }
+        .fz-filelist .fmeta { color: #484f58; }
+
+        /* Status bar */
+        .fz-statusbar { background: #1f6feb; border-top: none; padding: 3px 12px; font-size: 11px; color: #fff; display: flex; justify-content: space-between; flex-shrink: 0; font-weight: 500; }
+
+        /* Panels */
+        .fz-panel { display: flex; flex-direction: column; border: 1px solid #30363d; background: #0d1117; }
+        .fz-panel-header { background: #161b22; border-bottom: 1px solid #30363d; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #e1e4e8; display: flex; align-items: center; justify-content: space-between; }
+
+        /* Split panes */
+        .fz-splitter-v { height: 4px; background: #30363d; cursor: row-resize; flex-shrink: 0; transition: background 0.15s; }
+        .fz-splitter-v:hover { background: #58a6ff; }
+
+        /* Editor bar */
+        .fz-editor-bar { background: #161b22; border-bottom: 1px solid #30363d; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; }
+
+        /* Server list in sidebar */
+        .fz-serverlist { overflow-y: auto; flex: 1; }
+        .fz-srv-item { padding: 10px 12px; border-bottom: 1px solid #21262d; cursor: pointer; transition: background 0.15s; }
+        .fz-srv-item:hover { background: #161b22; }
+        .fz-srv-item.active { background: #1f6feb15; border-left: 3px solid #58a6ff; }
+        .fz-srv-item .srv-name { font-weight: 600; font-size: 13px; color: #e1e4e8; }
+        .fz-srv-item .srv-host { font-size: 11px; color: #8b949e; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+        .fz-srv-item .srv-group { font-size: 10px; color: #8b949e; background: #21262d; border: 1px solid #30363d; padding: 1px 6px; border-radius: 10px; display: inline-block; margin-top: 4px; }
+        .fz-srv-actions { display: flex; gap: 4px; margin-top: 6px; }
+
+        /* Terminal */
+        .xterm { height: 100%; }
+        .cm-editor { height: 100%; }
+        .cm-editor .cm-scroller { overflow: auto; }
+
+        /* Login overlay */
+        .fz-login-overlay { position: fixed; inset: 0; background: #0d1117; display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .fz-login-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 32px; width: 380px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
+        .fz-login-box h1 { text-align: center; font-size: 24px; margin-bottom: 4px; color: #e1e4e8; font-weight: 700; }
+        .fz-login-box .subtitle { text-align: center; color: #8b949e; font-size: 13px; margin-bottom: 24px; }
+        .fz-login-box label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px; font-weight: 500; }
+        .fz-login-box input { width: 100%; padding: 8px 12px; border: 1px solid #30363d; border-radius: 6px; font-size: 14px; margin-bottom: 14px; background: #0d1117; color: #e1e4e8; }
+        .fz-login-box input:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
+
+        /* Modal */
+        .fz-modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 50; display: flex; align-items: center; justify-content: center; }
+        .fz-modal { background: #161b22; border: 1px solid #30363d; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+        .fz-modal-title { border-bottom: 1px solid #30363d; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #e1e4e8; }
+        .fz-modal-body { padding: 16px; }
+        .fz-modal-body label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px; margin-top: 12px; font-weight: 500; }
+        .fz-modal-body label:first-child { margin-top: 0; }
+        .fz-modal-body input, .fz-modal-body select, .fz-modal-body textarea { width: 100%; padding: 6px 10px; border: 1px solid #30363d; border-radius: 6px; font-size: 13px; background: #0d1117; color: #e1e4e8; }
+        .fz-modal-body input:focus, .fz-modal-body select:focus, .fz-modal-body textarea:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
+        .fz-modal-footer { border-top: 1px solid #30363d; padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px; }
+        .fz-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* Context menu */
+        .fz-ctx { position: fixed; background: #161b22; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 60; min-width: 160px; font-size: 13px; padding: 4px; overflow: hidden; }
+        .fz-ctx-item { padding: 6px 12px; cursor: pointer; border-radius: 4px; color: #c9d1d9; }
+        .fz-ctx-item:hover { background: #1f6feb30; color: #58a6ff; }
+        .fz-ctx-sep { border-top: 1px solid #30363d; margin: 4px 0; }
+
+        /* Drag & drop overlay */
+        .fz-drop-active { outline: 2px dashed #58a6ff; outline-offset: -4px; background: rgba(88,166,255,0.05); }
+
+        /* Force flex display even when Alpine x-show toggles display */
+        .fz-flex-col { display: flex !important; flex-direction: column; flex: 1; min-height: 0; }
+        .fz-flex-col[style*="display: none"] { display: none !important; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+    </style>
+</head>
+<body>
+<script>
+window._showToastImpl = function(message, type) {
+    var bg = (type === 'error') ? '#f85149' : '#3fb950';
+    var el = document.createElement('div');
+    el.onclick = function() { el.remove(); };
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;padding:10px 20px;border-radius:8px;color:#fff;font-size:13px;font-family:Inter,sans-serif;max-width:420px;background:' + bg + ';box-shadow:0 8px 24px rgba(0,0,0,0.4);cursor:pointer;text-align:center;font-weight:500;';
+    el.innerText = message;
+    document.body.appendChild(el);
+    setTimeout(function() { el.style.transition = 'opacity 0.5s'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 600); }, 4000);
+};
+</script>
+
+<div x-data="app()" x-cloak>
+
+<!-- ======================== LOGIN ======================== -->
+<div x-show="!token" class="fz-login-overlay">
+    <div class="fz-login-box">
+        <h1>webgate</h1>
+        <div class="subtitle">Remote Server Management</div>
+        <form @submit.prevent="login()">
+            <label>Username</label>
+            <input type="text" x-model="username" required>
+            <label>Password</label>
+            <input type="password" x-model="password" required>
+            <button type="submit" class="fz-btn fz-btn-primary" style="width:100%;padding:6px;margin-top:4px">Sign In</button>
+        </form>
+        <div style="text-align:center;margin-top:10px;font-size:11px;color:#484f58">Default: admin / admin</div>
+    </div>
+</div>
+
+<!-- ======================== MAIN APP ======================== -->
+<div :style="token ? 'height:100vh;display:flex;flex-direction:column' : 'display:none'">
+
+    <!-- ---- Menu bar ---- -->
+    <div style="background:#161b22;border-bottom:1px solid #30363d;padding:6px 12px;display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-weight:700;font-size:15px;color:#e1e4e8;letter-spacing:-0.3px">webgate</span>
+            <button @click="view='dashboard'" class="fz-btn" style="font-size:11px">Site Manager</button>
+            <button x-show="currentUser?.is_admin" @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:11px">New Server</button>
+            <button x-show="currentUser?.is_admin" @click="openUsersModal()" class="fz-btn" style="font-size:11px">Users</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:#8b949e;font-weight:500" x-text="currentUser?.username"></span>
+            <button @click="logout()" class="fz-btn" style="font-size:11px">Logout</button>
+        </div>
+    </div>
+
+    <!-- ---- Quick connect bar (like FileZilla) ---- -->
+    <div class="fz-toolbar">
+        <label>Host:</label>
+        <input type="text" x-model="ssh.host" placeholder="hostname" style="width:160px">
+        <label>Username:</label>
+        <input type="text" x-model="ssh.username" placeholder="user" style="width:100px">
+        <label>Password:</label>
+        <input type="password" x-model="ssh.password" style="width:110px">
+        <label>Port:</label>
+        <input type="number" x-model="ssh.port" style="width:50px">
+        <button @click="quickConnect()" class="fz-btn fz-btn-success" style="font-size:11px">Quickconnect &#9654;</button>
+    </div>
+
+    <!-- ---- Log panel + splitter ---- -->
+    <div class="fz-log" id="fz-log-panel" x-ref="logPanel" :style="'height:'+logHeight+'px'">
+        <template x-for="(msg, i) in logMessages" :key="i">
+            <div>
+                <span class="msg-info" x-text="msg.time"></span>
+                <span :class="'msg-' + msg.type" x-text="msg.text"></span>
+            </div>
+        </template>
+    </div>
+    <div class="fz-splitter-v" id="fz-log-splitter"></div>
+
+    <!-- ---- Tab strip ---- -->
+    <div class="fz-tabs">
+        <div class="fz-tab" :class="view === 'dashboard' ? 'active' : ''" @click="view='dashboard'" style="padding-left:8px">
+            &#128187; Site Manager
+        </div>
+        <template x-for="tab in tabs" :key="tab.id">
+            <div class="fz-tab" :class="activeTabId === tab.id && view !== 'dashboard' ? 'active' : ''" @click="switchTab(tab.id)">
+                <span x-text="(tab.type==='terminal' ? '&#9000; ' : '&#128193; ') + tab.title"></span>
+                <span class="close" @click.stop="closeTab(tab.id)">&times;</span>
+            </div>
+        </template>
+    </div>
+
+    <!-- ---- Main content area ---- -->
+    <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+
+        <!-- ======== SITE MANAGER (dashboard) ======== -->
+        <div x-show="view === 'dashboard'" style="flex:1;display:flex;min-height:0">
+            <!-- Server list sidebar -->
+            <div style="width:260px;border-right:1px solid #30363d;display:flex;flex-direction:column;background:#0d1117;flex-shrink:0">
+                <div class="fz-panel-header">
+                    <span>Servers</span>
+                    <button @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:10px;padding:1px 6px">+</button>
+                </div>
+                <!-- Group filter -->
+                <div style="padding:6px 8px;border-bottom:1px solid #21262d">
+                    <select @change="selectedGroup=$event.target.value;loadServers()" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#c9d1d9">
+                        <option value="">All Groups</option>
+                        <template x-for="g in groups" :key="g">
+                            <option :value="g" x-text="g" :selected="selectedGroup===g"></option>
+                        </template>
+                    </select>
+                </div>
+                <!-- Search -->
+                <div style="padding:6px 8px;border-bottom:1px solid #21262d">
+                    <input type="text" x-model="searchQuery" @input="loadServers()" placeholder="Search..." style="width:100%;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#c9d1d9">
+                </div>
+                <!-- Server list -->
+                <div class="fz-serverlist">
+                    <template x-for="srv in filteredServers" :key="srv.id">
+                        <div class="fz-srv-item" :class="selectedServerId===srv.id ? 'active' : ''" @click="selectedServerId=srv.id">
+                            <div class="srv-name" x-text="srv.name"></div>
+                            <div class="srv-host" x-text="srv.username + '@' + srv.hostname + ':' + srv.port"></div>
+                            <span x-show="srv.group" class="srv-group" x-text="srv.group"></span>
+                            <div class="fz-srv-actions">
+                                <button @click.stop="openServerTerminal(srv)" class="fz-btn fz-btn-success" style="font-size:10px;padding:1px 6px">SSH</button>
+                                <button @click.stop="openServerFiles(srv)" class="fz-btn fz-btn-primary" style="font-size:10px;padding:1px 6px">SFTP</button>
+                                <button @click.stop="testServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px" :disabled="testingServerId===srv.id" x-text="testingServerId===srv.id ? '...' : 'Test'"></button>
+                                <button x-show="currentUser?.is_admin" @click.stop="editServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px">Edit</button>
+                                <button x-show="currentUser?.is_admin" @click.stop="confirmDeleteServer(srv)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 6px">Del</button>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="filteredServers.length===0" style="padding:20px;text-align:center;color:#484f58;font-size:12px">
+                        No servers. Click "New Server" to add one.
+                    </div>
+                </div>
+            </div>
+            <!-- Server detail / welcome -->
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#0d1117;color:#484f58">
+                <div style="text-align:center">
+                    <div style="font-size:48px;margin-bottom:12px;opacity:0.5">&#128187;</div>
+                    <div style="font-size:18px;font-weight:600;color:#8b949e">webgate</div>
+                    <div style="font-size:13px;margin-top:6px;color:#484f58">Select a server or use Quickconnect</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======== TAB CONTENT ======== -->
+        <template x-for="tab in tabs" :key="tab.id">
+            <div x-show="activeTabId===tab.id && view!=='dashboard'" class="fz-flex-col">
+
+                <!-- ---- Terminal tab ---- -->
+                <div x-show="tab.type==='terminal'" style="flex:1;min-height:0" :id="tab.id"></div>
+
+                <!-- ---- Files tab ---- -->
+                <div x-show="tab.type==='files'" class="fz-flex-col">
+
+                    <!-- Path bar -->
+                    <div class="fz-pathbar">
+                        <span class="path-label">Remote:</span>
+                        <input type="text" class="path-input" :value="tab.currentPath" @keydown.enter="navigateTo(tab, $event.target.value)">
+                        <button @click="loadDirectory(tab, tab.currentPath)" class="fz-btn" style="font-size:11px" title="Refresh">&#8635;</button>
+                        <button @click="navigateUp(tab)" class="fz-btn" style="font-size:11px" title="Parent directory">&#11014;</button>
+                        <button @click="promptMkdir(tab)" class="fz-btn" style="font-size:11px">New Folder</button>
+                        <label class="fz-btn" style="font-size:11px;cursor:pointer">
+                            Upload<input type="file" multiple style="display:none" @change="uploadFiles(tab,$event)">
+                        </label>
+                    </div>
+
+                    <!-- Breadcrumbs -->
+                    <div style="background:#0d1117;border-bottom:1px solid #21262d;padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:2px">
+                        <template x-for="(crumb, i) in getBreadcrumbs(tab)" :key="i">
+                            <span>
+                                <span x-show="i > 0" style="color:#484f58;margin:0 2px">/</span>
+                                <a href="#" @click.prevent="navigateTo(tab,crumb.path)" style="color:#58a6ff;text-decoration:none" x-text="crumb.name"></a>
+                            </span>
+                        </template>
+                    </div>
+
+                    <!-- File list or editor -->
+                    <div x-show="!tab.editingFile" class="fz-flex-col"
+                         @dragover.prevent="tab.dragOver=true" @dragleave.prevent="tab.dragOver=false"
+                         @drop.prevent="handleDrop(tab,$event)"
+                         :class="tab.dragOver ? 'fz-drop-active' : ''">
+                        <div class="fz-filelist">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="min-width:200px">Filename</th>
+                                        <th style="width:90px">Filesize</th>
+                                        <th style="width:100px">Filetype</th>
+                                        <th style="width:170px">Last modified</th>
+                                        <th style="width:100px">Permissions</th>
+                                        <th style="width:90px">Owner</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr x-show="tab.currentPath !== '/'" class="fz-row" @dblclick="navigateUp(tab)">
+                                        <td><span class="ficon">&#128193;</span><span class="fname fdir">..</span></td>
+                                        <td class="fmeta"></td><td class="fmeta">Directory</td><td class="fmeta"></td><td class="fmeta"></td><td class="fmeta"></td>
+                                    </tr>
+                                    <template x-for="f in tab.entries" :key="f.path">
+                                        <tr class="fz-row" @dblclick="f.is_dir ? navigateTo(tab,f.path) : editFile(tab,f)" @contextmenu.prevent="showCtxMenu($event,tab,f)">
+                                            <td>
+                                                <span class="ficon" x-text="f.is_dir ? '&#128193;' : '&#128196;'"></span>
+                                                <span class="fname" :class="f.is_dir ? 'fdir' : ''" @click="f.is_dir ? navigateTo(tab,f.path) : editFile(tab,f)" x-text="f.name"></span>
+                                            </td>
+                                            <td class="fmeta" x-text="f.is_dir ? '' : formatSize(f.size)"></td>
+                                            <td class="fmeta" x-text="f.is_dir ? 'Directory' : getFileType(f.name)"></td>
+                                            <td class="fmeta" x-text="f.modified ? new Date(f.modified).toLocaleString() : ''"></td>
+                                            <td class="fmeta" style="font-family:Consolas,monospace;font-size:11px" x-text="f.permissions"></td>
+                                            <td class="fmeta" x-text="f.owner || ''"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <div x-show="tab.entries && tab.entries.length===0 && !tab.loading" style="text-align:center;padding:40px;color:#484f58">Empty directory</div>
+                            <div x-show="tab.loading" style="text-align:center;padding:40px;color:#484f58">
+                                Retrieving directory listing...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Editor / Preview -->
+                    <div x-show="tab.editingFile" class="fz-flex-col">
+                        <div class="fz-editor-bar" style="flex-shrink:0">
+                            <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">
+                                <span x-show="tab._previewType">Preview: </span>
+                                <span x-show="!tab._previewType">Editing: </span>
+                                <strong x-text="tab.editingFile?.name"></strong>
+                            </span>
+                            <div style="display:flex;gap:4px;flex-shrink:0">
+                                <button x-show="!tab._previewType" @click="saveFile(tab)" class="fz-btn fz-btn-success" style="font-size:11px">Save</button>
+                                <button @click="closeEditor(tab)" class="fz-btn" style="font-size:11px">Close</button>
+                            </div>
+                        </div>
+                        <div :id="'editor-'+tab.id" style="flex:1;min-height:0;overflow:hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- No tabs placeholder -->
+        <div x-show="view!=='dashboard' && tabs.length===0" style="flex:1;display:flex;align-items:center;justify-content:center;color:#484f58;background:#0d1117">
+            No active sessions
+        </div>
+    </div>
+
+    <!-- ---- Status bar ---- -->
+    <div class="fz-statusbar">
+        <span x-text="statusLeft"></span>
+        <span x-text="statusRight"></span>
+    </div>
+</div>
+
+<!-- ======== Context menu ======== -->
+<div x-show="ctxMenu.show" @click.away="ctxMenu.show=false" class="fz-ctx" :style="'left:'+ctxMenu.x+'px;top:'+ctxMenu.y+'px'" x-transition>
+    <div class="fz-ctx-item" @click="ctxMenu.f && !ctxMenu.f.is_dir && downloadFile(ctxMenu.tab,ctxMenu.f); ctxMenu.show=false" x-show="ctxMenu.f && !ctxMenu.f.is_dir">Download</div>
+    <div class="fz-ctx-item" @click="ctxMenu.f && editFile(ctxMenu.tab,ctxMenu.f); ctxMenu.show=false" x-show="ctxMenu.f && !ctxMenu.f.is_dir">View/Edit</div>
+    <div class="fz-ctx-sep" x-show="ctxMenu.f && !ctxMenu.f.is_dir"></div>
+    <div class="fz-ctx-item" @click="ctxMenu.f && promptRename(ctxMenu.tab,ctxMenu.f); ctxMenu.show=false">Rename</div>
+    <div class="fz-ctx-item" style="color:#c00" @click="ctxMenu.f && confirmDeleteFile(ctxMenu.tab,ctxMenu.f); ctxMenu.show=false">Delete</div>
+</div>
+
+<!-- ======== SERVER MODAL ======== -->
+<div x-show="showServerModal" class="fz-modal-bg" @click.self="showServerModal=false">
+    <div class="fz-modal" @click.stop>
+        <div class="fz-modal-title" x-text="editingServerId ? 'Edit Server' : 'New Server'"></div>
+        <form @submit.prevent="saveServer()">
+            <div class="fz-modal-body">
+                <label>Display Name</label>
+                <input type="text" x-model="serverForm.name" required placeholder="prod-web-01">
+                <div class="fz-row-2col">
+                    <div><label>Hostname / IP</label><input type="text" x-model="serverForm.hostname" required placeholder="10.0.1.50"></div>
+                    <div><label>Port</label><input type="number" x-model="serverForm.port"></div>
+                </div>
+                <div class="fz-row-2col">
+                    <div><label>Username</label><input type="text" x-model="serverForm.username" required placeholder="deploy"></div>
+                    <div><label>Auth Method</label>
+                        <select x-model="serverForm.auth_method"><option value="password">Password</option><option value="key">Private Key</option></select>
+                    </div>
+                </div>
+                <div x-show="serverForm.auth_method==='password'">
+                    <label>Password</label><input type="password" x-model="serverForm.password">
+                </div>
+                <div x-show="serverForm.auth_method==='key'">
+                    <label>Private Key</label>
+                    <div style="display:flex;gap:4px;margin-bottom:4px;align-items:center">
+                        <label class="fz-btn" style="font-size:11px;cursor:pointer;margin:0">
+                            Upload key<input type="file" style="display:none" @change="loadKeyFile($event)">
+                        </label>
+                        <span style="font-size:11px;color:#888" x-text="serverForm.keyFileName || 'or paste below'"></span>
+                    </div>
+                    <textarea x-model="serverForm.private_key" rows="3" style="font-family:Consolas,monospace;font-size:11px" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+                </div>
+                <div class="fz-row-2col">
+                    <div><label>Group</label><input type="text" x-model="serverForm.group" placeholder="production"></div>
+                    <div><label>Tags (comma-sep)</label><input type="text" x-model="serverForm.tagsStr" placeholder="web, nginx"></div>
+                </div>
+                <label>Description</label>
+                <input type="text" x-model="serverForm.description" placeholder="Primary web server">
+            </div>
+            <div class="fz-modal-footer">
+                <button type="button" @click="showServerModal=false" class="fz-btn">Cancel</button>
+                <button type="submit" class="fz-btn fz-btn-primary" x-text="editingServerId ? 'Update' : 'Add Server'"></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ======== CHANGE PASSWORD MODAL (forced) ======== -->
+<div x-show="showChangePassword" class="fz-modal-bg">
+    <div class="fz-modal" style="width:380px">
+        <div class="fz-modal-title" style="background:#da3633;color:#fff;border-radius:12px 12px 0 0">Change Password Required</div>
+        <form @submit.prevent="doChangePassword()">
+            <div class="fz-modal-body">
+                <p style="font-size:13px;color:#8b949e;margin-bottom:16px">You are using the default password. Please set a new password to continue.</p>
+                <label>New Password</label>
+                <input type="password" x-model="newPassword" required minlength="4" style="margin-bottom:6px">
+                <label>Confirm Password</label>
+                <input type="password" x-model="confirmPassword" required minlength="4">
+            </div>
+            <div class="fz-modal-footer">
+                <button type="submit" class="fz-btn fz-btn-primary">Set Password</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ======== USERS MODAL (admin only) ======== -->
+<div x-show="showUsersModal" class="fz-modal-bg" @click.self="showUsersModal=false">
+    <div class="fz-modal" style="width:560px" @click.stop>
+        <div class="fz-modal-title">User Management</div>
+        <div class="fz-modal-body" style="padding:0">
+            <table style="width:100%;font-size:13px;border-collapse:collapse">
+                <thead>
+                    <tr style="background:#21262d;text-align:left">
+                        <th style="padding:8px 12px;border-bottom:1px solid #30363d;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Username</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid #30363d;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Role</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid #30363d;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Allowed Groups</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid #30363d;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;width:100px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="u in managedUsers" :key="u.id">
+                        <tr style="border-bottom:1px solid #21262d">
+                            <td style="padding:8px 12px;color:#e1e4e8;font-weight:500" x-text="u.username"></td>
+                            <td style="padding:8px 12px">
+                                <span x-show="u.is_admin" style="color:#3fb950;font-weight:600;font-size:11px;background:#3fb95020;padding:2px 8px;border-radius:10px">admin</span>
+                                <span x-show="!u.is_admin" style="color:#8b949e;font-size:11px">user</span>
+                            </td>
+                            <td style="padding:8px 12px;font-size:12px;color:#8b949e" x-text="u.is_admin ? 'all' : (u.allowed_groups.length ? u.allowed_groups.join(', ') : 'none')"></td>
+                            <td style="padding:8px 12px">
+                                <div x-show="!u.is_admin" style="display:flex;gap:4px">
+                                    <button @click="editUserGroups(u)" class="fz-btn" style="font-size:10px;padding:1px 4px">Groups</button>
+                                    <button @click="confirmDeleteUser(u)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 4px">Del</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <!-- Add user form -->
+        <div style="border-top:1px solid #30363d;padding:12px 16px;background:#0d1117">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:#e1e4e8">Add User</div>
+            <form @submit.prevent="addUser()" style="display:flex;gap:6px;align-items:end">
+                <div><label style="font-size:10px;color:#8b949e;font-weight:500">Username</label><input type="text" x-model="newUser.username" required style="width:110px;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e1e4e8"></div>
+                <div><label style="font-size:10px;color:#8b949e;font-weight:500">Password</label><input type="password" x-model="newUser.password" required style="width:110px;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e1e4e8"></div>
+                <div><label style="font-size:10px;color:#8b949e;font-weight:500">Groups (comma-sep)</label><input type="text" x-model="newUser.groupsStr" placeholder="prod, staging" style="width:160px;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e1e4e8"></div>
+                <button type="submit" class="fz-btn fz-btn-primary" style="font-size:12px">Add</button>
+            </form>
+        </div>
+        <div class="fz-modal-footer">
+            <button @click="showUsersModal=false" class="fz-btn">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- ======== EDIT GROUPS MODAL ======== -->
+<div x-show="showGroupsModal" class="fz-modal-bg" @click.self="showGroupsModal=false">
+    <div class="fz-modal" style="width:400px" @click.stop>
+        <div class="fz-modal-title" x-text="'Edit groups: ' + (editingUserObj?.username || '')"></div>
+        <form @submit.prevent="saveUserGroups()">
+            <div class="fz-modal-body">
+                <label>Allowed Groups (comma-separated)</label>
+                <input type="text" x-model="editingGroupsStr" placeholder="production, staging, development">
+                <p style="font-size:12px;color:#484f58;margin-top:8px">User will only see servers in these groups. Leave empty to deny all access.</p>
+                <div x-show="groups.length" style="margin-top:10px">
+                    <span style="font-size:12px;color:#8b949e">Available groups: </span>
+                    <template x-for="g in groups" :key="g">
+                        <button type="button" @click="toggleGroup(g)" class="fz-btn" style="font-size:10px;padding:1px 6px;margin:1px" x-text="g"></button>
+                    </template>
+                </div>
+            </div>
+            <div class="fz-modal-footer">
+                <button type="button" @click="showGroupsModal=false" class="fz-btn">Cancel</button>
+                <button type="submit" class="fz-btn fz-btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</div><!-- x-data -->
+
+<script>
+let _tabCounter = 0;
+
+function app() {
+    return {
+        token: localStorage.getItem('webgate_token') || '',
+        currentUser: null, username: '', password: '',
+        showChangePassword: false, newPassword: '', confirmPassword: '',
+        showUsersModal: false, showGroupsModal: false,
+        managedUsers: [], newUser: { username: '', password: '', groupsStr: '' },
+        editingUserObj: null, editingGroupsStr: '',
+        view: 'dashboard',
+        ssh: { host: '', port: 22, username: '', password: '' },
+        servers: [], groups: [], selectedGroup: '', searchQuery: '',
+        selectedServerId: null,
+        showServerModal: false, editingServerId: null, testingServerId: null,
+        serverForm: { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', group: '', tagsStr: '', description: '' },
+        tabs: [], activeTabId: null,
+        logMessages: [],
+        logHeight: 80,
+        ctxMenu: { show: false, x: 0, y: 0, tab: null, f: null },
+
+        get filteredServers() {
+            let s = this.servers;
+            if (this.selectedGroup) s = s.filter(srv => srv.group === this.selectedGroup);
+            return s;
+        },
+        get statusLeft() {
+            const tab = this.tabs.find(t => t.id === this.activeTabId);
+            if (!tab) return 'Ready';
+            if (tab.type === 'terminal') return 'SSH: ' + tab.title;
+            if (tab.type === 'files') {
+                const n = tab.entries ? tab.entries.length : 0;
+                const dirs = tab.entries ? tab.entries.filter(e => e.is_dir).length : 0;
+                return `${n} items (${dirs} directories, ${n - dirs} files)`;
+            }
+            return '';
+        },
+        get statusRight() {
+            const tab = this.tabs.find(t => t.id === this.activeTabId);
+            if (tab?.type === 'files') return tab.currentPath || '/';
+            return '';
+        },
+
+        async init() {
+            if (this.token) { await this.fetchMe(); await this.loadServers(); await this.loadGroups(); }
+            this.log('status', 'webgate initialized');
+        },
+
+        log(type, text) {
+            const now = new Date();
+            const time = now.toLocaleTimeString();
+            this.logMessages.push({ time, type, text });
+            if (this.logMessages.length > 200) this.logMessages.splice(0, 50);
+            this.$nextTick(() => { const el = this.$refs.logPanel; if (el) el.scrollTop = el.scrollHeight; });
+        },
+
+        showToast(message, type = 'success') {
+            window._showToastImpl(message, type);
+            this.log(type === 'error' ? 'error' : 'status', message);
+        },
+
+        async apiCall(url, options = {}) {
+            const headers = { ...options.headers };
+            if (!options.raw) headers['Content-Type'] = 'application/json';
+            if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+            const resp = await fetch(url, { ...options, headers });
+            if (!resp.ok) { const err = await resp.json().catch(() => ({ detail: 'Request failed' })); throw new Error(err.detail || 'Request failed'); }
+            if (resp.status === 204) return null;
+            return resp.json();
+        },
+
+        // Auth
+        async login() {
+            try {
+                const data = await this.apiCall('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: this.username, password: this.password }) });
+                this.token = data.access_token; localStorage.setItem('webgate_token', this.token);
+                await this.fetchMe();
+                if (this.currentUser?.must_change_password) { this.showChangePassword = true; return; }
+                await this.loadServers(); await this.loadGroups();
+                this.username = ''; this.password = '';
+                this.log('status', 'Logged in as ' + this.currentUser?.username);
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async fetchMe() { try { this.currentUser = await this.apiCall('/api/auth/me'); } catch { this.logout(); } },
+        async doChangePassword() {
+            if (this.newPassword !== this.confirmPassword) { this.showToast('Passwords do not match', 'error'); return; }
+            try {
+                await this.apiCall('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ new_password: this.newPassword }) });
+                this.showChangePassword = false; this.newPassword = ''; this.confirmPassword = '';
+                await this.fetchMe(); await this.loadServers(); await this.loadGroups();
+                this.username = ''; this.password = '';
+                this.showToast('Password changed');
+                this.log('status', 'Logged in as ' + this.currentUser?.username);
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        logout() { this.token = ''; this.currentUser = null; localStorage.removeItem('webgate_token'); this.tabs.forEach(t => this._destroyTab(t)); this.tabs = []; this.activeTabId = null; this.view = 'dashboard'; },
+
+        // Servers
+        async loadServers() { try { let url = '/api/servers'; if (this.searchQuery) url += `?search=${encodeURIComponent(this.searchQuery)}`; this.servers = await this.apiCall(url); } catch (e) { this.showToast(e.message, 'error'); } },
+        async loadGroups() { try { this.groups = await this.apiCall('/api/servers/groups'); } catch {} },
+        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '' }; },
+        loadKeyFile(event) {
+            const file = event.target.files?.[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => { this.serverForm.private_key = e.target.result; this.serverForm.keyFileName = file.name; };
+            reader.readAsText(file); event.target.value = '';
+        },
+        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description }; this.showServerModal = true; },
+        async saveServer() {
+            const tags = this.serverForm.tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+            const body = { ...this.serverForm, tags }; delete body.tagsStr; delete body.keyFileName;
+            try {
+                if (this.editingServerId) { await this.apiCall(`/api/servers/${this.editingServerId}`, { method: 'PUT', body: JSON.stringify(body) }); this.showToast('Server updated'); }
+                else { await this.apiCall('/api/servers', { method: 'POST', body: JSON.stringify(body) }); this.showToast('Server added'); }
+                this.showServerModal = false; await this.loadServers(); await this.loadGroups();
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async testServer(srv) {
+            this.testingServerId = srv.id;
+            this.log('cmd', `Testing connection to ${srv.hostname}:${srv.port}...`);
+            try {
+                const result = await this.apiCall(`/api/servers/${srv.id}/test`, { method: 'POST' });
+                this.log(result.success ? 'status' : 'error', `${srv.name}: ${result.message}`);
+                this.showToast(`${srv.name}: ${result.message}`, result.success ? 'success' : 'error');
+                if (result.success) await this.loadServers();
+            } catch (e) { this.showToast(e.message, 'error'); }
+            this.testingServerId = null;
+        },
+        async confirmDeleteServer(srv) { if (!confirm(`Delete "${srv.name}"?`)) return; try { await this.apiCall(`/api/servers/${srv.id}`, { method: 'DELETE' }); this.showToast('Deleted'); await this.loadServers(); await this.loadGroups(); } catch (e) { this.showToast(e.message, 'error'); } },
+
+        // Tabs
+        _createTab(type, title, meta = {}) {
+            const id = 'tab-' + (++_tabCounter);
+            const tab = { id, type, title, ...meta };
+            this.tabs.push(tab);
+            this.activeTabId = id;
+            this.view = 'active';
+            return this.tabs[this.tabs.length - 1];
+        },
+        switchTab(id) { this.activeTabId = id; this.view = 'active'; const tab = this.tabs.find(t => t.id === id); if (tab?.type === 'terminal' && tab._fitAddon) { this.$nextTick(() => tab._fitAddon.fit()); } },
+        closeTab(id) {
+            const tab = this.tabs.find(t => t.id === id);
+            if (tab) { this._destroyTab(tab); this.log('status', `Closed: ${tab.title}`); }
+            this.tabs = this.tabs.filter(t => t.id !== id);
+            if (this.activeTabId === id) {
+                if (this.tabs.length) { this.activeTabId = this.tabs[this.tabs.length - 1].id; }
+                else { this.activeTabId = null; this.view = 'dashboard'; }
+            }
+        },
+        _destroyTab(tab) {
+            if (tab.type === 'terminal') { tab._resizeObserver?.disconnect(); if (tab._ws?.readyState === WebSocket.OPEN) tab._ws.close(); tab._term?.dispose(); }
+            if (tab._editorView) { tab._editorView.destroy(); tab._editorView = null; }
+        },
+
+        // Terminal
+        openServerTerminal(srv) {
+            this.log('cmd', `Connecting to ${srv.hostname}:${srv.port}...`);
+            const tab = this._createTab('terminal', `${srv.name}`, { serverId: srv.id });
+            this.$nextTick(() => this._initTerminal(tab, `/api/ws/terminal/${srv.id}`, {}));
+        },
+        quickConnect() {
+            if (!this.ssh.host || !this.ssh.username) { this.showToast('Host and username required', 'error'); return; }
+            this.log('cmd', `Connecting to ${this.ssh.host}:${this.ssh.port}...`);
+            const tab = this._createTab('terminal', `${this.ssh.username}@${this.ssh.host}`);
+            const connInfo = { host: this.ssh.host, port: parseInt(this.ssh.port) || 22, username: this.ssh.username, password: this.ssh.password || null };
+            this.$nextTick(() => this._initTerminal(tab, '/api/ws/terminal/quick', connInfo));
+        },
+        _initTerminal(tab, wsPath, connInfo) {
+            const container = document.getElementById(tab.id);
+            if (!container) return;
+            container.innerHTML = '';
+            const term = new Terminal({ cursorBlink: true, fontSize: 13, fontFamily: '"Consolas","Courier New",monospace', theme: { background: '#1a1b26', foreground: '#c0caf5', cursor: '#c0caf5', selectionBackground: '#33467c' } });
+            const fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon); term.loadAddon(new WebLinksAddon.WebLinksAddon()); term.open(container);
+            tab._term = term; tab._fitAddon = fitAddon;
+            requestAnimationFrame(() => {
+                fitAddon.fit();
+                const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const ws = new WebSocket(`${protocol}//${location.host}${wsPath}?token=${encodeURIComponent(this.token)}`);
+                tab._ws = ws;
+                ws.onopen = () => { ws.send(JSON.stringify({ ...connInfo, cols: term.cols, rows: term.rows })); this.log('status', `Connected: ${tab.title}`); };
+                ws.onmessage = (e) => term.write(e.data);
+                ws.onerror = () => this.log('error', `Connection error: ${tab.title}`);
+                ws.onclose = (e) => { if (e.code === 4001) this.log('error', 'Authentication failed'); this.log('status', `Disconnected: ${tab.title}`); term.write('\r\n\x1b[31m--- Disconnected ---\x1b[0m\r\n'); };
+                term.onData(data => { if (ws.readyState === WebSocket.OPEN) ws.send(data); });
+                term.onResize(({ cols, rows }) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'resize', cols, rows })); });
+                const ro = new ResizeObserver(() => fitAddon.fit()); ro.observe(container);
+                tab._resizeObserver = ro;
+            });
+        },
+
+        // Files
+        openServerFiles(srv) {
+            this.log('cmd', `Opening SFTP to ${srv.hostname}...`);
+            const tab = this._createTab('files', `${srv.name}`, {
+                serverId: srv.id, currentPath: '/', entries: [], loading: false, dragOver: false, editingFile: null, _editorView: null
+            });
+            this.loadDirectory(tab, '/');
+        },
+        getBreadcrumbs(tab) {
+            const parts = (tab.currentPath || '/').split('/').filter(Boolean);
+            const crumbs = [{ name: '/', path: '/' }];
+            let acc = '';
+            for (const p of parts) { acc += '/' + p; crumbs.push({ name: p, path: acc }); }
+            return crumbs;
+        },
+        async loadDirectory(tab, path) {
+            tab.loading = true;
+            this.log('cmd', `Listing directory "${path}"...`);
+            try {
+                const data = await this.apiCall(`/api/files/${tab.serverId}/ls?path=${encodeURIComponent(path)}`);
+                tab.entries = data.entries; tab.currentPath = data.path;
+                this.log('status', `Directory listing of "${data.path}" — ${data.entries.length} items`);
+            } catch (e) { this.showToast(e.message, 'error'); }
+            tab.loading = false;
+        },
+        navigateTo(tab, path) { tab.editingFile = null; this.loadDirectory(tab, path); },
+        navigateUp(tab) { const parts = tab.currentPath.split('/').filter(Boolean); parts.pop(); this.navigateTo(tab, '/' + parts.join('/')); },
+        formatSize(bytes) { if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB'; return (bytes / 1073741824).toFixed(1) + ' GB'; },
+        getFileType(name) {
+            const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+            const types = { pdf:'PDF', png:'PNG Image', jpg:'JPEG Image', jpeg:'JPEG Image', gif:'GIF Image', svg:'SVG Image', webp:'WebP Image',
+                txt:'Text', md:'Markdown', json:'JSON', xml:'XML', html:'HTML', css:'CSS', js:'JavaScript', py:'Python', sh:'Shell Script',
+                conf:'Config', cfg:'Config', ini:'INI', yaml:'YAML', yml:'YAML', toml:'TOML', log:'Log', csv:'CSV', sql:'SQL', zip:'ZIP Archive',
+                gz:'GZ Archive', tar:'TAR Archive', deb:'DEB Package', rpm:'RPM Package' };
+            return types[ext] || (ext ? ext.toUpperCase() + ' file' : 'File');
+        },
+        showCtxMenu(event, tab, f) {
+            this.ctxMenu = { show: true, x: event.clientX, y: event.clientY, tab, f };
+        },
+
+        async downloadFile(tab, f) {
+            this.log('cmd', `Downloading "${f.name}"...`);
+            try {
+                const resp = await fetch(`/api/files/${tab.serverId}/download?path=${encodeURIComponent(f.path)}`, { headers: { Authorization: `Bearer ${this.token}` } });
+                if (!resp.ok) throw new Error('Download failed');
+                const blob = await resp.blob(); const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
+                this.log('status', `Downloaded "${f.name}"`);
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async uploadFiles(tab, event) {
+            const files = event.target.files; if (!files.length) return;
+            const formData = new FormData(); for (const f of files) formData.append('files', f);
+            this.log('cmd', `Uploading ${files.length} file(s)...`);
+            try {
+                const resp = await fetch(`/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, { method: 'POST', headers: { Authorization: `Bearer ${this.token}` }, body: formData });
+                if (!resp.ok) throw new Error('Upload failed');
+                const data = await resp.json(); this.showToast(`Uploaded ${data.count} file(s)`); await this.loadDirectory(tab, tab.currentPath);
+            } catch (e) { this.showToast(e.message, 'error'); }
+            event.target.value = '';
+        },
+        async handleDrop(tab, event) {
+            tab.dragOver = false;
+            const files = event.dataTransfer?.files; if (!files?.length) return;
+            const formData = new FormData(); for (const f of files) formData.append('files', f);
+            this.log('cmd', `Uploading ${files.length} dropped file(s)...`);
+            try {
+                const resp = await fetch(`/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, { method: 'POST', headers: { Authorization: `Bearer ${this.token}` }, body: formData });
+                if (!resp.ok) throw new Error('Upload failed');
+                const data = await resp.json(); this.showToast(`Uploaded ${data.count} file(s)`); await this.loadDirectory(tab, tab.currentPath);
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        _isPreviewable(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            if (ext === 'pdf') return 'pdf';
+            if (['png','jpg','jpeg','gif','bmp','svg','webp','ico'].includes(ext)) return 'image';
+            return null;
+        },
+        async editFile(tab, f) {
+            const previewType = this._isPreviewable(f.name);
+            if (previewType) {
+                this.log('cmd', `Loading preview: "${f.name}"...`);
+                try {
+                    const resp = await fetch(`/api/files/${tab.serverId}/download?path=${encodeURIComponent(f.path)}`, { headers: { Authorization: `Bearer ${this.token}` } });
+                    if (!resp.ok) throw new Error('Failed to load file');
+                    const rawBlob = await resp.blob();
+                    const mimeMap = { pdf:'application/pdf', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', bmp:'image/bmp', svg:'image/svg+xml', webp:'image/webp', ico:'image/x-icon' };
+                    const ext = f.name.split('.').pop().toLowerCase();
+                    const blob = new Blob([rawBlob], { type: mimeMap[ext] || rawBlob.type });
+                    if (tab._previewUrl) URL.revokeObjectURL(tab._previewUrl);
+                    tab._previewUrl = URL.createObjectURL(blob);
+                    tab._previewType = previewType;
+                    tab.editingFile = f;
+                    this.$nextTick(() => {
+                        const container = document.getElementById('editor-' + tab.id);
+                        if (!container) return; container.innerHTML = '';
+                        if (previewType === 'pdf') {
+                            container.innerHTML = `<iframe src="${tab._previewUrl}" style="width:100%;height:100%;border:0" title="${f.name}"></iframe>`;
+                        } else {
+                            container.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#0d1117;overflow:auto;padding:16px"><img src="${tab._previewUrl}" alt="${f.name}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4)"></div>`;
+                        }
+                    });
+                } catch (e) { this.showToast(e.message, 'error'); }
+                return;
+            }
+            this.log('cmd', `Opening "${f.name}" for editing...`);
+            try {
+                const data = await this.apiCall(`/api/files/${tab.serverId}/read?path=${encodeURIComponent(f.path)}`);
+                tab._previewType = null;
+                tab.editingFile = f;
+                this.$nextTick(() => {
+                    const container = document.getElementById('editor-' + tab.id);
+                    if (!container) return; container.innerHTML = '';
+                    if (window.CM) {
+                        if (tab._editorView) tab._editorView.destroy();
+                        tab._editorView = new window.CM.EditorView({
+                            doc: data.content,
+                            extensions: [
+                                window.CM.basicSetup,
+                                window.CM.oneDark,
+                                window.CM.EditorView.theme({ '&': { height: '100%' }, '.cm-scroller': { overflow: 'auto' } }),
+                            ],
+                            parent: container,
+                        });
+                    } else {
+                        container.innerHTML = `<textarea style="width:100%;height:100%;background:#fff;color:#1a1a1a;padding:8px;font-family:Consolas,monospace;font-size:13px;border:0;resize:none;outline:none" id="fallback-${tab.id}">${data.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>`;
+                    }
+                });
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async saveFile(tab) {
+            let content;
+            if (tab._editorView) content = tab._editorView.state.doc.toString();
+            else { const ta = document.getElementById('fallback-' + tab.id); content = ta?.value || ''; }
+            try { await this.apiCall(`/api/files/${tab.serverId}/write`, { method: 'PUT', body: JSON.stringify({ path: tab.editingFile.path, content }) }); this.showToast('File saved'); } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        closeEditor(tab) { if (tab._editorView) { tab._editorView.destroy(); tab._editorView = null; } if (tab._previewUrl) { URL.revokeObjectURL(tab._previewUrl); tab._previewUrl = null; } tab._previewType = null; tab.editingFile = null; },
+        async promptMkdir(tab) { const name = prompt('New folder name:'); if (!name) return; const path = tab.currentPath === '/' ? '/' + name : tab.currentPath + '/' + name; try { await this.apiCall(`/api/files/${tab.serverId}/mkdir`, { method: 'POST', body: JSON.stringify({ path }) }); this.showToast('Directory created'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },
+        async promptRename(tab, f) { const n = prompt('New name:', f.name); if (!n || n === f.name) return; const dir = f.path.substring(0, f.path.lastIndexOf('/')); try { await this.apiCall(`/api/files/${tab.serverId}/rename`, { method: 'POST', body: JSON.stringify({ old_path: f.path, new_path: dir + '/' + n }) }); this.showToast('Renamed'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },
+        async confirmDeleteFile(tab, f) { if (!confirm(`Delete "${f.name}"?`)) return; try { await this.apiCall(`/api/files/${tab.serverId}/delete?path=${encodeURIComponent(f.path)}`, { method: 'DELETE' }); this.showToast('Deleted'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },
+
+        // Admin: user management
+        async openUsersModal() {
+            try { this.managedUsers = await this.apiCall('/api/auth/users'); } catch (e) { this.showToast(e.message, 'error'); return; }
+            this.showUsersModal = true;
+        },
+        async addUser() {
+            const groups = this.newUser.groupsStr.split(',').map(g => g.trim()).filter(Boolean);
+            try {
+                await this.apiCall('/api/auth/users', { method: 'POST', body: JSON.stringify({ username: this.newUser.username, password: this.newUser.password, allowed_groups: groups }) });
+                this.showToast('User created');
+                this.newUser = { username: '', password: '', groupsStr: '' };
+                this.managedUsers = await this.apiCall('/api/auth/users');
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        editUserGroups(u) {
+            this.editingUserObj = u;
+            this.editingGroupsStr = u.allowed_groups.join(', ');
+            this.showGroupsModal = true;
+        },
+        toggleGroup(g) {
+            const groups = this.editingGroupsStr.split(',').map(s => s.trim()).filter(Boolean);
+            if (groups.includes(g)) { this.editingGroupsStr = groups.filter(x => x !== g).join(', '); }
+            else { groups.push(g); this.editingGroupsStr = groups.join(', '); }
+        },
+        async saveUserGroups() {
+            const groups = this.editingGroupsStr.split(',').map(g => g.trim()).filter(Boolean);
+            try {
+                await this.apiCall(`/api/auth/users/${this.editingUserObj.id}/groups`, { method: 'PUT', body: JSON.stringify({ allowed_groups: groups }) });
+                this.showToast('Groups updated');
+                this.showGroupsModal = false;
+                this.managedUsers = await this.apiCall('/api/auth/users');
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async confirmDeleteUser(u) {
+            if (!confirm(`Delete user "${u.username}"?`)) return;
+            try { await this.apiCall(`/api/auth/users/${u.id}`, { method: 'DELETE' }); this.showToast('User deleted'); this.managedUsers = await this.apiCall('/api/auth/users'); } catch (e) { this.showToast(e.message, 'error'); }
+        },
+    };
+}
+</script>
+<script>
+// Log splitter drag logic (vanilla JS, independent of Alpine)
+document.addEventListener('DOMContentLoaded', () => {
+    const splitter = document.getElementById('fz-log-splitter');
+    if (!splitter) return;
+    splitter.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const panel = document.getElementById('fz-log-panel');
+        if (!panel) return;
+        const startY = e.clientY;
+        const startH = panel.offsetHeight;
+        splitter.style.background = '#4a90d9';
+        const onMove = (ev) => {
+            const newH = Math.max(20, Math.min(400, startH + ev.clientY - startY));
+            panel.style.height = newH + 'px';
+            // Sync with Alpine
+            const appEl = document.querySelector('[x-data]');
+            if (appEl && appEl._x_dataStack) appEl._x_dataStack[0].logHeight = newH;
+        };
+        const onUp = () => {
+            splitter.style.background = '';
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    });
+});
+</script>
+</body>
+</html>

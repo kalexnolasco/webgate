@@ -1,0 +1,24 @@
+services:
+  webgate:
+    build: .
+    container_name: webgate
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    volumes:
+      - webgate-data:/data
+    environment:
+      WEBGATE_SECRET_KEY: "dev-secret-key-not-for-production"
+      WEBGATE_FIRST_RUN: "true"
+    depends_on:
+      - ssh-demo
+
+  ssh-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.ssh-demo
+    container_name: ssh-demo
+    hostname: demo-server
+
+volumes:
+  webgate-data:

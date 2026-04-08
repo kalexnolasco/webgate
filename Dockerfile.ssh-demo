@@ -1,0 +1,29 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssh-server procps curl nano htop tree && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN mkdir /run/sshd && \
+    echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+
+# Create demo user
+RUN useradd -m -s /bin/bash demo && \
+    echo 'demo:demo' | chpasswd && \
+    echo 'root:root' | chpasswd
+
+# Create some sample files for SFTP browsing
+RUN mkdir -p /home/demo/projects/webgate /home/demo/projects/api-server \
+             /home/demo/documents /home/demo/logs /home/demo/scripts && \
+    echo '# webgate\nSelf-hosted SSH + SFTP manager' > /home/demo/projects/webgate/README.md && \
+    echo '{"name":"api-server","version":"2.1.0"}' > /home/demo/projects/api-server/package.json && \
+    echo 'Hello from demo server!' > /home/demo/documents/welcome.txt && \
+    echo '2026-04-08 10:00:00 INFO  Server started on port 8080' > /home/demo/logs/app.log && \
+    echo '#!/bin/bash\necho "Deploy complete"' > /home/demo/scripts/deploy.sh && \
+    chmod +x /home/demo/scripts/deploy.sh && \
+    chown -R demo:demo /home/demo
+
+EXPOSE 22
+
+CMD ["/usr/sbin/sshd", "-D"]
