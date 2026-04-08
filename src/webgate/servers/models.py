@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pydantic import BaseModel
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from webgate.db.engine import Base
@@ -21,6 +21,9 @@ class Server(Base):
     group: Mapped[str] = mapped_column(String(255), default="")
     tags: Mapped[str] = mapped_column(Text, default="[]")  # JSON array stored as text
     description: Mapped[str] = mapped_column(Text, default="")
+    ssh_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    sftp_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    sftp_allowed_paths: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of paths
     last_connected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
@@ -37,6 +40,9 @@ class ServerCreate(BaseModel):
     group: str = ""
     tags: list[str] = []
     description: str = ""
+    ssh_enabled: bool = True
+    sftp_enabled: bool = True
+    sftp_allowed_paths: list[str] = []
 
 
 class ServerUpdate(BaseModel):
@@ -50,6 +56,9 @@ class ServerUpdate(BaseModel):
     group: str | None = None
     tags: list[str] | None = None
     description: str | None = None
+    ssh_enabled: bool | None = None
+    sftp_enabled: bool | None = None
+    sftp_allowed_paths: list[str] | None = None
 
 
 class ServerOut(BaseModel):
@@ -62,6 +71,9 @@ class ServerOut(BaseModel):
     group: str
     tags: list[str]
     description: str
+    ssh_enabled: bool
+    sftp_enabled: bool
+    sftp_allowed_paths: list[str]
     last_connected_at: datetime | None
     created_at: datetime
 

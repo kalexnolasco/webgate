@@ -13,6 +13,6 @@ CLAUDE.md
 CLAUDE.local.md
 .env
 docs/
-README.md
+ROADMAP.md
 *.png
 .playwright-cli/

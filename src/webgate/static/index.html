@@ -268,9 +268,9 @@ window._showToastImpl = function(message, type) {
                             </div>
                             <span x-show="srv.group" class="srv-group" x-text="srv.group"></span>
                             <div class="fz-srv-actions">
-                                <button @click.stop="openServerTerminal(srv)" class="fz-btn fz-btn-success" style="font-size:10px;padding:1px 6px">SSH</button>
-                                <button @click.stop="openServerFiles(srv)" class="fz-btn fz-btn-primary" style="font-size:10px;padding:1px 6px">SFTP</button>
-                                <button @click.stop="openSplit(srv)" class="fz-btn" style="font-size:10px;padding:1px 5px" title="SSH + SFTP split">Split</button>
+                                <button @click.stop="openServerTerminal(srv)" class="fz-btn fz-btn-success" style="font-size:10px;padding:1px 6px" :disabled="srv.ssh_enabled===false" :title="srv.ssh_enabled===false ? 'SSH disabled for this server' : ''">SSH</button>
+                                <button @click.stop="openServerFiles(srv)" class="fz-btn fz-btn-primary" style="font-size:10px;padding:1px 6px" :disabled="srv.sftp_enabled===false" :title="srv.sftp_enabled===false ? 'SFTP disabled for this server' : ''">SFTP</button>
+                                <button @click.stop="openSplit(srv)" class="fz-btn" style="font-size:10px;padding:1px 5px" :disabled="srv.ssh_enabled===false && srv.sftp_enabled===false" title="SSH + SFTP split">Split</button>
                                 <button @click.stop="testServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px" :disabled="testingServerId===srv.id" x-text="testingServerId===srv.id ? '...' : 'Test'"></button>
                                 <button x-show="currentUser?.is_admin" @click.stop="editServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px">Edit</button>
                                 <button x-show="currentUser?.is_admin" @click.stop="confirmDeleteServer(srv)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 6px">Del</button>
@@ -471,6 +471,22 @@ window._showToastImpl = function(message, type) {
                 </div>
                 <label>Description</label>
                 <input type="text" x-model="serverForm.description" placeholder="Primary web server">
+                <!-- Access Control -->
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid #30363d">
+                    <label style="font-size:12px;font-weight:600;color:#c9d1d9;margin-bottom:8px">Access Control</label>
+                    <div class="fz-row-2col" style="margin-top:6px">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#e1e4e8">
+                            <input type="checkbox" x-model="serverForm.ssh_enabled" style="width:auto;accent-color:#3fb950"> Enable SSH Terminal
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#e1e4e8">
+                            <input type="checkbox" x-model="serverForm.sftp_enabled" style="width:auto;accent-color:#58a6ff"> Enable SFTP Browser
+                        </label>
+                    </div>
+                    <div x-show="serverForm.sftp_enabled" style="margin-top:8px">
+                        <label>SFTP Allowed Paths <span style="color:#484f58;font-weight:400">(one per line, empty = unrestricted)</span></label>
+                        <textarea x-model="serverForm.sftp_allowed_paths_str" rows="3" style="font-family:Consolas,monospace;font-size:11px" placeholder="/home/deploy&#10;/var/log&#10;/etc/nginx"></textarea>
+                    </div>
+                </div>
             </div>
             <div class="fz-modal-footer">
                 <button type="button" @click="showServerModal=false" class="fz-btn">Cancel</button>
@@ -716,17 +732,18 @@ function app() {
         // Servers
         async loadServers() { try { let url = '/api/servers'; if (this.searchQuery) url += `?search=${encodeURIComponent(this.searchQuery)}`; this.servers = await this.apiCall(url); } catch (e) { this.showToast(e.message, 'error'); } },
         async loadGroups() { try { this.groups = await this.apiCall('/api/servers/groups'); } catch {} },
-        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '' }; },
+        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '', ssh_enabled: true, sftp_enabled: true, sftp_allowed_paths_str: '' }; },
         loadKeyFile(event) {
             const file = event.target.files?.[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = (e) => { this.serverForm.private_key = e.target.result; this.serverForm.keyFileName = file.name; };
             reader.readAsText(file); event.target.value = '';
         },
-        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description }; this.showServerModal = true; },
+        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description, ssh_enabled: srv.ssh_enabled !== false, sftp_enabled: srv.sftp_enabled !== false, sftp_allowed_paths_str: (srv.sftp_allowed_paths || []).join('\n') }; this.showServerModal = true; },
         async saveServer() {
             const tags = this.serverForm.tagsStr.split(',').map(t => t.trim()).filter(Boolean);
-            const body = { ...this.serverForm, tags }; delete body.tagsStr; delete body.keyFileName;
+            const sftp_allowed_paths = (this.serverForm.sftp_allowed_paths_str || '').split('\n').map(p => p.trim()).filter(Boolean);
+            const body = { ...this.serverForm, tags, sftp_allowed_paths }; delete body.tagsStr; delete body.keyFileName; delete body.sftp_allowed_paths_str;
             try {
                 if (this.editingServerId) { await this.apiCall(`/api/servers/${this.editingServerId}`, { method: 'PUT', body: JSON.stringify(body) }); this.showToast('Server updated'); }
                 else { await this.apiCall('/api/servers', { method: 'POST', body: JSON.stringify(body) }); this.showToast('Server added'); }

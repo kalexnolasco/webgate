@@ -81,6 +81,10 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
             await ws.close(code=4004, reason="Server not found")
             return
 
+        if not server.ssh_enabled:
+            await ws.close(code=4003, reason="SSH is disabled for this server")
+            return
+
         password, private_key = get_server_credentials(server)
 
         await ws.accept()

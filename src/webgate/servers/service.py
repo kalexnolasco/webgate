@@ -28,6 +28,16 @@ def _tags_from_json(raw: str) -> list[str]:
     return []
 
 
+def _paths_from_json(raw: str) -> list[str]:
+    try:
+        result: object = json.loads(raw)
+        if isinstance(result, list):
+            return list[str](result)  # pyright: ignore[reportUnknownArgumentType]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return []
+
+
 def server_to_out(server: Server) -> ServerOut:
     return ServerOut(
         id=server.id,
@@ -39,6 +49,9 @@ def server_to_out(server: Server) -> ServerOut:
         group=server.group,
         tags=_tags_from_json(server.tags),
         description=server.description,
+        ssh_enabled=server.ssh_enabled,
+        sftp_enabled=server.sftp_enabled,
+        sftp_allowed_paths=_paths_from_json(server.sftp_allowed_paths),
         last_connected_at=server.last_connected_at,
         created_at=server.created_at,
     )
@@ -107,6 +120,9 @@ async def create_server(session: AsyncSession, data: ServerCreate, user_id: int)
         group=data.group,
         tags=_tags_to_json(data.tags),
         description=data.description,
+        ssh_enabled=data.ssh_enabled,
+        sftp_enabled=data.sftp_enabled,
+        sftp_allowed_paths=_tags_to_json(data.sftp_allowed_paths),
         user_id=user_id,
     )
     session.add(server)
@@ -140,6 +156,12 @@ async def update_server(
         server.tags = _tags_to_json(data.tags)
     if data.description is not None:
         server.description = data.description
+    if data.ssh_enabled is not None:
+        server.ssh_enabled = data.ssh_enabled
+    if data.sftp_enabled is not None:
+        server.sftp_enabled = data.sftp_enabled
+    if data.sftp_allowed_paths is not None:
+        server.sftp_allowed_paths = _tags_to_json(data.sftp_allowed_paths)
     await session.commit()
     await session.refresh(server)
     return server

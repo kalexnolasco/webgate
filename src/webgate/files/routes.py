@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import mimetypes
-from contextlib import asynccontextmanager
+import posixpath
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
@@ -22,6 +24,7 @@ from webgate.files.models import (
 )
 from webgate.files.pool import sftp_pool
 from webgate.files.sftp_service import SFTPClient, validate_path
+from webgate.servers.models import Server
 from webgate.servers.service import get_server, get_server_credentials
 
 router = APIRouter(prefix="/api/files", tags=["files"])
@@ -30,10 +33,38 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 CurrentUserDep = Annotated[UserOut, Depends(get_current_user)]
 
 
+def _get_allowed_paths(server: Server) -> list[str]:
+    """Parse sftp_allowed_paths JSON. Empty list means unrestricted."""
+    try:
+        result: object = json.loads(server.sftp_allowed_paths)
+        if isinstance(result, list):
+            return [posixpath.normpath(p) for p in result if isinstance(p, str) and p]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return []
+
+
+def check_path_allowed(path: str, allowed_paths: list[str]) -> None:
+    """Raise 403 if path is outside all allowed paths. No-op if allowed_paths is empty."""
+    if not allowed_paths:
+        return
+    normalized = posixpath.normpath(path)
+    if not normalized.startswith("/"):
+        normalized = "/" + normalized
+    for allowed in allowed_paths:
+        # Path is allowed if it equals or is under an allowed directory
+        if normalized == allowed or normalized.startswith(allowed + "/"):
+            return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access denied: path '{path}' is outside allowed directories",
+    )
+
+
 @asynccontextmanager
 async def _sftp(
     server_id: int, session: AsyncSession, user: UserOut
-) -> AsyncGenerator[SFTPClient]:
+) -> AsyncGenerator[tuple[SFTPClient, list[str]]]:
     server = await get_server(
         session, server_id, user.id,
         is_admin=user.is_admin,
@@ -41,6 +72,11 @@ async def _sftp(
     )
     if not server:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
+    if not server.sftp_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="SFTP is disabled for this server"
+        )
+    allowed_paths = _get_allowed_paths(server)
     password, private_key = get_server_credentials(server)
     try:
         client = await sftp_pool.acquire(
@@ -51,7 +87,7 @@ async def _sftp(
             password=password,
             private_key=private_key,
         )
-        yield client
+        yield client, allowed_paths
     finally:
         sftp_pool.release(server_id)
 
@@ -60,8 +96,9 @@ async def _sftp(
 async def list_dir(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> DirectoryListing:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
+            check_path_allowed(path, allowed_paths)
             entries = await client.ls(path)
             return DirectoryListing(path=validate_path(path), entries=entries)
         except ValueError as e:
@@ -72,8 +109,9 @@ async def list_dir(
 async def file_stat(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> FileEntry:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
+            check_path_allowed(path, allowed_paths)
             return await client.stat(path)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
@@ -83,8 +121,9 @@ async def file_stat(
 async def read_file(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
+            check_path_allowed(path, allowed_paths)
             content = await client.read_text(path)
             return {"path": validate_path(path), "content": content}
         except ValueError as e:
@@ -95,9 +134,10 @@ async def read_file(
 async def download_file(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> Response:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
             safe_path = validate_path(path)
+            check_path_allowed(safe_path, allowed_paths)
             data = await client.read_bytes(safe_path)
             filename = safe_path.rsplit("/", 1)[-1] or "download"
             media_type, _ = mimetypes.guess_type(filename)
@@ -115,9 +155,10 @@ async def upload_files(
     server_id: int, session: SessionDep, current_user: CurrentUserDep,
     path: str = "/", files: list[UploadFile] = [],  # noqa: B006
 ) -> dict[str, object]:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
             safe_path = validate_path(path)
+            check_path_allowed(safe_path, allowed_paths)
             uploaded: list[str] = []
             for f in files:
                 if not f.filename:
@@ -135,8 +176,9 @@ async def upload_files(
 async def write_file(
     server_id: int, body: FileWriteRequest, session: SessionDep, current_user: CurrentUserDep,
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
+            check_path_allowed(body.path, allowed_paths)
             await client.write_text(body.path, body.content)
             return {"path": validate_path(body.path), "status": "saved"}
         except ValueError as e:
@@ -147,8 +189,9 @@ async def write_file(
 async def make_dir(
     server_id: int, body: MkdirRequest, session: SessionDep, current_user: CurrentUserDep,
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
+            check_path_allowed(body.path, allowed_paths)
             await client.mkdir(body.path)
             return {"path": validate_path(body.path), "status": "created"}
         except ValueError as e:
@@ -159,8 +202,10 @@ async def make_dir(
 async def rename_item(
     server_id: int, body: RenameRequest, session: SessionDep, current_user: CurrentUserDep,
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
+            check_path_allowed(body.old_path, allowed_paths)
+            check_path_allowed(body.new_path, allowed_paths)
             await client.rename(body.old_path, body.new_path)
             return {"old_path": body.old_path, "new_path": body.new_path, "status": "renamed"}
         except ValueError as e:
@@ -171,8 +216,9 @@ async def rename_item(
 async def delete_item(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
+            check_path_allowed(path, allowed_paths)
             await client.delete(path)
             return {"path": validate_path(path), "status": "deleted"}
         except ValueError as e:
@@ -183,8 +229,9 @@ async def delete_item(
 async def chmod_item(
     server_id: int, body: ChmodRequest, session: SessionDep, current_user: CurrentUserDep,
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as client:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
         try:
+            check_path_allowed(body.path, allowed_paths)
             mode = int(body.mode, 8)
             await client.chmod(body.path, mode)
             return {"path": validate_path(body.path), "mode": body.mode, "status": "changed"}

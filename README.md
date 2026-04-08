@@ -139,15 +139,18 @@ flowchart TB
 | **SFTP File Browser** | Directory listing, upload/download, drag & drop, rename, delete, mkdir, chmod, breadcrumb navigation |
 | **File Editor** | In-browser text editor powered by CodeMirror 6 with syntax highlighting (oneDark theme) |
 | **File Preview** | PDF viewer, image preview (PNG, JPG, GIF, SVG, WebP) directly in the browser |
-| **Server Registry** | Add/edit/delete servers, groups, tags, password & key auth, test connectivity, import/export |
+| **Server Registry** | Add/edit/delete servers, groups, tags, password & key auth, test connectivity, import/export, per-server SSH/SFTP toggles |
 | **Quick Connect** | One-off SSH/SFTP connections without saving server config (FileZilla-style toolbar) |
-| **User Management** | Admin creates users and assigns server groups -- users only see what they're allowed to |
+| **Access Control** | Admin creates users, assigns server groups, enables/disables SSH or SFTP per server, restricts SFTP to specific paths |
 | **Credential Security** | SSH passwords and private keys encrypted at rest with Fernet (derived from app secret) |
 | **Connection Pool** | SFTP connections are reused per server (5 min TTL), not opened/closed on every request |
 | **Docker Ready** | Multi-stage Dockerfile, single-command deployment, health checks, persistent volumes |
 | **Zero Frontend Build** | Vanilla JS + Alpine.js, no npm/node required, all assets from CDN |
 
 ## Screenshots
+
+### Login
+![Login](docs/screenshots/login.png)
 
 ### Site Manager
 ![Site Manager](docs/screenshots/site-manager.png)
@@ -160,6 +163,24 @@ flowchart TB
 
 ### File Editor (CodeMirror 6)
 ![Editor](docs/screenshots/editor.png)
+
+### Split View (Terminal + SFTP)
+![Split View](docs/screenshots/split-view.png)
+
+### Access Control (per-server SSH/SFTP toggles + path restrictions)
+![Access Control](docs/screenshots/access-control.png)
+
+### SSH Disabled (button greyed out)
+![SSH Disabled](docs/screenshots/ssh-disabled.png)
+
+### SFTP Path Restriction in Action
+![SFTP Restricted](docs/screenshots/sftp-restricted.png)
+
+### User Management
+![Users](docs/screenshots/users.png)
+
+### Audit Log
+![Audit](docs/screenshots/audit.png)
 
 ## Quick Start
 
@@ -228,10 +249,13 @@ flowchart LR
 | | Admin | User |
 |---|---|---|
 | Add/edit/delete servers | Yes | No |
+| Enable/disable SSH or SFTP per server | Yes | No |
+| Restrict SFTP to specific paths | Yes | No |
 | Create/delete users | Yes | No |
 | Assign groups to users | Yes | No |
 | See all servers | Yes | Only servers in assigned groups |
-| SSH / SFTP / Test | Yes | Yes (allowed servers only) |
+| SSH terminal (if enabled on server) | Yes | Yes (allowed servers only) |
+| SFTP file browser (if enabled, within allowed paths) | Yes | Yes (allowed servers only) |
 | Quick Connect | Yes | Yes |
 
 ### Example workflow
@@ -472,12 +496,16 @@ uv run coverage run -m pytest tests/ -v && uv run coverage report
 - **SSH credentials encrypted at rest** with Fernet (key derived from `WEBGATE_SECRET_KEY`)
 - **JWT authentication** with configurable expiry
 - **Group-based access control** -- users only see servers in their assigned groups
+- **Per-server feature control** -- admin can disable SSH or SFTP independently per server
+- **SFTP path restrictions** -- admin can lock SFTP to specific directories per server
 - **SFTP path traversal protection** (server-side normalization and validation)
 - **CORS configurable** per deployment
 - **No plaintext password storage** (user passwords hashed with bcrypt)
 - **Admin-only server management** -- regular users cannot add, edit, or delete servers
 
 ## Roadmap
+
+### Completed (v0.1.x)
 
 - [x] SSH web terminal (xterm.js + asyncssh)
 - [x] SFTP file browser with full CRUD
@@ -497,6 +525,37 @@ uv run coverage run -m pytest tests/ -v && uv run coverage report
 - [x] Session persistence across page reloads
 - [x] Rate limiting on auth endpoints (slowapi)
 - [x] Audit log (admin-viewable action history)
+- [x] Per-server SSH/SFTP toggles (admin can enable/disable each feature)
+- [x] SFTP path restrictions (admin can limit access to specific directories)
+
+### Planned (v0.2.x -- Access & UX)
+
+- [ ] SFTP read-only mode per server (browse and download, no upload/write/delete)
+- [ ] Server status monitoring (background ping/connectivity checks)
+- [ ] Dark/light theme toggle
+- [ ] Responsive design for tablets
+- [ ] Keyboard shortcuts for terminal and file browser
+- [ ] Drag & drop file upload with progress bar
+- [ ] Folder download as ZIP
+
+### Planned (v0.3.x -- Collaboration & Ops)
+
+- [ ] Shared terminal sessions (multiple users watching the same session)
+- [ ] Session recording and playback (audit/training)
+- [ ] SSH command snippets/macros (saved per server or global)
+- [ ] Webhook/notifications on connection events
+- [ ] Two-factor authentication (TOTP)
+- [ ] LDAP/Active Directory integration
+- [ ] API key authentication (for automation/scripts)
+
+### Planned (v0.4.x -- Enterprise)
+
+- [ ] PostgreSQL support (tested and documented)
+- [ ] Multi-instance deployment with shared DB
+- [ ] SSH jump host / bastion support (ProxyCommand equivalent)
+- [ ] Custom branding (logo, colors, company name)
+- [ ] Backup/restore UI for server registry
+- [ ] Internationalization (i18n)
 
 ## Requirements
 
