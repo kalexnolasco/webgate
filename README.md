@@ -5,8 +5,12 @@
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](Dockerfile)
 [![Status](https://img.shields.io/badge/status-beta-orange?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/tests-34%20passed-brightgreen?style=flat-square)](https://github.com/kalexnolasco/webgate/actions)
+[![Docs](https://img.shields.io/badge/docs-kalexnolasco.github.io-blue?style=flat-square)](https://kalexnolasco.github.io/webgate/)
 
 Self-hosted web application for remote server management via **SSH terminal** and **SFTP file browser**. A modern Python replacement combining the best of [webssh](https://github.com/huashengdun/webssh) and [filebrowser](https://github.com/filebrowser/filebrowser) into a single unified tool with a FileZilla-inspired interface.
+
+> **Documentation: [kalexnolasco.github.io/webgate](https://kalexnolasco.github.io/webgate/)**
 
 ---
 

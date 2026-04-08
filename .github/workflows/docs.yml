@@ -2,7 +2,7 @@ name: Deploy docs
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
 
 permissions:
   contents: read
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install mkdocs-material pymdownx-extras mkdocstrings mkdocstrings-python
+      - run: pip install mkdocs-material mkdocstrings mkdocstrings-python
       - run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
         with:
