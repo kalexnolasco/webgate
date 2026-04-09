@@ -17,83 +17,99 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
+        :root, [data-theme="dark"] {
+            --bg-primary: #0f1117; --bg-secondary: #161b22; --bg-tertiary: #0d1117;
+            --border: #30363d; --text-primary: #e1e4e8; --text-secondary: #8b949e;
+            --text-muted: #484f58; --accent: #58a6ff; --success: #3fb950; --danger: #f85149;
+            --warning: #f0883e; --btn-bg: #21262d; --btn-hover: #30363d;
+            --input-bg: #0d1117; --modal-bg: #161b22; --hover-bg: rgba(88,166,255,0.08);
+            --log-bg: #0d1117; --toast-bg: #161b22;
+        }
+        [data-theme="light"] {
+            --bg-primary: #ffffff; --bg-secondary: #f6f8fa; --bg-tertiary: #ffffff;
+            --border: #d0d7de; --text-primary: #1f2328; --text-secondary: #656d76;
+            --text-muted: #8b949e; --accent: #0969da; --success: #1a7f37; --danger: #cf222e;
+            --warning: #bf8700; --btn-bg: #f3f4f6; --btn-hover: #e8e8e8;
+            --input-bg: #ffffff; --modal-bg: #ffffff; --hover-bg: rgba(9,105,218,0.06);
+            --log-bg: #f6f8fa; --toast-bg: #ffffff;
+        }
         [x-cloak] { display: none !important; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; background: #0f1117; color: #e1e4e8; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; background: var(--bg-primary); color: var(--text-primary); }
 
         /* ---- Modern dark theme ---- */
-        .fz-toolbar { background: #161b22; border-bottom: 1px solid #30363d; padding: 6px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .fz-toolbar label { font-size: 11px; color: #8b949e; white-space: nowrap; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
-        .fz-toolbar input, .fz-toolbar select { font-size: 12px; padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e1e4e8; transition: border-color 0.2s; }
-        .fz-toolbar input:focus, .fz-toolbar select:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
+        .fz-toolbar { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 6px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .fz-toolbar label { font-size: 11px; color: var(--text-secondary); white-space: nowrap; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .fz-toolbar input, .fz-toolbar select { font-size: 12px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text-primary); transition: border-color 0.2s; }
+        .fz-toolbar input:focus, .fz-toolbar select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
 
-        .fz-btn { font-size: 12px; padding: 5px 12px; border: 1px solid #30363d; border-radius: 6px; background: #21262d; color: #c9d1d9; cursor: pointer; white-space: nowrap; font-weight: 500; transition: all 0.15s; }
-        .fz-btn:hover { background: #30363d; border-color: #8b949e; }
+        .fz-btn { font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--btn-bg); color: #c9d1d9; cursor: pointer; white-space: nowrap; font-weight: 500; transition: all 0.15s; }
+        .fz-btn:hover { background: var(--btn-hover); border-color: var(--text-secondary); }
         .fz-btn:active { transform: scale(0.97); }
         .fz-btn-primary { background: #238636; color: #fff; border-color: #2ea043; }
-        .fz-btn-primary:hover { background: #2ea043; border-color: #3fb950; }
-        .fz-btn-danger { color: #f85149; border-color: #f8514930; }
-        .fz-btn-danger:hover { background: #f8514915; border-color: #f85149; }
+        .fz-btn-primary:hover { background: #2ea043; border-color: var(--success); }
+        .fz-btn-danger { color: var(--danger); border-color: #f8514930; }
+        .fz-btn-danger:hover { background: #f8514915; border-color: var(--danger); }
         .fz-btn-success { background: #1f6feb; color: #fff; border-color: #388bfd; }
-        .fz-btn-success:hover { background: #388bfd; border-color: #58a6ff; }
+        .fz-btn-success:hover { background: #388bfd; border-color: var(--accent); }
 
         /* Log area */
-        .fz-log { background: #0d1117; border-bottom: 1px solid #30363d; overflow-y: auto; padding: 4px 10px; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; line-height: 1.6; flex-shrink: 0; }
-        .fz-log .msg-status { color: #3fb950; }
-        .fz-log .msg-error { color: #f85149; }
-        .fz-log .msg-info { color: #8b949e; }
-        .fz-log .msg-cmd { color: #58a6ff; }
+        .fz-log { background: var(--log-bg); border-bottom: 1px solid var(--border); overflow-y: auto; padding: 4px 10px; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; line-height: 1.6; flex-shrink: 0; }
+        .fz-log .msg-status { color: var(--success); }
+        .fz-log .msg-error { color: var(--danger); }
+        .fz-log .msg-info { color: var(--text-secondary); }
+        .fz-log .msg-cmd { color: var(--accent); }
 
         /* Tab strip */
-        .fz-tabs { background: #161b22; border-bottom: 1px solid #30363d; display: flex; align-items: stretch; overflow-x: auto; min-height: 34px; gap: 2px; padding: 4px 4px 0; }
-        .fz-tab { font-size: 12px; padding: 6px 14px; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; background: transparent; color: #8b949e; transition: all 0.15s; font-weight: 500; }
-        .fz-tab:hover { background: #21262d; color: #c9d1d9; }
-        .fz-tab.active { background: #0d1117; border-color: #30363d; border-bottom-color: #0d1117; color: #e1e4e8; }
-        .fz-tab .close { font-size: 14px; color: #484f58; cursor: pointer; line-height: 1; border-radius: 4px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
-        .fz-tab .close:hover { color: #f85149; background: #f8514920; }
+        .fz-tabs { background: var(--bg-secondary); border-bottom: 1px solid var(--border); display: flex; align-items: stretch; overflow-x: auto; min-height: 34px; gap: 2px; padding: 4px 4px 0; }
+        .fz-tab { font-size: 12px; padding: 6px 14px; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; background: transparent; color: var(--text-secondary); transition: all 0.15s; font-weight: 500; }
+        .fz-tab:hover { background: var(--btn-bg); color: #c9d1d9; }
+        .fz-tab.active { background: var(--bg-tertiary); border-color: var(--border); border-bottom-color: var(--bg-tertiary); color: var(--text-primary); }
+        .fz-tab .close { font-size: 14px; color: var(--text-muted); cursor: pointer; line-height: 1; border-radius: 4px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+        .fz-tab .close:hover { color: var(--danger); background: #f8514920; }
 
         /* Path bar */
-        .fz-pathbar { background: #161b22; border-bottom: 1px solid #30363d; padding: 6px 10px; display: flex; align-items: center; gap: 6px; }
-        .fz-pathbar .path-label { font-size: 11px; color: #58a6ff; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-        .fz-pathbar .path-input { flex: 1; font-size: 12px; padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e1e4e8; font-family: 'JetBrains Mono', monospace; }
+        .fz-pathbar { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 6px 10px; display: flex; align-items: center; gap: 6px; }
+        .fz-pathbar .path-label { font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .fz-pathbar .path-input { flex: 1; font-size: 12px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text-primary); font-family: 'JetBrains Mono', monospace; }
 
         /* File list */
-        .fz-filelist { flex: 1; overflow: auto; background: #0d1117; }
+        .fz-filelist { flex: 1; overflow: auto; background: var(--bg-tertiary); }
         .fz-filelist table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .fz-filelist thead { background: #161b22; position: sticky; top: 0; z-index: 1; }
-        .fz-filelist th { text-align: left; padding: 8px 12px; border-bottom: 1px solid #30363d; font-weight: 600; color: #8b949e; cursor: default; user-select: none; white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .fz-filelist td { padding: 6px 12px; border-bottom: 1px solid #21262d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .fz-filelist tr.fz-row:hover { background: #161b22; }
+        .fz-filelist thead { background: var(--bg-secondary); position: sticky; top: 0; z-index: 1; }
+        .fz-filelist th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 600; color: var(--text-secondary); cursor: default; user-select: none; white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .fz-filelist td { padding: 6px 12px; border-bottom: 1px solid var(--btn-bg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .fz-filelist tr.fz-row:hover { background: var(--bg-secondary); }
         .fz-filelist tr.fz-row.selected { background: #1f6feb20; }
         .fz-filelist tr.fz-row { cursor: default; }
         .fz-filelist .fname { color: #c9d1d9; cursor: pointer; transition: color 0.15s; }
-        .fz-filelist .fname:hover { color: #58a6ff; }
-        .fz-filelist .fdir { color: #e1e4e8; font-weight: 600; }
+        .fz-filelist .fname:hover { color: var(--accent); }
+        .fz-filelist .fdir { color: var(--text-primary); font-weight: 600; }
         .fz-filelist .ficon { width: 16px; height: 16px; vertical-align: middle; margin-right: 6px; display: inline-block; text-align: center; font-size: 14px; }
-        .fz-filelist .fmeta { color: #484f58; }
+        .fz-filelist .fmeta { color: var(--text-muted); }
 
         /* Status bar */
         .fz-statusbar { background: #1f6feb; border-top: none; padding: 3px 12px; font-size: 11px; color: #fff; display: flex; justify-content: space-between; flex-shrink: 0; font-weight: 500; }
 
         /* Panels */
-        .fz-panel { display: flex; flex-direction: column; border: 1px solid #30363d; background: #0d1117; }
-        .fz-panel-header { background: #161b22; border-bottom: 1px solid #30363d; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #e1e4e8; display: flex; align-items: center; justify-content: space-between; }
+        .fz-panel { display: flex; flex-direction: column; border: 1px solid var(--border); background: var(--bg-tertiary); }
+        .fz-panel-header { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 8px 12px; font-size: 12px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between; }
 
         /* Split panes */
-        .fz-splitter-v { height: 4px; background: #30363d; cursor: row-resize; flex-shrink: 0; transition: background 0.15s; }
-        .fz-splitter-v:hover { background: #58a6ff; }
+        .fz-splitter-v { height: 4px; background: var(--border); cursor: row-resize; flex-shrink: 0; transition: background 0.15s; }
+        .fz-splitter-v:hover { background: var(--accent); }
 
         /* Editor bar */
-        .fz-editor-bar { background: #161b22; border-bottom: 1px solid #30363d; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; }
+        .fz-editor-bar { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; }
 
         /* Server list in sidebar */
         .fz-serverlist { overflow-y: auto; flex: 1; }
-        .fz-srv-item { padding: 10px 12px; border-bottom: 1px solid #21262d; cursor: pointer; transition: background 0.15s; }
-        .fz-srv-item:hover { background: #161b22; }
-        .fz-srv-item.active { background: #1f6feb15; border-left: 3px solid #58a6ff; }
-        .fz-srv-item .srv-name { font-weight: 600; font-size: 13px; color: #e1e4e8; }
-        .fz-srv-item .srv-host { font-size: 11px; color: #8b949e; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
-        .fz-srv-item .srv-group { font-size: 10px; color: #8b949e; background: #21262d; border: 1px solid #30363d; padding: 1px 6px; border-radius: 10px; display: inline-block; margin-top: 4px; }
+        .fz-srv-item { padding: 10px 12px; border-bottom: 1px solid var(--btn-bg); cursor: pointer; transition: background 0.15s; }
+        .fz-srv-item:hover { background: var(--bg-secondary); }
+        .fz-srv-item.active { background: #1f6feb15; border-left: 3px solid var(--accent); }
+        .fz-srv-item .srv-name { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+        .fz-srv-item .srv-host { font-size: 11px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+        .fz-srv-item .srv-group { font-size: 10px; color: var(--text-secondary); background: var(--btn-bg); border: 1px solid var(--border); padding: 1px 6px; border-radius: 10px; display: inline-block; margin-top: 4px; }
         .fz-srv-actions { display: flex; gap: 4px; margin-top: 6px; }
 
         /* Terminal */
@@ -102,34 +118,34 @@
         .cm-editor .cm-scroller { overflow: auto; }
 
         /* Login overlay */
-        .fz-login-overlay { position: fixed; inset: 0; background: #0d1117; display: flex; align-items: center; justify-content: center; z-index: 100; }
-        .fz-login-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 32px; width: 380px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
-        .fz-login-box h1 { text-align: center; font-size: 24px; margin-bottom: 4px; color: #e1e4e8; font-weight: 700; }
-        .fz-login-box .subtitle { text-align: center; color: #8b949e; font-size: 13px; margin-bottom: 24px; }
-        .fz-login-box label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px; font-weight: 500; }
-        .fz-login-box input { width: 100%; padding: 8px 12px; border: 1px solid #30363d; border-radius: 6px; font-size: 14px; margin-bottom: 14px; background: #0d1117; color: #e1e4e8; }
-        .fz-login-box input:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
+        .fz-login-overlay { position: fixed; inset: 0; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .fz-login-box { background: var(--modal-bg); border: 1px solid var(--border); border-radius: 12px; padding: 32px; width: 380px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
+        .fz-login-box h1 { text-align: center; font-size: 24px; margin-bottom: 4px; color: var(--text-primary); font-weight: 700; }
+        .fz-login-box .subtitle { text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 24px; }
+        .fz-login-box label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
+        .fz-login-box input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; margin-bottom: 14px; background: var(--input-bg); color: var(--text-primary); }
+        .fz-login-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
 
         /* Modal */
         .fz-modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 50; display: flex; align-items: center; justify-content: center; }
-        .fz-modal { background: #161b22; border: 1px solid #30363d; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
-        .fz-modal-title { border-bottom: 1px solid #30363d; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #e1e4e8; }
+        .fz-modal { background: var(--modal-bg); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+        .fz-modal-title { border-bottom: 1px solid var(--border); padding: 12px 16px; font-weight: 600; font-size: 14px; color: var(--text-primary); }
         .fz-modal-body { padding: 16px; }
-        .fz-modal-body label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px; margin-top: 12px; font-weight: 500; }
+        .fz-modal-body label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; margin-top: 12px; font-weight: 500; }
         .fz-modal-body label:first-child { margin-top: 0; }
-        .fz-modal-body input, .fz-modal-body select, .fz-modal-body textarea { width: 100%; padding: 6px 10px; border: 1px solid #30363d; border-radius: 6px; font-size: 13px; background: #0d1117; color: #e1e4e8; }
-        .fz-modal-body input:focus, .fz-modal-body select:focus, .fz-modal-body textarea:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
-        .fz-modal-footer { border-top: 1px solid #30363d; padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px; }
+        .fz-modal-body input, .fz-modal-body select, .fz-modal-body textarea { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--input-bg); color: var(--text-primary); }
+        .fz-modal-body input:focus, .fz-modal-body select:focus, .fz-modal-body textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
+        .fz-modal-footer { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px; }
         .fz-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
         /* Context menu */
-        .fz-ctx { position: fixed; background: #161b22; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 60; min-width: 160px; font-size: 13px; padding: 4px; overflow: hidden; }
+        .fz-ctx { position: fixed; background: var(--modal-bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 60; min-width: 160px; font-size: 13px; padding: 4px; overflow: hidden; }
         .fz-ctx-item { padding: 6px 12px; cursor: pointer; border-radius: 4px; color: #c9d1d9; }
-        .fz-ctx-item:hover { background: #1f6feb30; color: #58a6ff; }
-        .fz-ctx-sep { border-top: 1px solid #30363d; margin: 4px 0; }
+        .fz-ctx-item:hover { background: #1f6feb30; color: var(--accent); }
+        .fz-ctx-sep { border-top: 1px solid var(--border); margin: 4px 0; }
 
         /* Drag & drop overlay */
-        .fz-drop-active { outline: 2px dashed #58a6ff; outline-offset: -4px; background: rgba(88,166,255,0.05); }
+        .fz-drop-active { outline: 2px dashed var(--accent); outline-offset: -4px; background: rgba(88,166,255,0.05); }
 
         /* Force flex display even when Alpine x-show toggles display */
         .fz-flex-col { display: flex !important; flex-direction: column; flex: 1; min-height: 0; }
@@ -137,9 +153,27 @@
 
         /* Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #0d1117; }
-        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+        ::-webkit-scrollbar-track { background: var(--bg-tertiary); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* Responsive: tablet */
+        @media (max-width: 1024px) {
+            .fz-toolbar { flex-wrap: wrap; gap: 4px; }
+            .fz-toolbar > div { font-size: 11px; }
+            .fz-filelist th:nth-child(5), .fz-filelist td:nth-child(5),
+            .fz-filelist th:nth-child(6), .fz-filelist td:nth-child(6) { display: none; }
+            .fz-modal { width: 95vw; max-width: 95vw; }
+        }
+        /* Responsive: mobile */
+        @media (max-width: 768px) {
+            .fz-toolbar { flex-direction: column; }
+            .fz-filelist th:nth-child(4), .fz-filelist td:nth-child(4),
+            .fz-filelist th:nth-child(5), .fz-filelist td:nth-child(5),
+            .fz-filelist th:nth-child(6), .fz-filelist td:nth-child(6) { display: none; }
+            .fz-modal { width: 100vw; max-width: 100vw; border-radius: 0; }
+            .fz-row-2col { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -155,7 +189,7 @@ window._showToastImpl = function(message, type) {
 };
 </script>
 
-<div x-data="app()" x-cloak>
+<div x-data="app()" x-cloak @keydown.window="handleKeyboard($event)">
 
 <!-- ======================== LOGIN ======================== -->
 <div x-show="!token" class="fz-login-overlay">
@@ -169,7 +203,7 @@ window._showToastImpl = function(message, type) {
             <input type="password" x-model="password" required>
             <button type="submit" class="fz-btn fz-btn-primary" style="width:100%;padding:6px;margin-top:4px">Sign In</button>
         </form>
-        <div style="text-align:center;margin-top:10px;font-size:11px;color:#484f58">Default: admin / admin</div>
+        <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text-muted)">Default: admin / admin</div>
     </div>
 </div>
 
@@ -177,16 +211,17 @@ window._showToastImpl = function(message, type) {
 <div :style="token ? 'height:100vh;display:flex;flex-direction:column' : 'display:none'">
 
     <!-- ---- Menu bar ---- -->
-    <div style="background:#161b22;border-bottom:1px solid #30363d;padding:6px 12px;display:flex;align-items:center;justify-content:space-between">
+    <div style="background:var(--bg-secondary);border-bottom:1px solid var(--border);padding:6px 12px;display:flex;align-items:center;justify-content:space-between">
         <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-weight:700;font-size:15px;color:#e1e4e8;letter-spacing:-0.3px">webgate</span>
-            <button @click="view='dashboard'" class="fz-btn" style="font-size:11px">Site Manager</button>
-            <button x-show="currentUser?.is_admin" @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:11px">New Server</button>
+            <span style="font-weight:700;font-size:15px;color:var(--text-primary);letter-spacing:-0.3px">webgate</span>
+            <button @click="view='dashboard'" class="fz-btn" style="font-size:11px" title="Site Manager (Ctrl+1)">Site Manager</button>
+            <button x-show="currentUser?.is_admin" @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:11px" title="New Server (Ctrl+N)">New Server</button>
             <button x-show="currentUser?.is_admin" @click="openUsersModal()" class="fz-btn" style="font-size:11px">Users</button>
             <button x-show="currentUser?.is_admin" @click="openAuditLog()" class="fz-btn" style="font-size:11px">Audit</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:12px;color:#8b949e;font-weight:500" x-text="currentUser?.username"></span>
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:500" x-text="currentUser?.username"></span>
+            <button @click="toggleTheme()" class="fz-btn" style="font-size:11px;padding:2px 8px" x-text="theme === 'dark' ? '☀️' : '🌙'" title="Toggle theme"></button>
             <button @click="logout()" class="fz-btn" style="font-size:11px">Logout</button>
         </div>
     </div>
@@ -234,7 +269,7 @@ window._showToastImpl = function(message, type) {
         <!-- ======== SITE MANAGER (dashboard) ======== -->
         <div x-show="view === 'dashboard'" style="flex:1;display:flex;min-height:0">
             <!-- Server list sidebar -->
-            <div style="width:260px;border-right:1px solid #30363d;display:flex;flex-direction:column;background:#0d1117;flex-shrink:0">
+            <div style="width:260px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-tertiary);flex-shrink:0">
                 <div class="fz-panel-header">
                     <span>Servers</span>
                     <div style="display:flex;gap:3px">
@@ -245,8 +280,8 @@ window._showToastImpl = function(message, type) {
                     </div>
                 </div>
                 <!-- Group filter -->
-                <div style="padding:6px 8px;border-bottom:1px solid #21262d">
-                    <select @change="selectedGroup=$event.target.value;loadServers()" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#c9d1d9">
+                <div style="padding:6px 8px;border-bottom:1px solid var(--btn-bg)">
+                    <select @change="selectedGroup=$event.target.value;loadServers()" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
                         <option value="">All Groups</option>
                         <template x-for="g in groups" :key="g">
                             <option :value="g" x-text="g" :selected="selectedGroup===g"></option>
@@ -254,14 +289,14 @@ window._showToastImpl = function(message, type) {
                     </select>
                 </div>
                 <!-- Search -->
-                <div style="padding:6px 8px;border-bottom:1px solid #21262d">
-                    <input type="text" x-model="searchQuery" @input="loadServers()" placeholder="Search..." style="width:100%;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#c9d1d9">
+                <div style="padding:6px 8px;border-bottom:1px solid var(--btn-bg)">
+                    <input type="text" x-model="searchQuery" @input="loadServers()" placeholder="Search..." style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
                 </div>
                 <!-- Server list -->
                 <div class="fz-serverlist">
                     <template x-for="srv in filteredServers" :key="srv.id">
                         <div class="fz-srv-item" :class="selectedServerId===srv.id ? 'active' : ''" @click="selectedServerId=srv.id">
-                            <div class="srv-name" x-text="srv.name"></div>
+                            <div class="srv-name" style="display:flex;align-items:center"><span :style="'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + (serverStatuses[srv.id]?.online === true ? '#3fb950' : serverStatuses[srv.id]?.online === false ? '#f85149' : '#484f58')" :title="serverStatuses[srv.id]?.online === true ? 'Online' : serverStatuses[srv.id]?.online === false ? 'Offline' : 'Checking...'"></span><span x-text="srv.name"></span></div>
                             <div class="srv-host">
                                 <span x-text="srv.username + '@' + srv.hostname + ':' + srv.port"></span>
                                 <span x-show="srv.auth_method==='key'" style="color:#3fb950;margin-left:4px" title="Key auth">&#128273;</span>
@@ -270,6 +305,7 @@ window._showToastImpl = function(message, type) {
                             <div class="fz-srv-actions">
                                 <button @click.stop="openServerTerminal(srv)" class="fz-btn fz-btn-success" style="font-size:10px;padding:1px 6px" :disabled="srv.ssh_enabled===false" :title="srv.ssh_enabled===false ? 'SSH disabled for this server' : ''">SSH</button>
                                 <button @click.stop="openServerFiles(srv)" class="fz-btn fz-btn-primary" style="font-size:10px;padding:1px 6px" :disabled="srv.sftp_enabled===false" :title="srv.sftp_enabled===false ? 'SFTP disabled for this server' : ''">SFTP</button>
+                                <span x-show="srv.sftp_enabled && srv.sftp_read_only" style="font-size:9px;color:#f0883e;font-weight:700" title="SFTP Read-Only">RO</span>
                                 <button @click.stop="openSplit(srv)" class="fz-btn" style="font-size:10px;padding:1px 5px" :disabled="srv.ssh_enabled===false && srv.sftp_enabled===false" title="SSH + SFTP split">Split</button>
                                 <button @click.stop="testServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px" :disabled="testingServerId===srv.id" x-text="testingServerId===srv.id ? '...' : 'Test'"></button>
                                 <button x-show="currentUser?.is_admin" @click.stop="editServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px">Edit</button>
@@ -277,17 +313,17 @@ window._showToastImpl = function(message, type) {
                             </div>
                         </div>
                     </template>
-                    <div x-show="filteredServers.length===0" style="padding:20px;text-align:center;color:#484f58;font-size:12px">
+                    <div x-show="filteredServers.length===0" style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px">
                         No servers. Click "New Server" to add one.
                     </div>
                 </div>
             </div>
             <!-- Server detail / welcome -->
-            <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#0d1117;color:#484f58">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);color:var(--text-muted)">
                 <div style="text-align:center">
                     <div style="font-size:48px;margin-bottom:12px;opacity:0.5">&#128187;</div>
-                    <div style="font-size:18px;font-weight:600;color:#8b949e">webgate</div>
-                    <div style="font-size:13px;margin-top:6px;color:#484f58">Select a server or use Quickconnect</div>
+                    <div style="font-size:18px;font-weight:600;color:var(--text-secondary)">webgate</div>
+                    <div style="font-size:13px;margin-top:6px;color:var(--text-muted)">Select a server or use Quickconnect</div>
                 </div>
             </div>
         </div>
@@ -302,20 +338,20 @@ window._showToastImpl = function(message, type) {
                 <!-- ---- Split tab (terminal + files) ---- -->
                 <div x-show="tab.type==='split'" style="flex:1;display:flex;min-height:0">
                     <div :id="tab.id + '-term'" style="flex:1;min-height:0"></div>
-                    <div style="width:4px;background:#30363d;cursor:col-resize;flex-shrink:0"></div>
-                    <div :id="tab.id + '-files'" style="flex:1;min-height:0;overflow:auto;background:#0d1117;font-size:12px">
+                    <div style="width:4px;background:var(--border);cursor:col-resize;flex-shrink:0"></div>
+                    <div :id="tab.id + '-files'" style="flex:1;min-height:0;overflow:auto;background:var(--bg-tertiary);font-size:12px">
                         <!-- Inline mini file browser -->
-                        <div style="padding:6px 10px;background:#161b22;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:4px">
+                        <div style="padding:6px 10px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:4px">
                             <span style="color:#58a6ff;font-size:11px;font-weight:600">SFTP</span>
-                            <span style="color:#8b949e;font-family:'JetBrains Mono',monospace;font-size:11px" x-text="tab.splitPath || '/'"></span>
+                            <span style="color:var(--text-secondary);font-family:'JetBrains Mono',monospace;font-size:11px" x-text="tab.splitPath || '/'"></span>
                             <button @click="splitNavigateUp(tab)" class="fz-btn" style="font-size:10px;padding:1px 5px">&#11014;</button>
                         </div>
                         <div style="padding:0">
                             <template x-for="f in (tab.splitEntries || [])" :key="f.path">
-                                <div @dblclick="f.is_dir && splitNavigate(tab, f.path)" style="padding:3px 10px;cursor:default;display:flex;gap:6px;align-items:center;border-bottom:1px solid #21262d" :style="f.is_dir ? '' : ''" @contextmenu.prevent>
+                                <div @dblclick="f.is_dir && splitNavigate(tab, f.path)" style="padding:3px 10px;cursor:default;display:flex;gap:6px;align-items:center;border-bottom:1px solid var(--btn-bg)" :style="f.is_dir ? '' : ''" @contextmenu.prevent>
                                     <span style="font-size:13px" x-text="f.is_dir ? '&#128193;' : '&#128196;'"></span>
-                                    <span style="flex:1;color:#c9d1d9" :style="f.is_dir ? 'font-weight:600;cursor:pointer' : ''" @click="f.is_dir && splitNavigate(tab, f.path)" x-text="f.name"></span>
-                                    <span style="color:#484f58;font-size:11px" x-text="f.is_dir ? '' : formatSize(f.size)"></span>
+                                    <span style="flex:1;color:var(--text-primary)" :style="f.is_dir ? 'font-weight:600;cursor:pointer' : ''" @click="f.is_dir && splitNavigate(tab, f.path)" x-text="f.name"></span>
+                                    <span style="color:var(--text-muted);font-size:11px" x-text="f.is_dir ? '' : formatSize(f.size)"></span>
                                 </div>
                             </template>
                         </div>
@@ -331,19 +367,19 @@ window._showToastImpl = function(message, type) {
                         <input type="text" class="path-input" :value="tab.currentPath" @keydown.enter="navigateTo(tab, $event.target.value)">
                         <button @click="loadDirectory(tab, tab.currentPath)" class="fz-btn" style="font-size:11px" title="Refresh">&#8635;</button>
                         <button @click="navigateUp(tab)" class="fz-btn" style="font-size:11px" title="Parent directory">&#11014;</button>
-                        <button @click="promptMkdir(tab)" class="fz-btn" style="font-size:11px">New Folder</button>
-                        <label class="fz-btn" style="font-size:11px;cursor:pointer">
+                        <button x-show="!tab.sftpReadOnly" @click="promptMkdir(tab)" class="fz-btn" style="font-size:11px">New Folder</button>
+                        <label x-show="!tab.sftpReadOnly" class="fz-btn" style="font-size:11px;cursor:pointer">
                             Upload<input type="file" multiple style="display:none" @change="uploadFiles(tab,$event)">
                         </label>
-                        <span style="color:#30363d;margin:0 2px">|</span>
-                        <input type="text" x-model="tab.fileFilter" placeholder="Filter files..." style="width:140px;font-size:11px;padding:4px 8px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8">
+                        <span style="color:var(--border);margin:0 2px">|</span>
+                        <input type="text" x-model="tab.fileFilter" placeholder="Filter files..." style="width:140px;font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-tertiary);color:var(--text-primary)">
                     </div>
 
                     <!-- Breadcrumbs -->
-                    <div style="background:#0d1117;border-bottom:1px solid #21262d;padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:2px">
+                    <div style="background:var(--bg-tertiary);border-bottom:1px solid var(--btn-bg);padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:2px">
                         <template x-for="(crumb, i) in getBreadcrumbs(tab)" :key="i">
                             <span>
-                                <span x-show="i > 0" style="color:#484f58;margin:0 2px">/</span>
+                                <span x-show="i > 0" style="color:var(--text-muted);margin:0 2px">/</span>
                                 <a href="#" @click.prevent="navigateTo(tab,crumb.path)" style="color:#58a6ff;text-decoration:none" x-text="crumb.name"></a>
                             </span>
                         </template>
@@ -386,8 +422,8 @@ window._showToastImpl = function(message, type) {
                                     </template>
                                 </tbody>
                             </table>
-                            <div x-show="tab.entries && tab.entries.length===0 && !tab.loading" style="text-align:center;padding:40px;color:#484f58">Empty directory</div>
-                            <div x-show="tab.loading" style="text-align:center;padding:40px;color:#484f58">
+                            <div x-show="tab.entries && tab.entries.length===0 && !tab.loading" style="text-align:center;padding:40px;color:var(--text-muted)">Empty directory</div>
+                            <div x-show="tab.loading" style="text-align:center;padding:40px;color:var(--text-muted)">
                                 Retrieving directory listing...
                             </div>
                         </div>
@@ -402,7 +438,7 @@ window._showToastImpl = function(message, type) {
                                 <strong x-text="tab.editingFile?.name"></strong>
                             </span>
                             <div style="display:flex;gap:4px;flex-shrink:0">
-                                <button x-show="!tab._previewType" @click="saveFile(tab)" class="fz-btn fz-btn-success" style="font-size:11px">Save</button>
+                                <button x-show="!tab._previewType && !tab.sftpReadOnly" @click="saveFile(tab)" class="fz-btn fz-btn-success" style="font-size:11px">Save</button>
                                 <button @click="closeEditor(tab)" class="fz-btn" style="font-size:11px">Close</button>
                             </div>
                         </div>
@@ -413,8 +449,16 @@ window._showToastImpl = function(message, type) {
         </template>
 
         <!-- No tabs placeholder -->
-        <div x-show="view!=='dashboard' && tabs.length===0" style="flex:1;display:flex;align-items:center;justify-content:center;color:#484f58;background:#0d1117">
+        <div x-show="view!=='dashboard' && tabs.length===0" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);background:var(--bg-tertiary)">
             No active sessions
+        </div>
+    </div>
+
+    <!-- ---- Upload progress ---- -->
+    <div x-show="uploadProgress.active" style="position:fixed;bottom:30px;right:20px;background:var(--bg-secondary,#161b22);border:1px solid var(--border,#30363d);border-radius:8px;padding:8px 14px;font-size:12px;color:var(--text-primary,#e1e4e8);z-index:100;min-width:200px">
+        <div style="margin-bottom:4px">Uploading... <span x-text="uploadProgress.percent + '%'"></span></div>
+        <div style="height:4px;background:var(--btn-bg,#21262d);border-radius:2px;overflow:hidden">
+            <div :style="'height:100%;background:var(--accent,#58a6ff);transition:width 0.2s;width:'+uploadProgress.percent+'%'"></div>
         </div>
     </div>
 
@@ -428,6 +472,7 @@ window._showToastImpl = function(message, type) {
 <!-- ======== Context menu ======== -->
 <div x-show="ctxMenu.show" @click.away="ctxMenu.show=false" class="fz-ctx" :style="'left:'+ctxMenu.x+'px;top:'+ctxMenu.y+'px'" x-transition>
     <div class="fz-ctx-item" @click="ctxMenu.f && !ctxMenu.f.is_dir && downloadFile(ctxMenu.tab,ctxMenu.f); ctxMenu.show=false" x-show="ctxMenu.f && !ctxMenu.f.is_dir">Download</div>
+    <div class="fz-ctx-item" @click="downloadZip(ctxMenu.tab, ctxMenu.f); ctxMenu.show=false" x-show="ctxMenu.f?.is_dir">Download as ZIP</div>
     <div class="fz-ctx-item" @click="ctxMenu.f && editFile(ctxMenu.tab,ctxMenu.f); ctxMenu.show=false" x-show="ctxMenu.f && !ctxMenu.f.is_dir">View/Edit</div>
     <div class="fz-ctx-sep" x-show="ctxMenu.f && !ctxMenu.f.is_dir"></div>
     <div class="fz-ctx-item" @click="ctxMenu.f && promptRename(ctxMenu.tab,ctxMenu.f); ctxMenu.show=false">Rename</div>
@@ -472,18 +517,21 @@ window._showToastImpl = function(message, type) {
                 <label>Description</label>
                 <input type="text" x-model="serverForm.description" placeholder="Primary web server">
                 <!-- Access Control -->
-                <div style="margin-top:14px;padding-top:12px;border-top:1px solid #30363d">
-                    <label style="font-size:12px;font-weight:600;color:#c9d1d9;margin-bottom:8px">Access Control</label>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px">Access Control</label>
                     <div class="fz-row-2col" style="margin-top:6px">
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#e1e4e8">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-primary)">
                             <input type="checkbox" x-model="serverForm.ssh_enabled" style="width:auto;accent-color:#3fb950"> Enable SSH Terminal
                         </label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#e1e4e8">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-primary)">
                             <input type="checkbox" x-model="serverForm.sftp_enabled" style="width:auto;accent-color:#58a6ff"> Enable SFTP Browser
                         </label>
                     </div>
+                    <label x-show="serverForm.sftp_enabled" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-primary);margin-top:6px">
+                        <input type="checkbox" x-model="serverForm.sftp_read_only" style="width:auto;accent-color:#f0883e"> SFTP Read-Only (browse &amp; download only)
+                    </label>
                     <div x-show="serverForm.sftp_enabled" style="margin-top:8px">
-                        <label>SFTP Allowed Paths <span style="color:#484f58;font-weight:400">(one per line, empty = unrestricted)</span></label>
+                        <label>SFTP Allowed Paths <span style="color:var(--text-muted);font-weight:400">(one per line, empty = unrestricted)</span></label>
                         <textarea x-model="serverForm.sftp_allowed_paths_str" rows="3" style="font-family:Consolas,monospace;font-size:11px" placeholder="/home/deploy&#10;/var/log&#10;/etc/nginx"></textarea>
                     </div>
                 </div>
@@ -502,7 +550,7 @@ window._showToastImpl = function(message, type) {
         <div class="fz-modal-title" style="background:#da3633;color:#fff;border-radius:12px 12px 0 0">Change Password Required</div>
         <form @submit.prevent="doChangePassword()">
             <div class="fz-modal-body">
-                <p style="font-size:13px;color:#8b949e;margin-bottom:16px">You are using the default password. Please set a new password to continue.</p>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">You are using the default password. Please set a new password to continue.</p>
                 <label>New Password</label>
                 <input type="password" x-model="newPassword" required minlength="4" style="margin-bottom:6px">
                 <label>Confirm Password</label>
@@ -522,22 +570,22 @@ window._showToastImpl = function(message, type) {
         <div class="fz-modal-body" style="padding:0">
             <table style="width:100%;font-size:13px;border-collapse:collapse">
                 <thead>
-                    <tr style="background:#21262d;text-align:left">
-                        <th style="padding:8px 12px;border-bottom:1px solid #30363d;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Username</th>
-                        <th style="padding:8px 12px;border-bottom:1px solid #30363d;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Role</th>
-                        <th style="padding:8px 12px;border-bottom:1px solid #30363d;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Allowed Groups</th>
-                        <th style="padding:8px 12px;border-bottom:1px solid #30363d;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;width:100px">Actions</th>
+                    <tr style="background:var(--btn-bg);text-align:left">
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Username</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Role</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Allowed Groups</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;width:100px">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-for="u in managedUsers" :key="u.id">
-                        <tr style="border-bottom:1px solid #21262d">
-                            <td style="padding:8px 12px;color:#e1e4e8;font-weight:500" x-text="u.username"></td>
+                        <tr style="border-bottom:1px solid var(--btn-bg)">
+                            <td style="padding:8px 12px;color:var(--text-primary);font-weight:500" x-text="u.username"></td>
                             <td style="padding:8px 12px">
                                 <span x-show="u.is_admin" style="color:#3fb950;font-weight:600;font-size:11px;background:#3fb95020;padding:2px 8px;border-radius:10px">admin</span>
-                                <span x-show="!u.is_admin" style="color:#8b949e;font-size:11px">user</span>
+                                <span x-show="!u.is_admin" style="color:var(--text-secondary);font-size:11px">user</span>
                             </td>
-                            <td style="padding:8px 12px;font-size:12px;color:#8b949e" x-text="u.is_admin ? 'all' : (u.allowed_groups.length ? u.allowed_groups.join(', ') : 'none')"></td>
+                            <td style="padding:8px 12px;font-size:12px;color:var(--text-secondary)" x-text="u.is_admin ? 'all' : (u.allowed_groups.length ? u.allowed_groups.join(', ') : 'none')"></td>
                             <td style="padding:8px 12px">
                                 <div x-show="!u.is_admin" style="display:flex;gap:4px">
                                     <button @click="editUserGroups(u)" class="fz-btn" style="font-size:10px;padding:1px 4px">Groups</button>
@@ -550,12 +598,12 @@ window._showToastImpl = function(message, type) {
             </table>
         </div>
         <!-- Add user form -->
-        <div style="border-top:1px solid #30363d;padding:12px 16px;background:#0d1117">
-            <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:#e1e4e8">Add User</div>
+        <div style="border-top:1px solid var(--border);padding:12px 16px;background:var(--bg-tertiary)">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-primary)">Add User</div>
             <form @submit.prevent="addUser()" style="display:flex;gap:6px;align-items:end">
-                <div><label style="font-size:10px;color:#8b949e;font-weight:500">Username</label><input type="text" x-model="newUser.username" required style="width:110px;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e1e4e8"></div>
-                <div><label style="font-size:10px;color:#8b949e;font-weight:500">Password</label><input type="password" x-model="newUser.password" required style="width:110px;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e1e4e8"></div>
-                <div><label style="font-size:10px;color:#8b949e;font-weight:500">Groups (comma-sep)</label><input type="text" x-model="newUser.groupsStr" placeholder="prod, staging" style="width:160px;font-size:12px;padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e1e4e8"></div>
+                <div><label style="font-size:10px;color:var(--text-secondary);font-weight:500">Username</label><input type="text" x-model="newUser.username" required style="width:110px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+                <div><label style="font-size:10px;color:var(--text-secondary);font-weight:500">Password</label><input type="password" x-model="newUser.password" required style="width:110px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+                <div><label style="font-size:10px;color:var(--text-secondary);font-weight:500">Groups (comma-sep)</label><input type="text" x-model="newUser.groupsStr" placeholder="prod, staging" style="width:160px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
                 <button type="submit" class="fz-btn fz-btn-primary" style="font-size:12px">Add</button>
             </form>
         </div>
@@ -571,23 +619,23 @@ window._showToastImpl = function(message, type) {
         <div class="fz-modal-title">Audit Log</div>
         <div class="fz-modal-body" style="padding:0;max-height:60vh;overflow-y:auto">
             <table style="width:100%;font-size:12px;border-collapse:collapse">
-                <thead style="position:sticky;top:0;background:#21262d">
+                <thead style="position:sticky;top:0;background:var(--btn-bg)">
                     <tr>
-                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">Time</th>
-                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">User</th>
-                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">Action</th>
-                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">Detail</th>
-                        <th style="padding:8px;border-bottom:1px solid #30363d;color:#8b949e;font-size:10px;text-transform:uppercase">IP</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase">Time</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase">User</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase">Action</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase">Detail</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase">IP</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-for="e in auditEntries" :key="e.id">
-                        <tr style="border-bottom:1px solid #21262d">
-                            <td style="padding:6px 8px;color:#8b949e;font-size:11px;white-space:nowrap" x-text="new Date(e.created_at).toLocaleString()"></td>
-                            <td style="padding:6px 8px;color:#e1e4e8;font-weight:500" x-text="e.username"></td>
+                        <tr style="border-bottom:1px solid var(--btn-bg)">
+                            <td style="padding:6px 8px;color:var(--text-secondary);font-size:11px;white-space:nowrap" x-text="new Date(e.created_at).toLocaleString()"></td>
+                            <td style="padding:6px 8px;color:var(--text-primary);font-weight:500" x-text="e.username"></td>
                             <td style="padding:6px 8px"><span style="font-size:11px;padding:2px 6px;border-radius:10px;background:#1f6feb20;color:#58a6ff" x-text="e.action"></span></td>
-                            <td style="padding:6px 8px;color:#8b949e;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" x-text="e.detail"></td>
-                            <td style="padding:6px 8px;color:#484f58;font-size:11px;font-family:'JetBrains Mono',monospace" x-text="e.ip_address"></td>
+                            <td style="padding:6px 8px;color:var(--text-secondary);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" x-text="e.detail"></td>
+                            <td style="padding:6px 8px;color:var(--text-muted);font-size:11px;font-family:'JetBrains Mono',monospace" x-text="e.ip_address"></td>
                         </tr>
                     </template>
                 </tbody>
@@ -607,9 +655,9 @@ window._showToastImpl = function(message, type) {
             <div class="fz-modal-body">
                 <label>Allowed Groups (comma-separated)</label>
                 <input type="text" x-model="editingGroupsStr" placeholder="production, staging, development">
-                <p style="font-size:12px;color:#484f58;margin-top:8px">User will only see servers in these groups. Leave empty to deny all access.</p>
+                <p style="font-size:12px;color:var(--text-muted);margin-top:8px">User will only see servers in these groups. Leave empty to deny all access.</p>
                 <div x-show="groups.length" style="margin-top:10px">
-                    <span style="font-size:12px;color:#8b949e">Available groups: </span>
+                    <span style="font-size:12px;color:var(--text-secondary)">Available groups: </span>
                     <template x-for="g in groups" :key="g">
                         <button type="button" @click="toggleGroup(g)" class="fz-btn" style="font-size:10px;padding:1px 6px;margin:1px" x-text="g"></button>
                     </template>
@@ -630,6 +678,8 @@ let _tabCounter = 0;
 
 function app() {
     return {
+        theme: localStorage.getItem('webgate_theme') || 'dark',
+        uploadProgress: { active: false, percent: 0, fileName: '', total: 0, loaded: 0 },
         token: localStorage.getItem('webgate_token') || '',
         currentUser: null, username: '', password: '',
         showChangePassword: false, newPassword: '', confirmPassword: '',
@@ -645,6 +695,7 @@ function app() {
         serverForm: { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', group: '', tagsStr: '', description: '' },
         tabs: [], activeTabId: null,
         logMessages: [],
+        serverStatuses: {},
         logHeight: 80,
         ctxMenu: { show: false, x: 0, y: 0, tab: null, f: null },
 
@@ -670,11 +721,37 @@ function app() {
             return '';
         },
 
+        toggleTheme() {
+            this.theme = this.theme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('webgate_theme', this.theme);
+            document.documentElement.dataset.theme = this.theme;
+        },
+
+        handleKeyboard(event) {
+            const tag = event.target.tagName;
+            const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+            if (event.key === 'Escape') {
+                if (this.showServerModal) { this.showServerModal = false; event.preventDefault(); return; }
+                if (this.showUsersModal) { this.showUsersModal = false; event.preventDefault(); return; }
+                if (this.showAuditModal) { this.showAuditModal = false; event.preventDefault(); return; }
+                if (this.ctxMenu.show) { this.ctxMenu.show = false; event.preventDefault(); return; }
+            }
+            if (inInput) return;
+            if (event.ctrlKey || event.metaKey) {
+                switch(event.key) {
+                    case '1': event.preventDefault(); this.view = 'dashboard'; break;
+                    case 'n': case 'N': if (this.currentUser?.is_admin) { event.preventDefault(); this.resetServerForm(); this.showServerModal = true; } break;
+                }
+            }
+        },
+
         async init() {
+            document.documentElement.dataset.theme = this.theme;
             if (this.token) {
                 await this.fetchMe();
                 if (this.currentUser?.must_change_password) return;
-                await this.loadServers(); await this.loadGroups();
+                await this.loadServers(); await this.loadGroups(); await this.loadStatuses();
+                setInterval(() => this.loadStatuses(), 30000);
                 this._restoreTabs();
             }
             this.log('status', 'webgate initialized');
@@ -731,15 +808,16 @@ function app() {
 
         // Servers
         async loadServers() { try { let url = '/api/servers'; if (this.searchQuery) url += `?search=${encodeURIComponent(this.searchQuery)}`; this.servers = await this.apiCall(url); } catch (e) { this.showToast(e.message, 'error'); } },
+        async loadStatuses() { try { this.serverStatuses = await this.apiCall('/api/servers/status'); } catch {} },
         async loadGroups() { try { this.groups = await this.apiCall('/api/servers/groups'); } catch {} },
-        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '', ssh_enabled: true, sftp_enabled: true, sftp_allowed_paths_str: '' }; },
+        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '', ssh_enabled: true, sftp_enabled: true, sftp_read_only: false, sftp_allowed_paths_str: '' }; },
         loadKeyFile(event) {
             const file = event.target.files?.[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = (e) => { this.serverForm.private_key = e.target.result; this.serverForm.keyFileName = file.name; };
             reader.readAsText(file); event.target.value = '';
         },
-        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description, ssh_enabled: srv.ssh_enabled !== false, sftp_enabled: srv.sftp_enabled !== false, sftp_allowed_paths_str: (srv.sftp_allowed_paths || []).join('\n') }; this.showServerModal = true; },
+        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description, ssh_enabled: srv.ssh_enabled !== false, sftp_enabled: srv.sftp_enabled !== false, sftp_read_only: srv.sftp_read_only || false, sftp_allowed_paths_str: (srv.sftp_allowed_paths || []).join('\n') }; this.showServerModal = true; },
         async saveServer() {
             const tags = this.serverForm.tagsStr.split(',').map(t => t.trim()).filter(Boolean);
             const sftp_allowed_paths = (this.serverForm.sftp_allowed_paths_str || '').split('\n').map(p => p.trim()).filter(Boolean);
@@ -843,7 +921,7 @@ function app() {
             const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
-            const term = new Terminal({ cursorBlink: true, fontSize: 13, fontFamily: '"Consolas","Courier New",monospace', theme: { background: '#1a1b26', foreground: '#c0caf5', cursor: '#c0caf5', selectionBackground: '#33467c' } });
+            const term = new Terminal({ cursorBlink: true, fontSize: 13, fontFamily: '"Consolas","Courier New",monospace', theme: this.theme === 'light' ? { background: '#ffffff', foreground: '#1f2328', cursor: '#1f2328', selectionBackground: '#b6d7ff' } : { background: '#1a1b26', foreground: '#c0caf5', cursor: '#c0caf5', selectionBackground: '#33467c' } });
             const fitAddon = new FitAddon.FitAddon();
             term.loadAddon(fitAddon); term.loadAddon(new WebLinksAddon.WebLinksAddon()); term.open(container);
             tab._term = term; tab._fitAddon = fitAddon;
@@ -885,7 +963,7 @@ function app() {
         openServerFiles(srv) {
             this.log('cmd', `Opening SFTP to ${srv.hostname}...`);
             const tab = this._createTab('files', `${srv.name}`, {
-                serverId: srv.id, currentPath: '/', entries: [], loading: false, dragOver: false, editingFile: null, _editorView: null, fileFilter: ''
+                serverId: srv.id, currentPath: '/', entries: [], loading: false, dragOver: false, editingFile: null, _editorView: null, fileFilter: '', sftpReadOnly: srv.sftp_read_only || false
             });
             this.loadDirectory(tab, '/');
         },
@@ -936,14 +1014,29 @@ function app() {
                 this.log('status', `Downloaded "${f.name}"`);
             } catch (e) { this.showToast(e.message, 'error'); }
         },
+        downloadZip(tab, f) {
+            if (!f?.is_dir) return;
+            const url = `/api/files/${tab.serverId}/download-zip?path=${encodeURIComponent(f.path)}`;
+            fetch(url, { headers: { 'Authorization': `Bearer ${this.token}` } })
+                .then(r => { if (!r.ok) throw new Error('Download failed'); return r.blob(); })
+                .then(blob => {
+                    const u = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = u; a.download = (f.name || 'download') + '.zip';
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    URL.revokeObjectURL(u);
+                    this.showToast(`Downloaded ${f.name}.zip`);
+                })
+                .catch(e => this.showToast(e.message, 'error'));
+        },
+
         async uploadFiles(tab, event) {
             const files = event.target.files; if (!files.length) return;
             const formData = new FormData(); for (const f of files) formData.append('files', f);
             this.log('cmd', `Uploading ${files.length} file(s)...`);
             try {
-                const resp = await fetch(`/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, { method: 'POST', headers: { Authorization: `Bearer ${this.token}` }, body: formData });
-                if (!resp.ok) throw new Error('Upload failed');
-                const data = await resp.json(); this.showToast(`Uploaded ${data.count} file(s)`); await this.loadDirectory(tab, tab.currentPath);
+                const data = await this._uploadWithProgress(`/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, formData, this.token);
+                this.showToast(`Uploaded ${data.count} file(s)`); await this.loadDirectory(tab, tab.currentPath);
             } catch (e) { this.showToast(e.message, 'error'); }
             event.target.value = '';
         },
@@ -953,10 +1046,34 @@ function app() {
             const formData = new FormData(); for (const f of files) formData.append('files', f);
             this.log('cmd', `Uploading ${files.length} dropped file(s)...`);
             try {
-                const resp = await fetch(`/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, { method: 'POST', headers: { Authorization: `Bearer ${this.token}` }, body: formData });
-                if (!resp.ok) throw new Error('Upload failed');
-                const data = await resp.json(); this.showToast(`Uploaded ${data.count} file(s)`); await this.loadDirectory(tab, tab.currentPath);
+                const data = await this._uploadWithProgress(`/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, formData, this.token);
+                this.showToast(`Uploaded ${data.count} file(s)`); await this.loadDirectory(tab, tab.currentPath);
             } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        async _uploadWithProgress(url, formData, token) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                this.uploadProgress.active = true;
+                this.uploadProgress.percent = 0;
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        this.uploadProgress.percent = Math.round((e.loaded / e.total) * 100);
+                        this.uploadProgress.loaded = e.loaded;
+                        this.uploadProgress.total = e.total;
+                    }
+                };
+                xhr.onload = () => {
+                    this.uploadProgress.active = false;
+                    if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+                    else reject(new Error(xhr.statusText || 'Upload failed'));
+                };
+                xhr.onerror = () => { this.uploadProgress.active = false; reject(new Error('Upload failed')); };
+                xhr.onabort = () => { this.uploadProgress.active = false; };
+                xhr.open('POST', url);
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                xhr.send(formData);
+            });
         },
 
         _isPreviewable(name) {
@@ -986,7 +1103,7 @@ function app() {
                         if (previewType === 'pdf') {
                             container.innerHTML = `<iframe src="${tab._previewUrl}" style="width:100%;height:100%;border:0" title="${f.name}"></iframe>`;
                         } else {
-                            container.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#0d1117;overflow:auto;padding:16px"><img src="${tab._previewUrl}" alt="${f.name}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4)"></div>`;
+                            container.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);overflow:auto;padding:16px"><img src="${tab._previewUrl}" alt="${f.name}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4)"></div>`;
                         }
                     });
                 } catch (e) { this.showToast(e.message, 'error'); }

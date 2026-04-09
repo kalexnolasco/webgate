@@ -142,10 +142,16 @@ flowchart TB
 | **File Preview** | PDF viewer, image preview (PNG, JPG, GIF, SVG, WebP) directly in the browser |
 | **Server Registry** | Add/edit/delete servers, groups, tags, password & key auth, test connectivity, import/export, per-server SSH/SFTP toggles |
 | **Quick Connect** | One-off SSH/SFTP connections without saving server config (FileZilla-style toolbar) |
-| **Access Control** | Admin creates users, assigns server groups, enables/disables SSH or SFTP per server, restricts SFTP to specific paths |
+| **Access Control** | Admin creates users, assigns server groups, enables/disables SSH or SFTP per server, restricts SFTP to specific paths, read-only SFTP mode |
+| **Server Monitoring** | Background SSH connectivity checks every 60s, green/red status dot on server dashboard |
+| **Dark/Light Theme** | Toggle between dark and light themes, saved in localStorage, terminal adapts |
 | **Credential Security** | SSH passwords and private keys encrypted at rest with Fernet (derived from app secret) |
 | **Connection Pool** | SFTP connections are reused per server (5 min TTL), not opened/closed on every request |
+| **Upload Progress** | Visual progress bar with percentage during file uploads |
+| **ZIP Download** | Download entire directories as ZIP archives from the SFTP browser |
+| **Keyboard Shortcuts** | Escape closes modals, Ctrl+1 Site Manager, Ctrl+N New Server |
 | **Docker Ready** | Multi-stage Dockerfile, single-command deployment, health checks, persistent volumes |
+| **Responsive** | Adapts to tablet and mobile screen sizes |
 | **Zero Frontend Build** | Vanilla JS + Alpine.js, no npm/node required, all assets from CDN |
 
 ## Screenshots
@@ -398,6 +404,9 @@ All settings are configurable via environment variables with the `WEBGATE_` pref
 | `WEBGATE_MAX_UPLOAD_SIZE` | `104857600` | Max upload size (100 MB) |
 | `WEBGATE_JWT_ALGORITHM` | `HS256` | JWT algorithm |
 | `WEBGATE_JWT_EXPIRE_MINUTES` | `1440` | Token expiry (24 hours) |
+| `WEBGATE_MONITOR_INTERVAL` | `60` | Server status check interval (seconds) |
+| `WEBGATE_MONITOR_TIMEOUT` | `5` | SSH connect timeout for checks (seconds) |
+| `WEBGATE_MONITOR_CONCURRENCY` | `10` | Max parallel status checks |
 
 ## Docker
 
@@ -499,6 +508,7 @@ uv run coverage run -m pytest tests/ -v && uv run coverage report
 - **Group-based access control** -- users only see servers in their assigned groups
 - **Per-server feature control** -- admin can disable SSH or SFTP independently per server
 - **SFTP path restrictions** -- admin can lock SFTP to specific directories per server
+- **SFTP read-only mode** -- admin can set per-server read-only flag, blocking all write operations
 - **SFTP path traversal protection** (server-side normalization and validation)
 - **CORS configurable** per deployment
 - **No plaintext password storage** (user passwords hashed with bcrypt)
@@ -529,15 +539,15 @@ uv run coverage run -m pytest tests/ -v && uv run coverage report
 - [x] Per-server SSH/SFTP toggles (admin can enable/disable each feature)
 - [x] SFTP path restrictions (admin can limit access to specific directories)
 
-### Planned (v0.2.x -- Access & UX)
+### Completed (v0.2.x)
 
-- [ ] SFTP read-only mode per server (browse and download, no upload/write/delete)
-- [ ] Server status monitoring (background ping/connectivity checks)
-- [ ] Dark/light theme toggle
-- [ ] Responsive design for tablets
-- [ ] Keyboard shortcuts for terminal and file browser
-- [ ] Drag & drop file upload with progress bar
-- [ ] Folder download as ZIP
+- [x] SFTP read-only mode per server (browse and download only)
+- [x] Server status monitoring (background SSH checks, green/red dot)
+- [x] Dark/light theme toggle with localStorage persistence
+- [x] Responsive tablet/mobile layout
+- [x] Keyboard shortcuts (Escape, Ctrl+1, Ctrl+N)
+- [x] Upload progress bar with percentage
+- [x] Folder download as ZIP
 
 ### Planned (v0.3.x -- Collaboration & Ops)
 

@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440  # 24 hours
 
+    # Server monitoring
+    monitor_interval: int = 60  # seconds between connectivity checks
+    monitor_timeout: int = 5  # SSH connect timeout for checks
+    monitor_concurrency: int = 10  # max parallel checks
+
     @property
     def static_dir(self) -> Path:
         return Path(__file__).parent / "static"

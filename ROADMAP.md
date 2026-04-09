@@ -35,17 +35,15 @@ This document tracks the development plan for **webgate**. Items are organized b
 
 ---
 
-## v0.2.0 -- Access Refinement & UX
+## v0.2.0 -- Access Refinement & UX (Released 2026-04-09)
 
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| SFTP read-only mode | High | Per-server flag: allow browse/download but block upload, write, delete, rename, mkdir, chmod |
-| Server status monitoring | High | Background connectivity checks with online/offline indicator on dashboard |
-| Dark/light theme toggle | Medium | User preference saved in localStorage, apply to terminal and file browser |
-| Responsive tablet layout | Medium | Adapt split-pane UI for iPad/tablet screen sizes |
-| Keyboard shortcuts | Medium | Configurable shortcuts for common actions (new tab, switch pane, focus search) |
-| Drag & drop upload progress | Low | Visual progress bar for multi-file uploads with cancel support |
-| Folder download as ZIP | Low | Server-side ZIP compression for directory downloads |
+- [x] SFTP read-only mode (per-server flag: browse/download only, block upload/write/delete/rename/mkdir/chmod)
+- [x] Server status monitoring (background SSH checks every 60s, green/red dot on dashboard)
+- [x] Dark/light theme toggle (CSS variables, localStorage persistence, terminal/editor adapt)
+- [x] Responsive tablet layout (CSS media queries for 1024px and 768px breakpoints)
+- [x] Keyboard shortcuts (Escape closes modals, Ctrl+1 Site Manager, Ctrl+N New Server)
+- [x] Drag & drop upload progress bar (XHR with progress events, percentage display)
+- [x] Folder download as ZIP (server-side zip compression, right-click context menu)
 
 ## v0.3.0 -- Collaboration & Operations
 

@@ -24,6 +24,7 @@ class Server(Base):
     ssh_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     sftp_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     sftp_allowed_paths: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of paths
+    sftp_read_only: Mapped[bool] = mapped_column(Boolean, default=False)
     last_connected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
@@ -43,6 +44,7 @@ class ServerCreate(BaseModel):
     ssh_enabled: bool = True
     sftp_enabled: bool = True
     sftp_allowed_paths: list[str] = []
+    sftp_read_only: bool = False
 
 
 class ServerUpdate(BaseModel):
@@ -59,6 +61,7 @@ class ServerUpdate(BaseModel):
     ssh_enabled: bool | None = None
     sftp_enabled: bool | None = None
     sftp_allowed_paths: list[str] | None = None
+    sftp_read_only: bool | None = None
 
 
 class ServerOut(BaseModel):
@@ -74,6 +77,7 @@ class ServerOut(BaseModel):
     ssh_enabled: bool
     sftp_enabled: bool
     sftp_allowed_paths: list[str]
+    sftp_read_only: bool
     last_connected_at: datetime | None
     created_at: datetime
 

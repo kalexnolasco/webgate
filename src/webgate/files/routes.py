@@ -61,10 +61,19 @@ def check_path_allowed(path: str, allowed_paths: list[str]) -> None:
     )
 
 
+def check_read_only(read_only: bool) -> None:
+    """Raise HTTP 403 if the server's SFTP is in read-only mode."""
+    if read_only:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="SFTP is in read-only mode for this server",
+        )
+
+
 @asynccontextmanager
 async def _sftp(
     server_id: int, session: AsyncSession, user: UserOut
-) -> AsyncGenerator[tuple[SFTPClient, list[str]]]:
+) -> AsyncGenerator[tuple[SFTPClient, list[str], bool]]:
     server = await get_server(
         session, server_id, user.id,
         is_admin=user.is_admin,
@@ -77,6 +86,7 @@ async def _sftp(
             status_code=status.HTTP_403_FORBIDDEN, detail="SFTP is disabled for this server"
         )
     allowed_paths = _get_allowed_paths(server)
+    read_only = server.sftp_read_only
     password, private_key = get_server_credentials(server)
     try:
         client = await sftp_pool.acquire(
@@ -87,7 +97,7 @@ async def _sftp(
             password=password,
             private_key=private_key,
         )
-        yield client, allowed_paths
+        yield client, allowed_paths, read_only
     finally:
         sftp_pool.release(server_id)
 
@@ -96,7 +106,7 @@ async def _sftp(
 async def list_dir(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> DirectoryListing:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
             check_path_allowed(path, allowed_paths)
             entries = await client.ls(path)
@@ -109,7 +119,7 @@ async def list_dir(
 async def file_stat(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> FileEntry:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
             check_path_allowed(path, allowed_paths)
             return await client.stat(path)
@@ -121,7 +131,7 @@ async def file_stat(
 async def read_file(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
             check_path_allowed(path, allowed_paths)
             content = await client.read_text(path)
@@ -134,7 +144,7 @@ async def read_file(
 async def download_file(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> Response:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
             safe_path = validate_path(path)
             check_path_allowed(safe_path, allowed_paths)
@@ -150,13 +160,33 @@ async def download_file(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
+@router.get("/{server_id}/download-zip")
+async def download_zip(
+    server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
+) -> Response:
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
+        try:
+            safe_path = validate_path(path)
+            check_path_allowed(safe_path, allowed_paths)
+            data = await client.read_directory_as_zip(safe_path)
+            folder_name = safe_path.rsplit("/", 1)[-1] or "download"
+            return Response(
+                content=data,
+                media_type="application/zip",
+                headers={"Content-Disposition": f'attachment; filename="{folder_name}.zip"'},
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
 @router.post("/{server_id}/upload")
 async def upload_files(
     server_id: int, session: SessionDep, current_user: CurrentUserDep,
     path: str = "/", files: list[UploadFile] = [],  # noqa: B006
 ) -> dict[str, object]:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
+            check_read_only(read_only)
             safe_path = validate_path(path)
             check_path_allowed(safe_path, allowed_paths)
             uploaded: list[str] = []
@@ -176,8 +206,9 @@ async def upload_files(
 async def write_file(
     server_id: int, body: FileWriteRequest, session: SessionDep, current_user: CurrentUserDep,
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
+            check_read_only(read_only)
             check_path_allowed(body.path, allowed_paths)
             await client.write_text(body.path, body.content)
             return {"path": validate_path(body.path), "status": "saved"}
@@ -189,8 +220,9 @@ async def write_file(
 async def make_dir(
     server_id: int, body: MkdirRequest, session: SessionDep, current_user: CurrentUserDep,
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
+            check_read_only(read_only)
             check_path_allowed(body.path, allowed_paths)
             await client.mkdir(body.path)
             return {"path": validate_path(body.path), "status": "created"}
@@ -202,8 +234,9 @@ async def make_dir(
 async def rename_item(
     server_id: int, body: RenameRequest, session: SessionDep, current_user: CurrentUserDep,
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
+            check_read_only(read_only)
             check_path_allowed(body.old_path, allowed_paths)
             check_path_allowed(body.new_path, allowed_paths)
             await client.rename(body.old_path, body.new_path)
@@ -216,8 +249,9 @@ async def rename_item(
 async def delete_item(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
+            check_read_only(read_only)
             check_path_allowed(path, allowed_paths)
             await client.delete(path)
             return {"path": validate_path(path), "status": "deleted"}
@@ -229,8 +263,9 @@ async def delete_item(
 async def chmod_item(
     server_id: int, body: ChmodRequest, session: SessionDep, current_user: CurrentUserDep,
 ) -> dict[str, str]:
-    async with _sftp(server_id, session, current_user) as (client, allowed_paths):
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
+            check_read_only(read_only)
             check_path_allowed(body.path, allowed_paths)
             mode = int(body.mode, 8)
             await client.chmod(body.path, mode)

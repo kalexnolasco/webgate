@@ -52,6 +52,7 @@ def server_to_out(server: Server) -> ServerOut:
         ssh_enabled=server.ssh_enabled,
         sftp_enabled=server.sftp_enabled,
         sftp_allowed_paths=_paths_from_json(server.sftp_allowed_paths),
+        sftp_read_only=server.sftp_read_only,
         last_connected_at=server.last_connected_at,
         created_at=server.created_at,
     )
@@ -123,6 +124,7 @@ async def create_server(session: AsyncSession, data: ServerCreate, user_id: int)
         ssh_enabled=data.ssh_enabled,
         sftp_enabled=data.sftp_enabled,
         sftp_allowed_paths=_tags_to_json(data.sftp_allowed_paths),
+        sftp_read_only=data.sftp_read_only,
         user_id=user_id,
     )
     session.add(server)
@@ -162,6 +164,8 @@ async def update_server(
         server.sftp_enabled = data.sftp_enabled
     if data.sftp_allowed_paths is not None:
         server.sftp_allowed_paths = _tags_to_json(data.sftp_allowed_paths)
+    if data.sftp_read_only is not None:
+        server.sftp_read_only = data.sftp_read_only
     await session.commit()
     await session.refresh(server)
     return server

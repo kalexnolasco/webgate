@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import logging
 import posixpath
 import stat
+import zipfile
 from datetime import UTC, datetime
 from typing import Any
 
@@ -155,6 +157,33 @@ class SFTPClient:
     async def chmod(self, path: str, mode: int) -> None:
         safe_path = validate_path(path)
         await self.sftp.chmod(safe_path, mode)
+
+    async def read_directory_as_zip(self, path: str) -> bytes:
+        """Recursively read a directory and return its contents as a ZIP archive."""
+        safe_path = validate_path(path)
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            await self._add_to_zip(zf, safe_path, base_path=safe_path)
+        return buffer.getvalue()
+
+    async def _add_to_zip(
+        self, zf: zipfile.ZipFile, path: str, base_path: str
+    ) -> None:
+        items = await self.sftp.readdir(path)
+        for item in items:
+            name = _to_str(item.filename)
+            if name in (".", ".."):
+                continue
+            child = posixpath.join(path, name)
+            rel_path = posixpath.relpath(child, base_path)
+            if item.attrs.type == asyncssh.FILEXFER_TYPE_DIRECTORY:
+                await self._add_to_zip(zf, child, base_path)
+            else:
+                try:
+                    data = await self.read_bytes(child)
+                    zf.writestr(rel_path, data)
+                except Exception:
+                    logger.warning("Skipping file in ZIP: %s", child)
 
     async def close(self) -> None:
         if self._sftp:

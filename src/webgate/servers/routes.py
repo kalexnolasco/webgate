@@ -83,6 +83,37 @@ async def import_servers(
     return results
 
 
+@router.get("/status")
+async def all_statuses(current_user: CurrentUserDep) -> dict[str, object]:
+    from webgate.servers.monitor import server_monitor
+
+    statuses = server_monitor.get_all_statuses()
+    return {
+        str(sid): {
+            "online": s.online,
+            "last_checked": s.last_checked.isoformat(),
+            "latency_ms": s.latency_ms,
+            "error": s.error,
+        }
+        for sid, s in statuses.items()
+    }
+
+
+@router.get("/{server_id}/status")
+async def single_status(server_id: int, current_user: CurrentUserDep) -> dict[str, object]:
+    from webgate.servers.monitor import server_monitor
+
+    s = server_monitor.get_status(server_id)
+    if s is None:
+        return {"online": None, "last_checked": None, "latency_ms": None, "error": None}
+    return {
+        "online": s.online,
+        "last_checked": s.last_checked.isoformat(),
+        "latency_ms": s.latency_ms,
+        "error": s.error,
+    }
+
+
 @router.get("/{server_id}", response_model=ServerOut)
 async def get_one(
     server_id: int, session: SessionDep, current_user: CurrentUserDep

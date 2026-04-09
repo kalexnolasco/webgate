@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -15,6 +14,7 @@ from webgate.config import settings
 from webgate.db.engine import async_session_factory, close_db, init_db
 from webgate.files.pool import sftp_pool
 from webgate.files.routes import router as files_router
+from webgate.servers.monitor import server_monitor
 from webgate.servers.routes import router as servers_router
 from webgate.terminal.routes import router as terminal_router
 
@@ -25,7 +25,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     async with async_session_factory() as session:
         await seed_admin(session)
     await sftp_pool.start()
+    await server_monitor.start()
     yield
+    await server_monitor.stop()
     await sftp_pool.stop()
     await close_db()
 

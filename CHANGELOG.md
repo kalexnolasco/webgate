@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.2.0 (2026-04-09)
+
+### Features
+
+- **SFTP read-only mode** -- per-server flag to allow browse and download only, blocking all write operations (upload, write, mkdir, rename, delete, chmod)
+- **Server status monitoring** -- background task checks SSH connectivity every 60 seconds; online/offline indicator (green/red dot) on server dashboard
+- **Dark/light theme toggle** -- user preference saved in localStorage; CSS custom properties for full theme support; terminal and editor adapt to theme
+- **Keyboard shortcuts** -- Escape closes modals, Ctrl+1 goes to Site Manager, Ctrl+N opens New Server
+- **Drag & drop upload progress** -- visual progress bar with percentage during file uploads
+- **Folder download as ZIP** -- right-click a directory in SFTP browser to download it as a ZIP archive
+- **Lightweight DB migrations** -- automatic ALTER TABLE for new columns on existing databases
+
+### Details
+
+- New server model field: `sftp_read_only` (bool, default false)
+- New file: `servers/monitor.py` — ServerMonitor class with asyncio background task
+- New API endpoints: `GET /api/servers/status`, `GET /api/servers/{id}/status`
+- New API endpoint: `GET /api/files/{id}/download-zip?path=`
+- Config settings: `monitor_interval`, `monitor_timeout`, `monitor_concurrency`
+- CSS variables for theming: `--bg-primary`, `--text-primary`, `--accent`, etc.
+- Terminal theme switches between dark (Tokyo Night) and light on toggle
+
+---
+
 ## v0.1.1 (2026-04-08)
 
 ### Features
