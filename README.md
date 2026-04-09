@@ -189,6 +189,9 @@ flowchart TB
 ### Audit Log
 ![Audit](docs/screenshots/audit.png)
 
+### Light Theme
+![Light Theme](docs/screenshots/light-theme.png)
+
 ## Quick Start
 
 ### Docker (recommended)
