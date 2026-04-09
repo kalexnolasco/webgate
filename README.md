@@ -1,10 +1,11 @@
 # webgate
 
-[![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![PyPI](https://img.shields.io/pypi/v/webgate?style=flat-square)](https://pypi.org/project/webgate/)
+[![Python](https://img.shields.io/pypi/pyversions/webgate?style=flat-square)](https://pypi.org/project/webgate/)
+[![License](https://img.shields.io/pypi/l/webgate?style=flat-square)](https://github.com/kalexnolasco/webgate/blob/main/LICENSE)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](Dockerfile)
-[![Status](https://img.shields.io/badge/status-beta-orange?style=flat-square)]()
+[![Status](https://img.shields.io/badge/status-beta-orange?style=flat-square)](https://pypi.org/project/webgate/)
 [![Tests](https://img.shields.io/badge/tests-34%20passed-brightgreen?style=flat-square)](https://github.com/kalexnolasco/webgate/actions)
 [![Docs](https://img.shields.io/badge/docs-kalexnolasco.github.io-blue?style=flat-square)](https://kalexnolasco.github.io/webgate/)
 
