@@ -1,0 +1,152 @@
+# Full playground for trying every webgate feature against REAL services.
+#
+# What this spins up:
+#   webgate           ← the app, with recording + webhooks ready
+#   ssh-demo          ← basic SSH target (use for: Terminal, SFTP, Snippets, Recording, Sharing)
+#   ssh-bastion       ← SSH bastion on the 'public' network
+#   ssh-internal      ← SSH target ONLY reachable through the bastion (jump-host demo)
+#   openldap          ← LDAP with alice (devs+admins) and bob (devs only)
+#   webhook-receiver  ← HTTP echo server to verify webhook deliveries
+#
+# Network topology:
+#   public net: webgate, ssh-demo, ssh-bastion, openldap, webhook-receiver
+#   private net: ssh-bastion, ssh-internal      ← webgate can NOT reach ssh-internal directly
+#
+# Run:
+#   docker compose -f compose.playground.yml up -d --build
+# Initial login credentials are printed after the ldap-seed service finishes.
+
+networks:
+  public:
+  private:
+
+services:
+
+  webgate:
+    build: .
+    container_name: pg-webgate
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    volumes:
+      - webgate-data:/data
+    networks: [public]
+    environment:
+      WEBGATE_SECRET_KEY: "playground-secret-not-for-production"
+      WEBGATE_FIRST_RUN: "true"
+      WEBGATE_RECORD_SESSIONS: "true"
+      WEBGATE_RECORDINGS_DIR: "/data/recordings"
+      # LDAP is pre-configured; alice/alicepass is a ready-made admin
+      WEBGATE_LDAP_ENABLED: "true"
+      WEBGATE_LDAP_URL: "ldap://openldap:389"
+      WEBGATE_LDAP_BIND_DN: "cn=admin,dc=example,dc=com"
+      WEBGATE_LDAP_BIND_PASSWORD: "adminpass"
+      WEBGATE_LDAP_USER_BASE: "ou=people,dc=example,dc=com"
+      WEBGATE_LDAP_USER_FILTER: "(uid={username})"
+      WEBGATE_LDAP_GROUP_BASE: "ou=groups,dc=example,dc=com"
+      WEBGATE_LDAP_GROUP_FILTER: "(member={dn})"
+      WEBGATE_LDAP_GROUP_MAP: '{"devs":"production","admins":"all"}'
+      WEBGATE_LDAP_ADMIN_GROUPS: '["admins"]'
+    depends_on:
+      - ssh-demo
+      - ssh-bastion
+      - openldap
+      - webhook-receiver
+
+  ssh-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.ssh-demo
+    container_name: pg-ssh-demo
+    hostname: ssh-demo
+    networks: [public]
+
+  ssh-bastion:
+    build:
+      context: .
+      dockerfile: Dockerfile.ssh-demo
+    container_name: pg-ssh-bastion
+    hostname: ssh-bastion
+    networks: [public, private]
+
+  ssh-internal:
+    build:
+      context: .
+      dockerfile: Dockerfile.ssh-demo
+    container_name: pg-ssh-internal
+    hostname: ssh-internal
+    networks: [private]   # webgate can't reach this directly -> forces jump-host
+
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: pg-openldap
+    networks: [public]
+    environment:
+      LDAP_ORGANISATION: "Example"
+      LDAP_DOMAIN: "example.com"
+      LDAP_ADMIN_PASSWORD: "adminpass"
+
+  # One-shot container that seeds LDAP with alice + bob + groups, then exits.
+  ldap-seed:
+    image: osixia/openldap:1.5.0
+    container_name: pg-ldap-seed
+    depends_on:
+      - openldap
+    networks: [public]
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        sleep 6
+        cat > /tmp/seed.ldif <<'EOF'
+        dn: ou=people,dc=example,dc=com
+        objectClass: organizationalUnit
+        ou: people
+
+        dn: ou=groups,dc=example,dc=com
+        objectClass: organizationalUnit
+        ou: groups
+
+        dn: uid=alice,ou=people,dc=example,dc=com
+        objectClass: inetOrgPerson
+        uid: alice
+        cn: Alice Adams
+        sn: Adams
+        mail: alice@example.com
+        userPassword: alicepass
+
+        dn: uid=bob,ou=people,dc=example,dc=com
+        objectClass: inetOrgPerson
+        uid: bob
+        cn: Bob Brown
+        sn: Brown
+        mail: bob@example.com
+        userPassword: bobpass
+
+        dn: cn=devs,ou=groups,dc=example,dc=com
+        objectClass: groupOfNames
+        cn: devs
+        member: uid=alice,ou=people,dc=example,dc=com
+        member: uid=bob,ou=people,dc=example,dc=com
+
+        dn: cn=admins,ou=groups,dc=example,dc=com
+        objectClass: groupOfNames
+        cn: admins
+        member: uid=alice,ou=people,dc=example,dc=com
+        EOF
+        ldapadd -x -H ldap://openldap:389 -D 'cn=admin,dc=example,dc=com' -w adminpass -f /tmp/seed.ldif
+        echo '==================================================================='
+        echo ' LDAP seeded. Available users:'
+        echo '   alice / alicepass  (admin, member of devs+admins)'
+        echo '   bob   / bobpass    (non-admin, member of devs only)'
+        echo ' Plus the local admin / admin (first-run password change required)'
+        echo '==================================================================='
+
+  webhook-receiver:
+    image: mendhak/http-https-echo:36
+    container_name: pg-webhook-receiver
+    networks: [public]
+    environment:
+      HTTP_PORT: "8080"
+
+volumes:
+  webgate-data:

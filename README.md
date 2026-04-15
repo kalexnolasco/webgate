@@ -28,6 +28,14 @@ That's it. The first login forces a password change. Add servers from the **Site
 
 For a richer dev environment with a sandboxed SSH target pre-baked: `docker compose -f compose.dev.yml up --build`.
 
+> 🧪 **Want to try every feature end-to-end?** A ready-to-run playground brings up webgate **plus** an LDAP server, a public SSH host, a private SSH host only reachable via a bastion, and an HTTP echo for webhooks:
+>
+> ```bash
+> docker compose -f compose.playground.yml up -d --build
+> ```
+>
+> Full walkthrough with screenshots: [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md).
+
 ---
 
 ## Why webgate?
