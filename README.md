@@ -403,6 +403,7 @@ All settings are configurable via environment variables with the `WEBGATE_` pref
 | `WEBGATE_DB_URL` | `sqlite+aiosqlite:///./webgate.db` | Database URL |
 | `WEBGATE_ALLOWED_ORIGINS` | `*` | CORS origins (comma-separated) |
 | `WEBGATE_ROOT_PATH` | `` (empty) | URL prefix when served behind a reverse proxy at a sub-path (e.g. `/webgate`) |
+| `WEBGATE_DEMO_MODE` | `false` | Read-only public demo: blocks all writes, seeds a `demo`/`demo` user and shows a banner |
 | `WEBGATE_LOG_LEVEL` | `info` | Log level |
 | `WEBGATE_SESSION_TIMEOUT` | `3600` | SSH session timeout (seconds) |
 | `WEBGATE_MAX_UPLOAD_SIZE` | `104857600` | Max upload size (100 MB) |

@@ -1,0 +1,63 @@
+# Single-container demo image: webgate + a sandboxed SSH/SFTP target
+# managed by supervisord. Suitable for free tiers (Fly.io, Render) where
+# spinning a sidecar VM isn't ideal.
+#
+# Build:  docker build -f Dockerfile.demo -t webgate-demo .
+# Run:    docker run -p 8443:8443 -e WEBGATE_SECRET_KEY=demo webgate-demo
+
+# --- Stage 1: build webgate ---
+FROM python:3.13-slim AS builder
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev --no-editable
+COPY src/ src/
+
+# --- Stage 2: runtime with webgate + sshd + supervisord ---
+FROM python:3.13-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        openssh-server supervisor procps curl nano htop tree && \
+    rm -rf /var/lib/apt/lists/*
+
+# sshd config: only the demo user, password auth allowed for the demo
+RUN mkdir -p /run/sshd && \
+    sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && \
+    sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    useradd -m -s /bin/bash demo && \
+    echo 'demo:demo' | chpasswd
+
+# Sample tree so SFTP browsing has something to show
+RUN mkdir -p /home/demo/projects/webgate /home/demo/projects/api-server \
+             /home/demo/documents /home/demo/logs /home/demo/scripts && \
+    printf '# webgate\nSelf-hosted SSH + SFTP manager\n' > /home/demo/projects/webgate/README.md && \
+    printf '{"name":"api-server","version":"2.1.0"}\n' > /home/demo/projects/api-server/package.json && \
+    printf 'Hello from the webgate demo!\n' > /home/demo/documents/welcome.txt && \
+    printf '2026-04-08 10:00:00 INFO  Server started on port 8080\n' > /home/demo/logs/app.log && \
+    printf '#!/bin/bash\necho "Deploy complete"\n' > /home/demo/scripts/deploy.sh && \
+    chmod +x /home/demo/scripts/deploy.sh && \
+    chown -R demo:demo /home/demo
+
+# webgate
+WORKDIR /app
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/src /app/src
+RUN mkdir -p /data
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/src" \
+    WEBGATE_HOST=0.0.0.0 \
+    WEBGATE_PORT=8443 \
+    WEBGATE_DB_URL=sqlite+aiosqlite:////data/webgate.db \
+    WEBGATE_LOG_LEVEL=info \
+    WEBGATE_DEMO_MODE=true
+
+# supervisord config
+RUN printf '[supervisord]\nnodaemon=true\nuser=root\nlogfile=/dev/stdout\nlogfile_maxbytes=0\n\n[program:sshd]\ncommand=/usr/sbin/sshd -D -e\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n\n[program:webgate]\ncommand=python -m webgate\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n' > /etc/supervisor/conf.d/webgate.conf
+
+EXPOSE 8443
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -fsS http://localhost:8443/api/health || exit 1
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/webgate.conf"]

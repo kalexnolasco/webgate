@@ -118,6 +118,9 @@
         .cm-editor .cm-scroller { overflow: auto; }
 
         /* Login overlay */
+        .fz-demo-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 200; background: linear-gradient(90deg, #f59e0b, #ef4444); color: #fff; text-align: center; font-size: 12px; padding: 6px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .fz-demo-banner code { background: rgba(255,255,255,0.25); padding: 1px 5px; border-radius: 3px; font-family: monospace; }
+        .fz-demo-banner a { color: #fff; text-decoration: underline; }
         .fz-login-overlay { position: fixed; inset: 0; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; z-index: 100; }
         .fz-login-box { background: var(--modal-bg); border: 1px solid var(--border); border-radius: 12px; padding: 32px; width: 380px; box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
         .fz-login-box h1 { text-align: center; font-size: 24px; margin-bottom: 4px; color: var(--text-primary); font-weight: 700; }
@@ -190,6 +193,12 @@ window._showToastImpl = function(message, type) {
 </script>
 
 <div x-data="app()" x-cloak @keydown.window="handleKeyboard($event)">
+
+<!-- Demo banner (shown when WEBGATE_DEMO_MODE=true) -->
+<div x-show="demoMode" class="fz-demo-banner">
+    🎮 <strong>Demo mode</strong> &mdash; login with <code>demo</code> / <code>demo</code> &middot; read-only (servers cannot be added or modified) &middot; state resets hourly &middot;
+    <a href="https://github.com/kalexnolasco/webgate" target="_blank" rel="noopener">GitHub</a>
+</div>
 
 <!-- ======================== LOGIN ======================== -->
 <div x-show="!token" class="fz-login-overlay">
@@ -807,6 +816,7 @@ const BASE = location.pathname.replace(/\/(index\.html)?$/, '');
 function app() {
     return {
         theme: localStorage.getItem('webgate_theme') || 'dark',
+        demoMode: false,
         uploadProgress: { active: false, percent: 0, fileName: '', total: 0, loaded: 0 },
         token: localStorage.getItem('webgate_token') || '',
         currentUser: null, username: '', password: '',
@@ -879,6 +889,7 @@ function app() {
 
         async init() {
             document.documentElement.dataset.theme = this.theme;
+            try { const cfg = await this.apiCall('/api/config'); this.demoMode = !!cfg.demo_mode; } catch {}
             if (this.token) {
                 await this.fetchMe();
                 if (this.currentUser?.must_change_password) return;

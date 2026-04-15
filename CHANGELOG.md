@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.2.2 (2026-04-15)
+
+### Features
+
+- **Demo mode** (`WEBGATE_DEMO_MODE=true`) -- read-only public demo deployments. Blocks every write request on `/api/*` (except login), disables the WebSocket quick-connect endpoint, seeds a `demo`/`demo` user with a sample server, and shows a top banner in the UI.
+- **`Dockerfile.demo`** -- single-container image bundling webgate + a sandboxed `sshd` target via supervisord. Ready for free hosting tiers.
+- **`fly.toml`** -- Fly.io configuration for one-command demo deployments (`flyctl deploy`).
+
+### Details
+
+- New public endpoint `GET /api/config` exposes `{"demo_mode": bool}` for the frontend to render the banner before login
+- `WEBGATE_DEMO_MODE=true` adds an HTTP middleware that returns `403` for any `POST/PUT/PATCH/DELETE` on `/api/*` (allowlist: `/api/auth/login`, `/api/auth/totp/verify`)
+- Demo seed (`webgate.demo`) is idempotent and only runs when the flag is on
+- Hourly state reset for the public demo can be done with a cron pinging the container restart, so DB returns to seed state
+
+---
+
 ## v0.2.1 (2026-04-15)
 
 ### Features

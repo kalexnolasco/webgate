@@ -1,0 +1,48 @@
+# Fly.io deployment for the public webgate demo.
+# Edit `app` to your fly app name, then:
+#   flyctl launch --no-deploy --copy-config
+#   flyctl secrets set WEBGATE_SECRET_KEY=$(openssl rand -hex 32)
+#   flyctl deploy
+#
+# Free tier (1x shared-cpu, 256-512 MB) is enough for light demo traffic.
+
+app = "webgate-demo"
+primary_region = "mad"  # Madrid; pick the closest region for your audience
+
+[build]
+  dockerfile = "Dockerfile.demo"
+
+[env]
+  WEBGATE_DEMO_MODE = "true"
+  WEBGATE_LOG_LEVEL = "info"
+
+[http_service]
+  internal_port = 8443
+  force_https = true
+  auto_stop_machines = "stop"     # save free-tier hours when idle
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "get"
+    path = "/api/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+# Persistent volume so the demo seed survives restarts. The hourly reset
+# (see scripts/demo-reset.sh) wipes the DB inside the container, not the
+# whole volume, so this stays cheap.
+[mounts]
+  source = "webgate_demo_data"
+  destination = "/data"
