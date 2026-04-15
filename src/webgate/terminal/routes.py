@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 
 from webgate.audit.service import log_action
 from webgate.auth.models import UserOut
+from webgate.auth.routes import get_current_user
 from webgate.auth.service import get_user_by_id
 from webgate.db.engine import async_session_factory
 from webgate.servers.service import (
@@ -12,10 +15,40 @@ from webgate.servers.service import (
     resolve_jump_creds,
     update_last_connected,
 )
-from webgate.terminal.ws_handler import authenticate_websocket, handle_terminal_ws
+from webgate.terminal.shared import manager as shared_manager
+from webgate.terminal.ws_handler import authenticate_websocket, handle_join_ws, handle_terminal_ws
 from webgate.webhooks.dispatcher import fire as fire_webhook
 
 router = APIRouter(tags=["terminal"])
+
+CurrentUserDep = Annotated[UserOut, Depends(get_current_user)]
+
+
+@router.post("/api/terminal/share/{session_id}")
+async def create_share_token(session_id: str, user: CurrentUserDep) -> dict[str, object]:
+    """Mint a shareable token for an active terminal session. Only the
+    session owner may share; other users will get 403."""
+    sess = shared_manager.get_by_id(session_id)
+    if sess is None or sess.closed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not active")
+    if sess.owner_username != user.username:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the session owner can share")
+    token = shared_manager.mint_token(session_id)
+    return {
+        "token": token,
+        "server": sess.server_label,
+        "participants": len(sess.participants),
+    }
+
+
+@router.delete("/api/terminal/share/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_share_token(session_id: str, user: CurrentUserDep) -> None:
+    sess = shared_manager.get_by_id(session_id)
+    if sess is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not active")
+    if sess.owner_username != user.username:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the session owner can revoke")
+    shared_manager.revoke_token(session_id)
 
 
 @router.websocket("/api/ws/terminal/quick")
@@ -45,15 +78,11 @@ async def ws_terminal_quick(ws: WebSocket) -> None:
         await ws.close(code=1008)
         return
 
+    payload_username = str(payload.get("username", "user")) if payload else "user"
     await handle_terminal_ws(
-        ws,
-        host=host,
-        port=port,
-        username=username,
-        password=password,
-        private_key=private_key,
-        cols=cols,
-        rows=rows,
+        ws, host=host, port=port, username=username,
+        password=password, private_key=private_key, cols=cols, rows=rows,
+        owner_username=payload_username, server_label=f"{username}@{host}",
     )
 
 
@@ -123,4 +152,19 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
         cols=cols,
         rows=rows,
         jump_kwargs=jump_kwargs,
+        owner_username=user_out.username,
+        server_label=server.name,
     )
+
+
+@router.websocket("/api/ws/terminal/join/{token}")
+async def ws_terminal_join(ws: WebSocket, token: str, mode: str = "rw") -> None:
+    """Join an existing shared SSH session via its share token."""
+    payload = await authenticate_websocket(ws)
+    if payload is None:
+        await ws.close(code=4001, reason="Unauthorized")
+        return
+    username = str(payload.get("username", "guest"))
+    if mode not in ("rw", "ro"):
+        mode = "ro"
+    await handle_join_ws(ws, share_token=token, username=username, mode=mode)

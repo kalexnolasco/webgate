@@ -194,6 +194,16 @@ flowchart TB
 ### Light Theme
 ![Light Theme](docs/screenshots/light-theme.png)
 
+### v0.4.0 — Shared Terminal Sessions
+
+Pair-debugging or onboarding from anywhere: the owner clicks **🔗 Share** in the terminal toolbar, copies the URL, and any colleague who opens it joins the same live session. Output is broadcast to every participant; any RW participant can type.
+
+| Owner | Joiner |
+| --- | --- |
+| ![Owner view](docs/screenshots/v0.4/01-shared-terminal-owner.png) | ![Joiner view](docs/screenshots/v0.4/02-shared-terminal-joiner.png) |
+
+The `?join=<token>` URL parameter is recognized after login -- a joiner can be sent the URL directly even if they aren't logged in yet.
+
 ### v0.3.x — Operations Pack
 
 These screenshots come from the live demo at https://webgate-demo.fly.dev (login `demo` / `demo`).

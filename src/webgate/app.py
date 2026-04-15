@@ -75,7 +75,10 @@ def create_app() -> FastAPI:
         @app.middleware("http")
         async def _demo_readonly(request: Request, call_next):  # pyright: ignore[reportUnusedFunction]
             path = request.url.path
-            if request.method in WRITE_METHODS and path.startswith("/api/") and path not in WRITE_ALLOWLIST:
+            # Allow share-token mint/revoke even in demo mode so the shared
+            # terminal feature can be exercised from the public demo.
+            allowed = path in WRITE_ALLOWLIST or path.startswith("/api/terminal/share/")
+            if request.method in WRITE_METHODS and path.startswith("/api/") and not allowed:
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Demo mode: write operations are disabled"},

@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.4.0 (2026-04-15)
+
+### Features
+
+- **Shared terminal sessions** -- the killer feature. The owner of an active SSH terminal can click **🔗 Share** to mint a one-time URL; anyone they send it to can join the same live session. Output is broadcast to every participant, and any RW participant can type. Useful for pair debugging in production, onboarding juniors, or remote support.
+  - Backend: new `SharedSession` registry holds one `asyncssh` process per session and broadcasts its PTY output to N WebSockets. `_client_input_loop` multiplexes input from any RW client into the same `stdin`.
+  - Endpoints: `POST /api/terminal/share/{session_id}` mints/returns the token, `DELETE` revokes, `WS /api/ws/terminal/join/{token}?mode=rw|ro` attaches a joiner.
+  - Frontend: **🔗 Share** button copies the URL to clipboard; toolbar shows `👥 joined (rw|ro)` for participants. Pasting `?join=<token>` into the URL after login auto-attaches.
+  - Demo middleware whitelists `/api/terminal/share/*` so the public demo can showcase the feature.
+
+### Verified
+
+End-to-end with two browser sessions against the local container:
+
+- Owner opens SSH to `bastion`, clicks Share → token minted, URL copied
+- Joiner navigates to `?join=<token>` → "Joined session of demo on bastion (rw)"
+- Joiner types `echo HELLO_FROM_JOINER` → output appears in BOTH terminals
+- Owner types `uname -n` → output appears in BOTH terminals
+
+---
+
 ## v0.3.3 (2026-04-15)
 
 ### Fixed

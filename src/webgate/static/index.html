@@ -358,6 +358,9 @@ window._showToastImpl = function(message, type) {
                             <button @click="runSnippet(tab, s)" @contextmenu.prevent="confirmDeleteSnippet(s)" class="fz-btn" style="font-size:11px;padding:2px 8px" :title="(s.description || s.command) + ' (right-click to delete)'" x-text="s.name"></button>
                         </template>
                         <button @click="promptNewSnippet()" class="fz-btn" style="font-size:11px;padding:2px 8px" title="Create new snippet">+</button>
+                        <span style="flex:1"></span>
+                        <button x-show="tab._sessionId && !tab._isJoined" @click="shareSession(tab)" class="fz-btn" style="font-size:11px;padding:2px 8px" :style="tab._shareToken ? 'color:var(--success);border-color:var(--success)' : ''" :title="tab._shareToken ? 'Click to copy URL again' : 'Generate a share URL for this session'" x-text="tab._shareToken ? '🔗 Shared' : '🔗 Share'"></button>
+                        <span x-show="tab._isJoined" style="font-size:11px;color:var(--accent)" :title="'Joined session as ' + (tab._joinMode || 'rw')" x-text="'👥 joined (' + (tab._joinMode || 'rw') + ')'"></span>
                     </div>
                     <div style="flex:1;min-height:0" :id="tab.id"></div>
                 </div>
@@ -963,12 +966,21 @@ function app() {
         async init() {
             document.documentElement.dataset.theme = this.theme;
             try { const cfg = await this.apiCall('/api/config'); this.demoMode = !!cfg.demo_mode; } catch {}
+            // Pick up ?join=<token>[&mode=ro|rw] from the URL after auth
+            const params = new URLSearchParams(location.search);
+            this._pendingJoinToken = params.get('join');
+            this._pendingJoinMode = params.get('mode') === 'ro' ? 'ro' : 'rw';
             if (this.token) {
                 await this.fetchMe();
                 if (this.currentUser?.must_change_password) return;
                 await this.loadServers(); await this.loadGroups(); await this.loadStatuses(); await this.loadSnippets();
                 setInterval(() => this.loadStatuses(), 30000);
                 this._restoreTabs();
+                if (this._pendingJoinToken) {
+                    this.joinSharedSession(this._pendingJoinToken, this._pendingJoinMode);
+                    history.replaceState({}, '', BASE + '/');
+                    this._pendingJoinToken = null;
+                }
             }
             this.log('status', 'webgate initialized');
         },
@@ -1015,6 +1027,11 @@ function app() {
                 await this.loadServers(); await this.loadGroups(); await this.loadStatuses(); await this.loadSnippets();
                 this.username = ''; this.password = '';
                 this.log('status', 'Logged in as ' + this.currentUser?.username);
+                if (this._pendingJoinToken) {
+                    this.joinSharedSession(this._pendingJoinToken, this._pendingJoinMode);
+                    history.replaceState({}, '', BASE + '/');
+                    this._pendingJoinToken = null;
+                }
             } catch (e) { this.showToast(e.message, 'error'); }
         },
         async fetchMe() { try { this.currentUser = await this.apiCall('/api/auth/me'); } catch { this.logout(); } },
@@ -1082,6 +1099,23 @@ function app() {
             if (!tab._ws || tab._ws.readyState !== WebSocket.OPEN) { this.showToast('Terminal not connected', 'error'); return; }
             tab._ws.send(s.command + '\r');
             this.log('cmd', `Sent snippet "${s.name}"`);
+        },
+
+        // Shared sessions
+        async shareSession(tab) {
+            if (!tab._sessionId) { this.showToast('Session not ready yet', 'error'); return; }
+            try {
+                const res = await this.apiCall(`/api/terminal/share/${tab._sessionId}`, { method: 'POST' });
+                tab._shareToken = res.token;
+                const url = `${location.origin}${BASE}/?join=${res.token}`;
+                try { await navigator.clipboard.writeText(url); this.showToast('Share URL copied to clipboard'); }
+                catch { prompt('Copy this share URL:', url); }
+                this.log('status', `Shared session URL: ${url}`);
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        joinSharedSession(token, mode = 'rw') {
+            const tab = this._createTab('terminal', `shared (${mode})`, { _isJoined: true, _joinMode: mode });
+            this.$nextTick(() => this._initTerminal(tab, `/api/ws/terminal/join/${token}?mode=${mode}`, {}));
         },
         async loadStatuses() { try { this.serverStatuses = await this.apiCall('/api/servers/status'); } catch {} },
         async loadGroups() { try { this.groups = await this.apiCall('/api/servers/groups'); } catch {} },
@@ -1203,10 +1237,22 @@ function app() {
             requestAnimationFrame(() => {
                 fitAddon.fit();
                 const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const ws = new WebSocket(`${protocol}//${location.host}${BASE}${wsPath}?token=${encodeURIComponent(this.token)}`);
+                const sep = wsPath.includes('?') ? '&' : '?';
+                const ws = new WebSocket(`${protocol}//${location.host}${BASE}${wsPath}${sep}token=${encodeURIComponent(this.token)}`);
                 tab._ws = ws;
                 ws.onopen = () => { ws.send(JSON.stringify({ ...connInfo, cols: term.cols, rows: term.rows })); this.log('status', `Connected: ${tab.title}`); };
-                ws.onmessage = (e) => term.write(e.data);
+                ws.onmessage = (e) => {
+                    // Backend may send a control JSON frame (session id on connect, join ack)
+                    if (typeof e.data === 'string' && e.data.startsWith('{')) {
+                        try {
+                            const ctrl = JSON.parse(e.data);
+                            if (ctrl.type === 'session') { tab._sessionId = ctrl.session_id; return; }
+                            if (ctrl.type === 'joined') { tab._isJoined = true; tab._joinMode = ctrl.mode; this.log('status', `Joined session of ${ctrl.owner} on ${ctrl.server} (${ctrl.mode})`); return; }
+                            if (ctrl.type === 'error') { this.log('error', ctrl.message); return; }
+                        } catch {}
+                    }
+                    term.write(e.data);
+                };
                 ws.onerror = () => this.log('error', `Connection error: ${tab.title}`);
                 ws.onclose = (e) => { if (e.code === 4001) this.log('error', 'Authentication failed'); this.log('status', `Disconnected: ${tab.title}`); term.write('\r\n\x1b[31m--- Disconnected ---\x1b[0m\r\n'); };
                 term.onData(data => { if (ws.readyState === WebSocket.OPEN) ws.send(data); });
