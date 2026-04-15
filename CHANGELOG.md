@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.1 (2026-04-15)
+
+### Features
+
+- **Reverse proxy sub-path support** -- webgate can now be served behind a reverse proxy at a URL prefix (e.g. `https://example.com/webgate/`). Previously the frontend used absolute `/api/...` paths that broke under any prefix.
+
+### Details
+
+- New config setting: `WEBGATE_ROOT_PATH` (default `""`), passed to FastAPI's `root_path` for correct OpenAPI URLs behind proxies
+- Frontend derives the path prefix at runtime from `window.location.pathname` and prepends it to all REST calls and the terminal WebSocket URL
+- README documents nginx, Apache, and Traefik reverse-proxy configurations for sub-path deployments
+- The proxy must forward the prefix unchanged (do not strip it) -- webgate handles the prefix natively
+
+---
+
 ## v0.2.0 (2026-04-09)
 
 ### Features

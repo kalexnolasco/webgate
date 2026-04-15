@@ -33,7 +33,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="webgate", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="webgate",
+        version="0.1.0",
+        lifespan=lifespan,
+        root_path=settings.root_path,
+    )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

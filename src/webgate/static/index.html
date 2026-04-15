@@ -201,9 +201,14 @@ window._showToastImpl = function(message, type) {
             <input type="text" x-model="username" required>
             <label>Password</label>
             <input type="password" x-model="password" required>
-            <button type="submit" class="fz-btn fz-btn-primary" style="width:100%;padding:6px;margin-top:4px">Sign In</button>
+            <div x-show="totpRequired" style="margin-top:4px">
+                <label>2FA Code</label>
+                <input type="text" x-model="totpCode" maxlength="6" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" style="text-align:center;font-size:18px;letter-spacing:4px">
+            </div>
+            <button type="submit" class="fz-btn fz-btn-primary" style="width:100%;padding:6px;margin-top:4px" x-text="totpRequired ? 'Verify' : 'Sign In'"></button>
         </form>
-        <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text-muted)">Default: admin / admin</div>
+        <div x-show="totpRequired" style="text-align:center;margin-top:10px;font-size:11px;color:var(--text-muted)">Enter the code from your authenticator app</div>
+        <div x-show="!totpRequired" style="text-align:center;margin-top:10px;font-size:11px;color:var(--text-muted)">Default: admin / admin</div>
     </div>
 </div>
 
@@ -218,9 +223,11 @@ window._showToastImpl = function(message, type) {
             <button x-show="currentUser?.is_admin" @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:11px" title="New Server (Ctrl+N)">New Server</button>
             <button x-show="currentUser?.is_admin" @click="openUsersModal()" class="fz-btn" style="font-size:11px">Users</button>
             <button x-show="currentUser?.is_admin" @click="openAuditLog()" class="fz-btn" style="font-size:11px">Audit</button>
+            <button @click="openApiKeysModal()" class="fz-btn" style="font-size:11px">Keys</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:12px;color:var(--text-secondary);font-weight:500" x-text="currentUser?.username"></span>
+            <button @click="openTotpModal()" class="fz-btn" style="font-size:11px;padding:2px 8px" :style="currentUser?.totp_enabled ? 'color:var(--success);border-color:var(--success)' : ''" x-text="currentUser?.totp_enabled ? '2FA: On' : '2FA: Off'" title="Manage Two-Factor Authentication"></button>
             <button @click="toggleTheme()" class="fz-btn" style="font-size:11px;padding:2px 8px" x-text="theme === 'dark' ? '☀️' : '🌙'" title="Toggle theme"></button>
             <button @click="logout()" class="fz-btn" style="font-size:11px">Logout</button>
         </div>
@@ -574,7 +581,8 @@ window._showToastImpl = function(message, type) {
                         <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Username</th>
                         <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Role</th>
                         <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Allowed Groups</th>
-                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;width:100px">Actions</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;width:50px">2FA</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;width:130px">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -586,9 +594,14 @@ window._showToastImpl = function(message, type) {
                                 <span x-show="!u.is_admin" style="color:var(--text-secondary);font-size:11px">user</span>
                             </td>
                             <td style="padding:8px 12px;font-size:12px;color:var(--text-secondary)" x-text="u.is_admin ? 'all' : (u.allowed_groups.length ? u.allowed_groups.join(', ') : 'none')"></td>
+                            <td style="padding:8px 12px;text-align:center">
+                                <span x-show="u.totp_enabled" style="color:var(--success);font-size:11px;font-weight:600">On</span>
+                                <span x-show="!u.totp_enabled" style="color:var(--text-muted);font-size:11px">Off</span>
+                            </td>
                             <td style="padding:8px 12px">
                                 <div x-show="!u.is_admin" style="display:flex;gap:4px">
                                     <button @click="editUserGroups(u)" class="fz-btn" style="font-size:10px;padding:1px 4px">Groups</button>
+                                    <button x-show="u.totp_enabled" @click="resetUserTotp(u)" class="fz-btn" style="font-size:10px;padding:1px 4px" title="Reset 2FA">2FA</button>
                                     <button @click="confirmDeleteUser(u)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 4px">Del</button>
                                 </div>
                             </td>
@@ -647,6 +660,61 @@ window._showToastImpl = function(message, type) {
     </div>
 </div>
 
+<!-- ======== API KEYS MODAL ======== -->
+<div x-show="showApiKeysModal" class="fz-modal-bg" @click.self="showApiKeysModal=false">
+    <div class="fz-modal" style="width:620px" @click.stop>
+        <div class="fz-modal-title">API Keys</div>
+        <div class="fz-modal-body" style="padding:0;max-height:50vh;overflow-y:auto">
+            <!-- Created key banner -->
+            <div x-show="createdApiKey" style="background:#f0883e20;border:1px solid var(--warning);padding:12px 16px;margin:12px 16px;border-radius:8px">
+                <div style="font-size:12px;font-weight:600;color:var(--warning);margin-bottom:6px">Save this key — it won't be shown again</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <code style="flex:1;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--input-bg);padding:6px 10px;border-radius:4px;border:1px solid var(--border);color:var(--text-primary);word-break:break-all" x-text="createdApiKey"></code>
+                    <button @click="navigator.clipboard.writeText(createdApiKey);showToast('Copied to clipboard')" class="fz-btn" style="font-size:11px;white-space:nowrap">Copy</button>
+                </div>
+            </div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse">
+                <thead style="position:sticky;top:0;background:var(--btn-bg)">
+                    <tr>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Name</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Key Prefix</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Last Used</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Created</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;width:60px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="k in apiKeys" :key="k.id">
+                        <tr style="border-bottom:1px solid var(--btn-bg)">
+                            <td style="padding:6px 12px;color:var(--text-primary);font-weight:500" x-text="k.name"></td>
+                            <td style="padding:6px 12px;font-family:'JetBrains Mono',monospace;color:var(--text-secondary);font-size:11px" x-text="k.key_prefix + '...'"></td>
+                            <td style="padding:6px 12px;color:var(--text-secondary);font-size:11px" x-text="k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Never'"></td>
+                            <td style="padding:6px 12px;color:var(--text-secondary);font-size:11px" x-text="new Date(k.created_at).toLocaleString()"></td>
+                            <td style="padding:6px 12px">
+                                <button @click="confirmDeleteApiKey(k)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 6px">Revoke</button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="apiKeys.length === 0">
+                        <tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px">No API keys yet</td></tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <!-- Create key form -->
+        <div style="border-top:1px solid var(--border);padding:12px 16px;background:var(--bg-tertiary)">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-primary)">Generate New Key</div>
+            <form @submit.prevent="createApiKey()" style="display:flex;gap:6px;align-items:end">
+                <div style="flex:1"><label style="font-size:10px;color:var(--text-secondary);font-weight:500">Name</label><input type="text" x-model="newApiKeyName" required placeholder="e.g. CI/CD pipeline" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+                <button type="submit" class="fz-btn fz-btn-primary" style="font-size:12px">Generate Key</button>
+            </form>
+        </div>
+        <div class="fz-modal-footer">
+            <button @click="showApiKeysModal=false;createdApiKey=null" class="fz-btn">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- ======== EDIT GROUPS MODAL ======== -->
 <div x-show="showGroupsModal" class="fz-modal-bg" @click.self="showGroupsModal=false">
     <div class="fz-modal" style="width:400px" @click.stop>
@@ -671,10 +739,70 @@ window._showToastImpl = function(message, type) {
     </div>
 </div>
 
+<!-- ======== TOTP SETUP MODAL ======== -->
+<div x-show="showTotpModal" class="fz-modal-bg" @click.self="showTotpModal=false">
+    <div class="fz-modal" style="width:420px" @click.stop>
+        <div class="fz-modal-title">Two-Factor Authentication</div>
+        <div class="fz-modal-body">
+            <!-- Status: 2FA enabled -->
+            <div x-show="currentUser?.totp_enabled && totpStep === 0">
+                <div style="text-align:center;padding:16px 0">
+                    <div style="font-size:36px;margin-bottom:8px">&#128274;</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--success);margin-bottom:4px">2FA is enabled</div>
+                    <div style="font-size:12px;color:var(--text-secondary)">Your account is protected with two-factor authentication.</div>
+                </div>
+                <div style="margin-top:16px">
+                    <label>Enter current 2FA code to disable</label>
+                    <input type="text" x-model="totpDisableCode" maxlength="6" placeholder="123456" inputmode="numeric" style="text-align:center;font-size:18px;letter-spacing:4px">
+                    <button @click="disableTotp()" class="fz-btn fz-btn-danger" style="width:100%;margin-top:8px">Disable 2FA</button>
+                </div>
+            </div>
+            <!-- Step 0: Not enabled, show setup button -->
+            <div x-show="!currentUser?.totp_enabled && totpStep === 0">
+                <div style="text-align:center;padding:16px 0">
+                    <div style="font-size:36px;margin-bottom:8px">&#128275;</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">2FA is not enabled</div>
+                    <div style="font-size:12px;color:var(--text-secondary)">Add an extra layer of security to your account.</div>
+                </div>
+                <button @click="setupTotp()" class="fz-btn fz-btn-primary" style="width:100%;margin-top:8px">Setup 2FA</button>
+            </div>
+            <!-- Step 1: Show QR code -->
+            <div x-show="totpStep === 1">
+                <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</div>
+                <div style="text-align:center;margin:12px 0">
+                    <img :src="totpQrBase64" style="border-radius:8px;max-width:200px" x-show="totpQrBase64">
+                </div>
+                <div style="margin-top:12px">
+                    <label>Or enter this secret manually</label>
+                    <input type="text" :value="totpSecret" readonly style="font-family:'JetBrains Mono',monospace;font-size:13px;text-align:center;letter-spacing:2px;cursor:text" @click="$event.target.select()">
+                </div>
+                <div style="margin-top:16px">
+                    <label>Enter the 6-digit code from your app to verify</label>
+                    <input type="text" x-model="totpVerifyCode" maxlength="6" placeholder="123456" inputmode="numeric" style="text-align:center;font-size:18px;letter-spacing:4px">
+                    <button @click="verifyTotp()" class="fz-btn fz-btn-primary" style="width:100%;margin-top:8px">Verify &amp; Enable 2FA</button>
+                </div>
+            </div>
+            <!-- Step 2: Success -->
+            <div x-show="totpStep === 2" style="text-align:center;padding:20px 0">
+                <div style="font-size:48px;margin-bottom:8px">&#9989;</div>
+                <div style="font-size:16px;font-weight:600;color:var(--success)">2FA Enabled Successfully</div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:8px">Your account is now protected with two-factor authentication.</div>
+            </div>
+        </div>
+        <div class="fz-modal-footer">
+            <button @click="showTotpModal=false;totpStep=0" class="fz-btn">Close</button>
+        </div>
+    </div>
+</div>
+
 </div><!-- x-data -->
 
 <script>
 let _tabCounter = 0;
+
+// Base URL prefix (for reverse-proxy deployments like /webgate/). Derived from the
+// pathname that served index.html, e.g. "/webgate/" -> "/webgate", "/" -> "".
+const BASE = location.pathname.replace(/\/(index\.html)?$/, '');
 
 function app() {
     return {
@@ -682,11 +810,14 @@ function app() {
         uploadProgress: { active: false, percent: 0, fileName: '', total: 0, loaded: 0 },
         token: localStorage.getItem('webgate_token') || '',
         currentUser: null, username: '', password: '',
+        totpRequired: false, totpCode: '', tempToken: '',
+        showTotpModal: false, totpStep: 0, totpSecret: '', totpQrBase64: '', totpVerifyCode: '', totpDisableCode: '',
         showChangePassword: false, newPassword: '', confirmPassword: '',
         showUsersModal: false, showGroupsModal: false,
         managedUsers: [], newUser: { username: '', password: '', groupsStr: '' },
         editingUserObj: null, editingGroupsStr: '',
         showAuditModal: false, auditEntries: [],
+        showApiKeysModal: false, apiKeys: [], newApiKeyName: '', createdApiKey: null,
         view: 'dashboard',
         ssh: { host: '', port: 22, username: '', password: '' },
         servers: [], groups: [], selectedGroup: '', searchQuery: '',
@@ -734,6 +865,7 @@ function app() {
                 if (this.showServerModal) { this.showServerModal = false; event.preventDefault(); return; }
                 if (this.showUsersModal) { this.showUsersModal = false; event.preventDefault(); return; }
                 if (this.showAuditModal) { this.showAuditModal = false; event.preventDefault(); return; }
+                if (this.showApiKeysModal) { this.showApiKeysModal = false; this.createdApiKey = null; event.preventDefault(); return; }
                 if (this.ctxMenu.show) { this.ctxMenu.show = false; event.preventDefault(); return; }
             }
             if (inInput) return;
@@ -774,7 +906,7 @@ function app() {
             const headers = { ...options.headers };
             if (!options.raw) headers['Content-Type'] = 'application/json';
             if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-            const resp = await fetch(url, { ...options, headers });
+            const resp = await fetch(url.startsWith('/') ? BASE + url : url, { ...options, headers });
             if (!resp.ok) { const err = await resp.json().catch(() => ({ detail: 'Request failed' })); throw new Error(err.detail || 'Request failed'); }
             if (resp.status === 204) return null;
             return resp.json();
@@ -783,8 +915,17 @@ function app() {
         // Auth
         async login() {
             try {
-                const data = await this.apiCall('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: this.username, password: this.password }) });
+                const payload = { username: this.username, password: this.password };
+                if (this.totpCode) payload.totp_code = this.totpCode;
+                const data = await this.apiCall('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+                if (data.requires_2fa) {
+                    this.totpRequired = true;
+                    this.tempToken = data.temp_token;
+                    this.totpCode = '';
+                    return;
+                }
                 this.token = data.access_token; localStorage.setItem('webgate_token', this.token);
+                this.totpRequired = false; this.totpCode = ''; this.tempToken = '';
                 await this.fetchMe();
                 if (this.currentUser?.must_change_password) { this.showChangePassword = true; return; }
                 await this.loadServers(); await this.loadGroups();
@@ -804,7 +945,40 @@ function app() {
                 this.log('status', 'Logged in as ' + this.currentUser?.username);
             } catch (e) { this.showToast(e.message, 'error'); }
         },
-        logout() { this.token = ''; this.currentUser = null; localStorage.removeItem('webgate_token'); localStorage.removeItem('webgate_tabs'); this.tabs.forEach(t => this._destroyTab(t)); this.tabs = []; this.activeTabId = null; this.view = 'dashboard'; },
+        logout() { this.token = ''; this.currentUser = null; localStorage.removeItem('webgate_token'); localStorage.removeItem('webgate_tabs'); this.tabs.forEach(t => this._destroyTab(t)); this.tabs = []; this.activeTabId = null; this.view = 'dashboard'; this.totpRequired = false; this.totpCode = ''; this.tempToken = ''; },
+
+        // TOTP 2FA
+        openTotpModal() { this.showTotpModal = true; this.totpStep = 0; this.totpSecret = ''; this.totpQrBase64 = ''; this.totpVerifyCode = ''; this.totpDisableCode = ''; },
+        async setupTotp() {
+            try {
+                const data = await this.apiCall('/api/auth/totp/setup', { method: 'POST' });
+                this.totpSecret = data.secret;
+                this.totpQrBase64 = data.qr_base64;
+                this.totpStep = 1;
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async verifyTotp() {
+            if (!this.totpVerifyCode || this.totpVerifyCode.length < 6) { this.showToast('Enter a 6-digit code', 'error'); return; }
+            try {
+                await this.apiCall('/api/auth/totp/verify', { method: 'POST', body: JSON.stringify({ code: this.totpVerifyCode }) });
+                this.totpStep = 2;
+                await this.fetchMe();
+                this.showToast('2FA enabled successfully');
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async disableTotp() {
+            if (!this.totpDisableCode || this.totpDisableCode.length < 6) { this.showToast('Enter a 6-digit code', 'error'); return; }
+            try {
+                await this.apiCall('/api/auth/totp/disable', { method: 'POST', body: JSON.stringify({ code: this.totpDisableCode }) });
+                this.showTotpModal = false; this.totpStep = 0; this.totpDisableCode = '';
+                await this.fetchMe();
+                this.showToast('2FA disabled');
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async resetUserTotp(u) {
+            if (!confirm(`Reset 2FA for "${u.username}"? They will need to set it up again.`)) return;
+            try { await this.apiCall(`/api/auth/users/${u.id}/totp-reset`, { method: 'PUT' }); this.showToast('2FA reset for ' + u.username); this.managedUsers = await this.apiCall('/api/auth/users'); } catch (e) { this.showToast(e.message, 'error'); }
+        },
 
         // Servers
         async loadServers() { try { let url = '/api/servers'; if (this.searchQuery) url += `?search=${encodeURIComponent(this.searchQuery)}`; this.servers = await this.apiCall(url); } catch (e) { this.showToast(e.message, 'error'); } },
@@ -928,7 +1102,7 @@ function app() {
             requestAnimationFrame(() => {
                 fitAddon.fit();
                 const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const ws = new WebSocket(`${protocol}//${location.host}${wsPath}?token=${encodeURIComponent(this.token)}`);
+                const ws = new WebSocket(`${protocol}//${location.host}${BASE}${wsPath}?token=${encodeURIComponent(this.token)}`);
                 tab._ws = ws;
                 ws.onopen = () => { ws.send(JSON.stringify({ ...connInfo, cols: term.cols, rows: term.rows })); this.log('status', `Connected: ${tab.title}`); };
                 ws.onmessage = (e) => term.write(e.data);
@@ -1007,7 +1181,7 @@ function app() {
         async downloadFile(tab, f) {
             this.log('cmd', `Downloading "${f.name}"...`);
             try {
-                const resp = await fetch(`/api/files/${tab.serverId}/download?path=${encodeURIComponent(f.path)}`, { headers: { Authorization: `Bearer ${this.token}` } });
+                const resp = await fetch(`${BASE}/api/files/${tab.serverId}/download?path=${encodeURIComponent(f.path)}`, { headers: { Authorization: `Bearer ${this.token}` } });
                 if (!resp.ok) throw new Error('Download failed');
                 const blob = await resp.blob(); const url = URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
@@ -1016,7 +1190,7 @@ function app() {
         },
         downloadZip(tab, f) {
             if (!f?.is_dir) return;
-            const url = `/api/files/${tab.serverId}/download-zip?path=${encodeURIComponent(f.path)}`;
+            const url = `${BASE}/api/files/${tab.serverId}/download-zip?path=${encodeURIComponent(f.path)}`;
             fetch(url, { headers: { 'Authorization': `Bearer ${this.token}` } })
                 .then(r => { if (!r.ok) throw new Error('Download failed'); return r.blob(); })
                 .then(blob => {
@@ -1035,7 +1209,7 @@ function app() {
             const formData = new FormData(); for (const f of files) formData.append('files', f);
             this.log('cmd', `Uploading ${files.length} file(s)...`);
             try {
-                const data = await this._uploadWithProgress(`/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, formData, this.token);
+                const data = await this._uploadWithProgress(`${BASE}/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, formData, this.token);
                 this.showToast(`Uploaded ${data.count} file(s)`); await this.loadDirectory(tab, tab.currentPath);
             } catch (e) { this.showToast(e.message, 'error'); }
             event.target.value = '';
@@ -1046,7 +1220,7 @@ function app() {
             const formData = new FormData(); for (const f of files) formData.append('files', f);
             this.log('cmd', `Uploading ${files.length} dropped file(s)...`);
             try {
-                const data = await this._uploadWithProgress(`/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, formData, this.token);
+                const data = await this._uploadWithProgress(`${BASE}/api/files/${tab.serverId}/upload?path=${encodeURIComponent(tab.currentPath)}`, formData, this.token);
                 this.showToast(`Uploaded ${data.count} file(s)`); await this.loadDirectory(tab, tab.currentPath);
             } catch (e) { this.showToast(e.message, 'error'); }
         },
@@ -1087,7 +1261,7 @@ function app() {
             if (previewType) {
                 this.log('cmd', `Loading preview: "${f.name}"...`);
                 try {
-                    const resp = await fetch(`/api/files/${tab.serverId}/download?path=${encodeURIComponent(f.path)}`, { headers: { Authorization: `Bearer ${this.token}` } });
+                    const resp = await fetch(`${BASE}/api/files/${tab.serverId}/download?path=${encodeURIComponent(f.path)}`, { headers: { Authorization: `Bearer ${this.token}` } });
                     if (!resp.ok) throw new Error('Failed to load file');
                     const rawBlob = await resp.blob();
                     const mimeMap = { pdf:'application/pdf', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', bmp:'image/bmp', svg:'image/svg+xml', webp:'image/webp', ico:'image/x-icon' };
@@ -1187,6 +1361,27 @@ function app() {
         async confirmDeleteUser(u) {
             if (!confirm(`Delete user "${u.username}"?`)) return;
             try { await this.apiCall(`/api/auth/users/${u.id}`, { method: 'DELETE' }); this.showToast('User deleted'); this.managedUsers = await this.apiCall('/api/auth/users'); } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // API Keys
+        async openApiKeysModal() {
+            this.createdApiKey = null;
+            try { this.apiKeys = await this.apiCall('/api/auth/api-keys'); } catch (e) { this.showToast(e.message, 'error'); return; }
+            this.showApiKeysModal = true;
+        },
+        async createApiKey() {
+            if (!this.newApiKeyName.trim()) { this.showToast('Name is required', 'error'); return; }
+            try {
+                const result = await this.apiCall('/api/auth/api-keys', { method: 'POST', body: JSON.stringify({ name: this.newApiKeyName.trim() }) });
+                this.createdApiKey = result.key;
+                this.newApiKeyName = '';
+                this.apiKeys = await this.apiCall('/api/auth/api-keys');
+                this.showToast('API key created');
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async confirmDeleteApiKey(k) {
+            if (!confirm(`Revoke API key "${k.name}"?`)) return;
+            try { await this.apiCall(`/api/auth/api-keys/${k.id}`, { method: 'DELETE' }); this.showToast('API key revoked'); this.apiKeys = await this.apiCall('/api/auth/api-keys'); } catch (e) { this.showToast(e.message, 'error'); }
         },
     };
 }

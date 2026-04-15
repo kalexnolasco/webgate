@@ -402,6 +402,7 @@ All settings are configurable via environment variables with the `WEBGATE_` pref
 | `WEBGATE_SECRET_KEY` | `change-me-in-production` | JWT signing + Fernet encryption key |
 | `WEBGATE_DB_URL` | `sqlite+aiosqlite:///./webgate.db` | Database URL |
 | `WEBGATE_ALLOWED_ORIGINS` | `*` | CORS origins (comma-separated) |
+| `WEBGATE_ROOT_PATH` | `` (empty) | URL prefix when served behind a reverse proxy at a sub-path (e.g. `/webgate`) |
 | `WEBGATE_LOG_LEVEL` | `info` | Log level |
 | `WEBGATE_SESSION_TIMEOUT` | `3600` | SSH session timeout (seconds) |
 | `WEBGATE_MAX_UPLOAD_SIZE` | `104857600` | Max upload size (100 MB) |
@@ -457,6 +458,105 @@ webgate.example.com {
     reverse_proxy webgate:8443
 }
 ```
+
+### Reverse proxy at a sub-path (e.g. `https://example.com/webgate/`)
+
+When webgate is exposed behind an existing site under a URL prefix, set `WEBGATE_ROOT_PATH` so FastAPI and the frontend both build URLs with the prefix. The frontend derives the prefix automatically from `window.location.pathname`, but `WEBGATE_ROOT_PATH` is still needed on the backend for OpenAPI URLs.
+
+**Docker Compose:**
+
+```yaml
+services:
+  webgate:
+    image: kalexnolasco/webgate:latest
+    environment:
+      WEBGATE_SECRET_KEY: "${WEBGATE_SECRET_KEY}"
+      WEBGATE_ROOT_PATH: "/webgate"
+```
+
+> **Important:** the reverse proxy must **forward the prefix unchanged** (not strip it). Webgate receives requests as `/webgate/api/...` and handles them natively — do not rewrite them to `/api/...`.
+
+#### nginx
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name example.com;
+
+    ssl_certificate     /etc/ssl/certs/example.com.crt;
+    ssl_certificate_key /etc/ssl/private/example.com.key;
+
+    # WebSocket (xterm.js terminal) -- must come before the generic location
+    location /webgate/api/ws/ {
+        proxy_pass http://127.0.0.1:8443;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host       $host;
+        proxy_read_timeout 86400s;   # keep long-lived SSH sessions alive
+        proxy_send_timeout 86400s;
+    }
+
+    location /webgate/ {
+        proxy_pass http://127.0.0.1:8443;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Prefix /webgate;
+        client_max_body_size 100m;       # match WEBGATE_MAX_UPLOAD_SIZE
+    }
+}
+```
+
+#### Apache 2.4
+
+```apache
+# Required modules: proxy proxy_http proxy_wstunnel headers rewrite ssl
+# sudo a2enmod proxy proxy_http proxy_wstunnel headers rewrite
+
+<VirtualHost *:443>
+    ServerName example.com
+
+    SSLEngine on
+    SSLCertificateFile    /etc/ssl/certs/example.com.crt
+    SSLCertificateKeyFile /etc/ssl/private/example.com.key
+
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto  "https"
+    RequestHeader set X-Forwarded-Prefix "/webgate"
+
+    # Redirect /webgate -> /webgate/ (trailing slash)
+    RewriteEngine On
+    RewriteRule ^/webgate$ /webgate/ [R=301,L]
+
+    # WebSocket (xterm.js terminal) -- MUST come before the HTTP ProxyPass
+    ProxyPass        /webgate/api/ws/  ws://127.0.0.1:8443/webgate/api/ws/
+    ProxyPassReverse /webgate/api/ws/  ws://127.0.0.1:8443/webgate/api/ws/
+
+    # HTTP
+    ProxyPass        /webgate/  http://127.0.0.1:8443/webgate/
+    ProxyPassReverse /webgate/  http://127.0.0.1:8443/webgate/
+</VirtualHost>
+```
+
+#### Traefik (labels)
+
+```yaml
+services:
+  webgate:
+    image: kalexnolasco/webgate:latest
+    environment:
+      WEBGATE_ROOT_PATH: "/webgate"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.webgate.rule=Host(`example.com`) && PathPrefix(`/webgate`)"
+      - "traefik.http.routers.webgate.entrypoints=websecure"
+      - "traefik.http.routers.webgate.tls=true"
+      - "traefik.http.services.webgate.loadbalancer.server.port=8443"
+```
+
+Traefik forwards the full path by default, so no extra middleware is needed. Long WebSocket timeouts can be tuned via `forwardingTimeouts` in the Traefik static config.
 
 ### Useful Commands
 
