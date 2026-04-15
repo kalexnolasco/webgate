@@ -25,6 +25,7 @@ class _PoolEntry:
     client: SFTPClient
     last_used: float = field(default_factory=time.monotonic)
     in_use: int = 0
+    jump_conn: asyncssh.SSHClientConnection | None = None
 
 
 class SFTPPool:
@@ -63,6 +64,7 @@ class SFTPPool:
         username: str,
         password: str | None = None,
         private_key: str | None = None,
+        jump_kwargs: dict[str, object] | None = None,
     ) -> SFTPClient:
         key = self._key(server_id)
         if key not in self._locks:
@@ -96,10 +98,15 @@ class SFTPPool:
             elif password:
                 kwargs["password"] = password
 
+            jump_conn: asyncssh.SSHClientConnection | None = None
+            if jump_kwargs:
+                jump_conn = await asyncssh.connect(**jump_kwargs)  # type: ignore[arg-type]
+                kwargs["tunnel"] = jump_conn
+
             conn = await asyncssh.connect(**kwargs)  # type: ignore[arg-type]
             client = SFTPClient(conn)
             await client.connect()
-            entry = _PoolEntry(conn=conn, client=client, in_use=1)
+            entry = _PoolEntry(conn=conn, client=client, in_use=1, jump_conn=jump_conn)
             self._pool[key] = entry
             logger.info("SFTP pool: new connection to %s:%s (server_id=%s)", hostname, port, server_id)
             return client
@@ -120,6 +127,11 @@ class SFTPPool:
             entry.conn.close()
         except Exception:
             pass
+        if entry.jump_conn is not None:
+            try:
+                entry.jump_conn.close()
+            except Exception:
+                pass
 
     async def _cleanup_loop(self) -> None:
         while True:

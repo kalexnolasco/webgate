@@ -18,6 +18,7 @@ from webgate.files.pool import sftp_pool
 from webgate.files.routes import router as files_router
 from webgate.servers.monitor import server_monitor
 from webgate.servers.routes import router as servers_router
+from webgate.snippets.routes import router as snippets_router
 from webgate.terminal.routes import router as terminal_router
 
 
@@ -89,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(servers_router)
     app.include_router(terminal_router)
     app.include_router(files_router)
+    app.include_router(snippets_router)
 
     app.mount("/", StaticFiles(directory=str(settings.static_dir), html=True), name="static")
 

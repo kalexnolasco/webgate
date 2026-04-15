@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.0 (2026-04-15)
+
+### Features
+
+- **SSH jump host / bastion** -- per-server `jump_via_id` field. Webgate opens a tunneled SSH connection through the bastion using `asyncssh`'s `tunnel=` parameter. Works for both the terminal WebSocket and the SFTP browser. Solves the common "internal servers reachable only through one public bastion" scenario.
+- **SSH command snippets** -- per-user library of named commands. Click a snippet button in the terminal toolbar to send the command (with Enter) to the active session. Right-click to delete, `+` to create.
+- **PostgreSQL support** -- install with `pip install 'webgate[postgres]'` and set `WEBGATE_DB_URL=postgresql+asyncpg://...`. SQLite remains the default. Lightweight migrations are now dialect-aware.
+
+### Details
+
+- New `Server.jump_via_id` (FK to `servers.id`, nullable) + `resolve_jump_creds()` helper
+- New `Snippet` model + REST CRUD at `/api/snippets`
+- Frontend: dropdown to pick a jump host in the Add/Edit Server modal; `↺` badge in the server card when a jump is configured
+- Frontend: snippet toolbar in the terminal tab (hidden when there are no snippets)
+- Demo seed pre-populates `bastion` + `internal-app` (jump-host pair) and 4 example snippets
+
+---
+
 ## v0.2.2 (2026-04-15)
 
 ### Features

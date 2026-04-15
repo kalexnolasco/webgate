@@ -18,6 +18,8 @@ class SSHSession:
     username: str
     password: str | None = None
     private_key: str | None = None
+    jump_kwargs: dict[str, Any] | None = None  # connect kwargs for a bastion (optional)
+    _jump_conn: asyncssh.SSHClientConnection | None = field(default=None, repr=False)
     _conn: asyncssh.SSHClientConnection | None = field(default=None, repr=False)
     _process: asyncssh.SSHClientProcess[str] | None = field(default=None, repr=False)
     _closed: bool = field(default=False, repr=False)
@@ -33,6 +35,10 @@ class SSHSession:
             connect_kwargs["client_keys"] = [asyncssh.import_private_key(self.private_key)]
         elif self.password:
             connect_kwargs["password"] = self.password
+
+        if self.jump_kwargs:
+            self._jump_conn = await asyncssh.connect(**self.jump_kwargs)
+            connect_kwargs["tunnel"] = self._jump_conn
 
         self._conn = await asyncssh.connect(**connect_kwargs)
         self._process = await self._conn.create_process(
@@ -77,6 +83,10 @@ class SSHSession:
             self._conn.close()
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(self._conn.wait_closed(), timeout=2.0)
+        if self._jump_conn is not None:
+            self._jump_conn.close()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(self._jump_conn.wait_closed(), timeout=2.0)
 
     @property
     def is_closed(self) -> bool:

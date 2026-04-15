@@ -316,6 +316,7 @@ window._showToastImpl = function(message, type) {
                             <div class="srv-host">
                                 <span x-text="srv.username + '@' + srv.hostname + ':' + srv.port"></span>
                                 <span x-show="srv.auth_method==='key'" style="color:#3fb950;margin-left:4px" title="Key auth">&#128273;</span>
+                                <span x-show="srv.jump_via_id" style="color:#a78bfa;margin-left:4px" :title="'Via ' + (servers.find(s => s.id === srv.jump_via_id)?.name || 'jump host')">&#8634;</span>
                             </div>
                             <span x-show="srv.group" class="srv-group" x-text="srv.group"></span>
                             <div class="fz-srv-actions">
@@ -349,7 +350,16 @@ window._showToastImpl = function(message, type) {
             <div x-show="activeTabId===tab.id && view!=='dashboard'" class="fz-flex-col">
 
                 <!-- ---- Terminal tab ---- -->
-                <div x-show="tab.type==='terminal'" style="flex:1;min-height:0" :id="tab.id"></div>
+                <div x-show="tab.type==='terminal'" style="flex:1;min-height:0;display:flex;flex-direction:column">
+                    <div style="padding:4px 8px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+                        <span style="font-size:11px;color:var(--text-muted);font-weight:600;margin-right:4px">Snippets:</span>
+                        <template x-for="s in snippets" :key="s.id">
+                            <button @click="runSnippet(tab, s)" @contextmenu.prevent="confirmDeleteSnippet(s)" class="fz-btn" style="font-size:11px;padding:2px 8px" :title="(s.description || s.command) + ' (right-click to delete)'" x-text="s.name"></button>
+                        </template>
+                        <button @click="promptNewSnippet()" class="fz-btn" style="font-size:11px;padding:2px 8px" title="Create new snippet">+</button>
+                    </div>
+                    <div style="flex:1;min-height:0" :id="tab.id"></div>
+                </div>
 
                 <!-- ---- Split tab (terminal + files) ---- -->
                 <div x-show="tab.type==='split'" style="flex:1;display:flex;min-height:0">
@@ -532,6 +542,13 @@ window._showToastImpl = function(message, type) {
                 </div>
                 <label>Description</label>
                 <input type="text" x-model="serverForm.description" placeholder="Primary web server">
+                <label>Jump Via (bastion / SSH proxy)</label>
+                <select x-model.number="serverForm.jump_via_id">
+                    <option :value="null">— direct (no jump) —</option>
+                    <template x-for="s in servers.filter(x => x.id !== editingServerId)" :key="s.id">
+                        <option :value="s.id" x-text="s.name + ' (' + s.hostname + ')'"></option>
+                    </template>
+                </select>
                 <!-- Access Control -->
                 <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
                     <label style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px">Access Control</label>
@@ -817,6 +834,7 @@ function app() {
     return {
         theme: localStorage.getItem('webgate_theme') || 'dark',
         demoMode: false,
+        snippets: [],
         uploadProgress: { active: false, percent: 0, fileName: '', total: 0, loaded: 0 },
         token: localStorage.getItem('webgate_token') || '',
         currentUser: null, username: '', password: '',
@@ -833,7 +851,7 @@ function app() {
         servers: [], groups: [], selectedGroup: '', searchQuery: '',
         selectedServerId: null,
         showServerModal: false, editingServerId: null, testingServerId: null,
-        serverForm: { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', group: '', tagsStr: '', description: '' },
+        serverForm: { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', group: '', tagsStr: '', description: '', jump_via_id: null },
         tabs: [], activeTabId: null,
         logMessages: [],
         serverStatuses: {},
@@ -893,7 +911,7 @@ function app() {
             if (this.token) {
                 await this.fetchMe();
                 if (this.currentUser?.must_change_password) return;
-                await this.loadServers(); await this.loadGroups(); await this.loadStatuses();
+                await this.loadServers(); await this.loadGroups(); await this.loadStatuses(); await this.loadSnippets();
                 setInterval(() => this.loadStatuses(), 30000);
                 this._restoreTabs();
             }
@@ -993,16 +1011,33 @@ function app() {
 
         // Servers
         async loadServers() { try { let url = '/api/servers'; if (this.searchQuery) url += `?search=${encodeURIComponent(this.searchQuery)}`; this.servers = await this.apiCall(url); } catch (e) { this.showToast(e.message, 'error'); } },
+        async loadSnippets() { try { this.snippets = await this.apiCall('/api/snippets'); } catch {} },
+        async promptNewSnippet() {
+            const name = prompt('Snippet name:'); if (!name) return;
+            const command = prompt('Command (will be sent to terminal + Enter):'); if (!command) return;
+            try { await this.apiCall('/api/snippets', { method: 'POST', body: JSON.stringify({ name, command, description: '' }) }); await this.loadSnippets(); this.showToast('Snippet created'); }
+            catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async confirmDeleteSnippet(s) {
+            if (!confirm(`Delete snippet "${s.name}"?`)) return;
+            try { await this.apiCall(`/api/snippets/${s.id}`, { method: 'DELETE' }); await this.loadSnippets(); this.showToast('Snippet deleted'); }
+            catch (e) { this.showToast(e.message, 'error'); }
+        },
+        runSnippet(tab, s) {
+            if (!tab._ws || tab._ws.readyState !== WebSocket.OPEN) { this.showToast('Terminal not connected', 'error'); return; }
+            tab._ws.send(s.command + '\r');
+            this.log('cmd', `Sent snippet "${s.name}"`);
+        },
         async loadStatuses() { try { this.serverStatuses = await this.apiCall('/api/servers/status'); } catch {} },
         async loadGroups() { try { this.groups = await this.apiCall('/api/servers/groups'); } catch {} },
-        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '', ssh_enabled: true, sftp_enabled: true, sftp_read_only: false, sftp_allowed_paths_str: '' }; },
+        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '', ssh_enabled: true, sftp_enabled: true, sftp_read_only: false, sftp_allowed_paths_str: '', jump_via_id: null }; },
         loadKeyFile(event) {
             const file = event.target.files?.[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = (e) => { this.serverForm.private_key = e.target.result; this.serverForm.keyFileName = file.name; };
             reader.readAsText(file); event.target.value = '';
         },
-        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description, ssh_enabled: srv.ssh_enabled !== false, sftp_enabled: srv.sftp_enabled !== false, sftp_read_only: srv.sftp_read_only || false, sftp_allowed_paths_str: (srv.sftp_allowed_paths || []).join('\n') }; this.showServerModal = true; },
+        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description, ssh_enabled: srv.ssh_enabled !== false, sftp_enabled: srv.sftp_enabled !== false, sftp_read_only: srv.sftp_read_only || false, sftp_allowed_paths_str: (srv.sftp_allowed_paths || []).join('\n'), jump_via_id: srv.jump_via_id || null }; this.showServerModal = true; },
         async saveServer() {
             const tags = this.serverForm.tagsStr.split(',').map(t => t.trim()).filter(Boolean);
             const sftp_allowed_paths = (this.serverForm.sftp_allowed_paths_str || '').split('\n').map(p => p.trim()).filter(Boolean);

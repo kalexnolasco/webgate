@@ -6,7 +6,12 @@ from webgate.audit.service import log_action
 from webgate.auth.models import UserOut
 from webgate.auth.service import get_user_by_id
 from webgate.db.engine import async_session_factory
-from webgate.servers.service import get_server, get_server_credentials, update_last_connected
+from webgate.servers.service import (
+    get_server,
+    get_server_credentials,
+    resolve_jump_creds,
+    update_last_connected,
+)
 from webgate.terminal.ws_handler import authenticate_websocket, handle_terminal_ws
 
 router = APIRouter(tags=["terminal"])
@@ -86,6 +91,7 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
             return
 
         password, private_key = get_server_credentials(server)
+        jump_kwargs = await resolve_jump_creds(session, server)
 
         await ws.accept()
 
@@ -111,4 +117,5 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
         private_key=private_key,
         cols=cols,
         rows=rows,
+        jump_kwargs=jump_kwargs,
     )

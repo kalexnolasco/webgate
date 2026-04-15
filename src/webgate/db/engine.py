@@ -30,19 +30,31 @@ async def get_session() -> AsyncGenerator[AsyncSession]:
         yield session
 
 
-_MIGRATIONS = [
-    "ALTER TABLE servers ADD COLUMN sftp_read_only BOOLEAN DEFAULT 0",
+# (table, column, sqlite_def, postgres_def)
+_MIGRATIONS: list[tuple[str, str, str, str]] = [
+    ("servers", "sftp_read_only", "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
+    ("users", "totp_secret", "VARCHAR(255) DEFAULT ''", "VARCHAR(255) DEFAULT ''"),
+    ("users", "totp_enabled", "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
+    (
+        "servers",
+        "jump_via_id",
+        "INTEGER REFERENCES servers(id)",
+        "INTEGER REFERENCES servers(id)",
+    ),
 ]
 
 
 async def init_db() -> None:
+    dialect = engine.dialect.name  # "sqlite", "postgresql", ...
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # Lightweight migrations for columns added after initial release
-        for sql in _MIGRATIONS:
+        for table, column, sqlite_def, pg_def in _MIGRATIONS:
+            col_def = pg_def if dialect == "postgresql" else sqlite_def
+            sql = f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"
             try:
                 await conn.execute(text(sql))
-                logger.info("Migration applied: %s", sql.split("ADD COLUMN ")[1].split()[0])
+                logger.info("Migration applied: %s.%s", table, column)
             except Exception:
                 pass  # Column already exists
 

@@ -25,7 +25,7 @@ from webgate.files.models import (
 from webgate.files.pool import sftp_pool
 from webgate.files.sftp_service import SFTPClient, validate_path
 from webgate.servers.models import Server
-from webgate.servers.service import get_server, get_server_credentials
+from webgate.servers.service import get_server, get_server_credentials, resolve_jump_creds
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -88,6 +88,7 @@ async def _sftp(
     allowed_paths = _get_allowed_paths(server)
     read_only = server.sftp_read_only
     password, private_key = get_server_credentials(server)
+    jump_kwargs = await resolve_jump_creds(session, server)
     try:
         client = await sftp_pool.acquire(
             server_id,
@@ -96,6 +97,7 @@ async def _sftp(
             username=server.username,
             password=password,
             private_key=private_key,
+            jump_kwargs=jump_kwargs,
         )
         yield client, allowed_paths, read_only
     finally:

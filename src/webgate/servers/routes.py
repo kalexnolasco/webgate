@@ -154,7 +154,7 @@ async def test_connectivity(
     server = await get_server(session, server_id, current_user.id, **_user_kwargs(current_user))
     if not server:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
-    success, message = await test_server_connectivity(server)
+    success, message = await test_server_connectivity(server, session)
     if success:
         await update_last_connected(session, server)
     return {"success": success, "message": message}

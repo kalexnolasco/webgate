@@ -7,7 +7,8 @@ import logging
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from webgate.auth.service import decode_access_token
+from webgate.auth.service import authenticate_api_key, decode_access_token
+from webgate.db.engine import async_session_factory
 from webgate.terminal.ssh_session import SSHSession
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,15 @@ async def authenticate_websocket(ws: WebSocket) -> dict[str, object] | None:
     token = ws.query_params.get("token")
     if not token:
         return None
+
+    # Support API key authentication (keys start with "wg_")
+    if token.startswith("wg_"):
+        async with async_session_factory() as session:
+            user = await authenticate_api_key(session, token)
+            if user:
+                return {"sub": str(user.id), "username": user.username}
+            return None
+
     payload = decode_access_token(token)
     return payload
 
@@ -30,6 +40,7 @@ async def handle_terminal_ws(
     private_key: str | None = None,
     cols: int = 80,
     rows: int = 24,
+    jump_kwargs: dict[str, object] | None = None,
 ) -> None:
     session = SSHSession(
         host=host,
@@ -37,6 +48,7 @@ async def handle_terminal_ws(
         username=username,
         password=password,
         private_key=private_key,
+        jump_kwargs=jump_kwargs,
     )
 
     try:

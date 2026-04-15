@@ -45,25 +45,39 @@ This document tracks the development plan for **webgate**. Items are organized b
 - [x] Drag & drop upload progress bar (XHR with progress events, percentage display)
 - [x] Folder download as ZIP (server-side zip compression, right-click context menu)
 
-## v0.3.0 -- Collaboration & Operations
+## v0.2.1 -- Reverse Proxy Sub-Path (Released 2026-04-15)
+
+- [x] Serve webgate behind a reverse proxy at any URL prefix (`WEBGATE_ROOT_PATH`)
+- [x] nginx, Apache and Traefik examples in README
+
+## v0.2.2 -- Demo Mode (Released 2026-04-15)
+
+- [x] `WEBGATE_DEMO_MODE` middleware blocks writes for public read-only deployments
+- [x] `Dockerfile.demo` (webgate + sshd via supervisord) and `fly.toml` for one-command Fly.io deploys
+- [x] Live demo at https://webgate-demo.fly.dev/
+
+## v0.3.0 -- Operations Pack (Released 2026-04-15)
+
+- [x] **SSH jump host / bastion** (per-server `jump_via_id`, asyncssh tunneling)
+- [x] **SSH command snippets** (per-user library, terminal toolbar, click to send)
+- [x] **PostgreSQL support** (`pip install 'webgate[postgres]'`, dialect-aware migrations)
+- [x] Two-factor authentication (TOTP) -- already in v0.2.x
+- [x] API key authentication -- already in v0.2.x
+
+## v0.3.x -- Planned
 
 | Feature | Priority | Description |
 |---------|----------|-------------|
 | Shared terminal sessions | High | Multiple users can watch/interact with the same SSH session in real time |
 | Session recording & playback | High | Record terminal sessions for audit trail and training; replay in browser |
-| SSH command snippets | Medium | Save and execute common commands per server or globally; share across team |
 | Webhook notifications | Medium | Fire webhooks on events: user login, SSH connect, file upload, server added |
-| Two-factor authentication (TOTP) | High | Optional TOTP (Google Authenticator, Authy) for user accounts |
 | LDAP / Active Directory | Medium | Authenticate users against corporate LDAP/AD; auto-map groups |
-| API key authentication | Low | Generate API keys for programmatic access (automation, scripts, CI/CD) |
 
 ## v0.4.0 -- Enterprise & Scale
 
 | Feature | Priority | Description |
 |---------|----------|-------------|
-| PostgreSQL support | High | Test, document, and CI-verify PostgreSQL as alternative to SQLite |
 | Multi-instance deployment | Medium | Multiple webgate instances sharing a single database (stateless workers behind LB) |
-| SSH jump host / bastion | High | Connect through a bastion/jump host to reach servers not directly reachable |
 | Custom branding | Low | Configurable logo, application name, and color scheme |
 | Backup/restore UI | Medium | Export/import full application state (users, servers, audit log) from admin panel |
 | Internationalization (i18n) | Low | Multi-language support for the UI (starting with English and Spanish) |

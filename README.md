@@ -406,6 +406,25 @@ All settings are configurable via environment variables with the `WEBGATE_` pref
 | `WEBGATE_ALLOWED_ORIGINS` | `*` | CORS origins (comma-separated) |
 | `WEBGATE_ROOT_PATH` | `` (empty) | URL prefix when served behind a reverse proxy at a sub-path (e.g. `/webgate`) |
 | `WEBGATE_DEMO_MODE` | `false` | Read-only public demo: blocks all writes, seeds a `demo`/`demo` user and shows a banner |
+
+### PostgreSQL
+
+SQLite is the default. To use PostgreSQL instead:
+
+```bash
+pip install 'webgate[postgres]'   # adds asyncpg
+export WEBGATE_DB_URL='postgresql+asyncpg://user:pass@host:5432/webgate'
+```
+
+Lightweight migrations are dialect-aware. Schema is created automatically on first start.
+
+### Jump host / bastion
+
+When adding a server, pick another server from the **Jump Via** dropdown to tunnel the SSH and SFTP connections through it. Useful when the target server is only reachable from a specific bastion. Stored as `jump_via_id` (FK to another `Server` row); `asyncssh`'s native `tunnel=` parameter does the actual chaining.
+
+### SSH command snippets
+
+Each user has a personal library of named commands. They appear as buttons in the terminal toolbar -- click to send `command + Enter`. Right-click to delete, `+` to create. Stored in the `snippets` table.
 | `WEBGATE_LOG_LEVEL` | `info` | Log level |
 | `WEBGATE_SESSION_TIMEOUT` | `3600` | SSH session timeout (seconds) |
 | `WEBGATE_MAX_UPLOAD_SIZE` | `104857600` | Max upload size (100 MB) |

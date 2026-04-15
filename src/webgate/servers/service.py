@@ -53,6 +53,7 @@ def server_to_out(server: Server) -> ServerOut:
         sftp_enabled=server.sftp_enabled,
         sftp_allowed_paths=_paths_from_json(server.sftp_allowed_paths),
         sftp_read_only=server.sftp_read_only,
+        jump_via_id=server.jump_via_id,
         last_connected_at=server.last_connected_at,
         created_at=server.created_at,
     )
@@ -125,6 +126,7 @@ async def create_server(session: AsyncSession, data: ServerCreate, user_id: int)
         sftp_enabled=data.sftp_enabled,
         sftp_allowed_paths=_tags_to_json(data.sftp_allowed_paths),
         sftp_read_only=data.sftp_read_only,
+        jump_via_id=data.jump_via_id,
         user_id=user_id,
     )
     session.add(server)
@@ -166,6 +168,8 @@ async def update_server(
         server.sftp_allowed_paths = _tags_to_json(data.sftp_allowed_paths)
     if data.sftp_read_only is not None:
         server.sftp_read_only = data.sftp_read_only
+    if data.jump_via_id is not None:
+        server.jump_via_id = data.jump_via_id or None  # 0 means "clear"
     await session.commit()
     await session.refresh(server)
     return server
@@ -176,7 +180,9 @@ async def delete_server(session: AsyncSession, server: Server) -> None:
     await session.commit()
 
 
-async def test_server_connectivity(server: Server) -> tuple[bool, str]:
+async def test_server_connectivity(
+    server: Server, session: AsyncSession | None = None
+) -> tuple[bool, str]:
     password = decrypt_value(server.encrypted_password) if server.encrypted_password else None
     private_key_str = (
         decrypt_value(server.encrypted_private_key) if server.encrypted_private_key else None
@@ -193,12 +199,25 @@ async def test_server_connectivity(server: Server) -> tuple[bool, str]:
     elif password:
         kwargs["password"] = password
 
+    jump_conn = None
+    if session is not None:
+        jump_kwargs = await resolve_jump_creds(session, server)
+        if jump_kwargs:
+            try:
+                jump_conn = await asyncssh.connect(**jump_kwargs)  # type: ignore[arg-type]
+                kwargs["tunnel"] = jump_conn
+            except Exception as e:
+                return False, f"Jump host failed: {e}"
+
     try:
         conn = await asyncssh.connect(**kwargs)  # type: ignore[arg-type]
         conn.close()
-        return True, "Connection successful"
+        return True, "Connection successful" + (" (via jump host)" if jump_conn else "")
     except Exception as e:
         return False, str(e)
+    finally:
+        if jump_conn is not None:
+            jump_conn.close()
 
 
 async def update_last_connected(session: AsyncSession, server: Server) -> None:
@@ -217,6 +236,35 @@ async def list_groups(
         stmt = stmt.where(Server.group.in_(allowed_groups))
     result = await session.execute(stmt)
     return [row[0] for row in result.all()]
+
+
+async def resolve_jump_creds(
+    session: AsyncSession, server: Server
+) -> dict[str, object] | None:
+    """If `server` has a jump_via_id, return connect kwargs for the bastion.
+
+    Returns None when no jump host is configured. Cycles are silently broken
+    (server pointing to itself, or to its own jump, etc.) by following at most
+    one hop.
+    """
+    if server.jump_via_id is None or server.jump_via_id == server.id:
+        return None
+    stmt = select(Server).where(Server.id == server.jump_via_id)
+    jump = (await session.execute(stmt)).scalar_one_or_none()
+    if jump is None:
+        return None
+    password, private_key = get_server_credentials(jump)
+    kwargs: dict[str, object] = {
+        "host": jump.hostname,
+        "port": jump.port,
+        "username": jump.username,
+        "known_hosts": None,
+    }
+    if private_key:
+        kwargs["client_keys"] = [asyncssh.import_private_key(private_key)]
+    elif password:
+        kwargs["password"] = password
+    return kwargs
 
 
 def get_server_credentials(server: Server) -> tuple[str | None, str | None]:
