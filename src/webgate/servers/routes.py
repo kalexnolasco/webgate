@@ -7,6 +7,7 @@ from webgate.auth.models import UserOut
 from webgate.auth.routes import get_current_user
 from webgate.db.engine import get_session
 from webgate.servers.models import ServerCreate, ServerImport, ServerOut, ServerUpdate
+from webgate.webhooks.dispatcher import fire as fire_webhook
 from webgate.servers.service import (
     create_server,
     delete_server,
@@ -57,6 +58,10 @@ async def create(
 ) -> ServerOut:
     _require_admin(current_user)
     server = await create_server(session, body, current_user.id)
+    await fire_webhook("server_added", {
+        "id": server.id, "name": server.name, "hostname": server.hostname,
+        "by": current_user.username,
+    })
     return server_to_out(server)
 
 
@@ -144,7 +149,9 @@ async def delete(
     server = await get_server(session, server_id, current_user.id, is_admin=True)
     if not server:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
+    server_info = {"id": server.id, "name": server.name, "hostname": server.hostname}
     await delete_server(session, server)
+    await fire_webhook("server_deleted", {**server_info, "by": current_user.username})
 
 
 @router.post("/{server_id}/test")

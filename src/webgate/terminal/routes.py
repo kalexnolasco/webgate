@@ -13,6 +13,7 @@ from webgate.servers.service import (
     update_last_connected,
 )
 from webgate.terminal.ws_handler import authenticate_websocket, handle_terminal_ws
+from webgate.webhooks.dispatcher import fire as fire_webhook
 
 router = APIRouter(tags=["terminal"])
 
@@ -107,6 +108,10 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
 
         await update_last_connected(session, server)
         await log_action(user_out.id, user_out.username, "ssh_connect", f"{server.hostname}:{server.port}")
+        await fire_webhook("ssh_connect", {
+            "user": user_out.username, "server_id": server.id, "server": server.name,
+            "host": f"{server.hostname}:{server.port}", "via_jump": server.jump_via_id is not None,
+        })
 
     await handle_terminal_ws(
         ws,

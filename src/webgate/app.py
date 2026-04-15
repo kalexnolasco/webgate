@@ -20,6 +20,7 @@ from webgate.servers.monitor import server_monitor
 from webgate.servers.routes import router as servers_router
 from webgate.snippets.routes import router as snippets_router
 from webgate.terminal.routes import router as terminal_router
+from webgate.webhooks.routes import router as webhooks_router
 
 
 @asynccontextmanager
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(terminal_router)
     app.include_router(files_router)
     app.include_router(snippets_router)
+    app.include_router(webhooks_router)
 
     app.mount("/", StaticFiles(directory=str(settings.static_dir), html=True), name="static")
 

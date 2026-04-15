@@ -26,6 +26,7 @@ from webgate.files.pool import sftp_pool
 from webgate.files.sftp_service import SFTPClient, validate_path
 from webgate.servers.models import Server
 from webgate.servers.service import get_server, get_server_credentials, resolve_jump_creds
+from webgate.webhooks.dispatcher import fire as fire_webhook
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -199,6 +200,10 @@ async def upload_files(
                 data = await f.read()
                 await client.upload(dest, data)
                 uploaded.append(dest)
+            await fire_webhook("sftp_upload", {
+                "user": current_user.username, "server_id": server_id,
+                "paths": uploaded, "count": len(uploaded),
+            })
             return {"uploaded": uploaded, "count": len(uploaded)}
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
@@ -256,6 +261,9 @@ async def delete_item(
             check_read_only(read_only)
             check_path_allowed(path, allowed_paths)
             await client.delete(path)
+            await fire_webhook("sftp_delete", {
+                "user": current_user.username, "server_id": server_id, "path": path,
+            })
             return {"path": validate_path(path), "status": "deleted"}
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e

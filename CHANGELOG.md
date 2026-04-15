@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.3.2 (2026-04-15)
+
+### Features
+
+- **Webhook notifications** -- admin can register HTTPS endpoints that receive a JSON POST when significant events fire. Supported events: `user_login`, `user_login_failed`, `ssh_connect`, `sftp_upload`, `sftp_delete`, `server_added`, `server_deleted`. Each webhook can subscribe to all events (`*`) or a specific subset.
+- **HMAC-SHA256 signing** -- optional shared secret per webhook; the dispatcher signs the body and sends it as `X-Webgate-Signature: sha256=<hex>` so the receiver can verify authenticity.
+- **Test button + delivery telemetry** -- one-click test fire from the admin UI; each webhook row shows the last HTTP status and timestamp.
+
+### Details
+
+- New `Webhook` model + REST CRUD at `/api/webhooks` (admin-only)
+- New `webgate.webhooks.dispatcher.fire(event, data)` -- fire-and-forget, schedules HTTP delivery via `httpx`, never blocks the caller
+- Frontend: "Webhooks" button in the top toolbar (admin only) with full management modal
+- New base dependency: `httpx>=0.28.0` (used by the dispatcher)
+
+Verified end-to-end against a real HTTP echo receiver: `user_login`, `server_added` and a manual test all delivered with HTTP 200 and signature header.
+
+---
+
 ## v0.3.1 (2026-04-15)
 
 ### Fixed

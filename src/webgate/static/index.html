@@ -232,6 +232,7 @@ window._showToastImpl = function(message, type) {
             <button x-show="currentUser?.is_admin" @click="showServerModal=true;resetServerForm()" class="fz-btn" style="font-size:11px" title="New Server (Ctrl+N)">New Server</button>
             <button x-show="currentUser?.is_admin" @click="openUsersModal()" class="fz-btn" style="font-size:11px">Users</button>
             <button x-show="currentUser?.is_admin" @click="openAuditLog()" class="fz-btn" style="font-size:11px">Audit</button>
+            <button x-show="currentUser?.is_admin" @click="openWebhooksModal()" class="fz-btn" style="font-size:11px">Webhooks</button>
             <button @click="openApiKeysModal()" class="fz-btn" style="font-size:11px">Keys</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -741,6 +742,59 @@ window._showToastImpl = function(message, type) {
     </div>
 </div>
 
+<!-- ======== WEBHOOKS MODAL ======== -->
+<div x-show="showWebhooksModal" class="fz-modal-bg" @click.self="showWebhooksModal=false">
+    <div class="fz-modal" style="width:720px" @click.stop>
+        <div class="fz-modal-title">Webhooks</div>
+        <div class="fz-modal-body" style="padding:0;max-height:50vh;overflow-y:auto">
+            <table style="width:100%;font-size:12px;border-collapse:collapse">
+                <thead style="position:sticky;top:0;background:var(--btn-bg)">
+                    <tr>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Name</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">URL</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Events</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Last</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;width:120px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="w in webhooks" :key="w.id">
+                        <tr style="border-bottom:1px solid var(--btn-bg)">
+                            <td style="padding:6px 12px;color:var(--text-primary);font-weight:500" x-text="w.name"></td>
+                            <td style="padding:6px 12px;font-family:'JetBrains Mono',monospace;color:var(--text-secondary);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" :title="w.url" x-text="w.url"></td>
+                            <td style="padding:6px 12px;color:var(--text-secondary);font-size:11px" x-text="w.events.join(', ')"></td>
+                            <td style="padding:6px 12px;color:var(--text-secondary);font-size:11px">
+                                <span x-show="w.last_status" :style="(w.last_status >= 200 && w.last_status < 300) ? 'color:var(--success)' : 'color:var(--danger)'" x-text="w.last_status + ' · ' + (w.last_fired_at ? new Date(w.last_fired_at).toLocaleString() : '')"></span>
+                                <span x-show="!w.last_status" style="color:var(--text-muted)">never fired</span>
+                            </td>
+                            <td style="padding:6px 12px;display:flex;gap:4px">
+                                <button @click="testWebhook(w)" class="fz-btn" style="font-size:10px;padding:1px 6px">Test</button>
+                                <button @click="confirmDeleteWebhook(w)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 6px">Del</button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="webhooks.length === 0">
+                        <tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px">No webhooks. Add one below.</td></tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <div style="border-top:1px solid var(--border);padding:12px 16px;background:var(--bg-tertiary)">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-primary)">Add Webhook</div>
+            <form @submit.prevent="createWebhook()" style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:6px;align-items:end">
+                <div><label style="font-size:10px;color:var(--text-secondary);font-weight:500">Name</label><input type="text" x-model="newWebhook.name" required placeholder="Slack" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+                <div><label style="font-size:10px;color:var(--text-secondary);font-weight:500">URL</label><input type="url" x-model="newWebhook.url" required placeholder="https://hooks.slack.com/..." style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+                <div><label style="font-size:10px;color:var(--text-secondary);font-weight:500">Events</label><input type="text" x-model="newWebhook.events" placeholder="* (or ssh_connect,user_login)" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+                <div style="grid-column:span 2"><label style="font-size:10px;color:var(--text-secondary);font-weight:500">Secret (optional, for HMAC signing)</label><input type="text" x-model="newWebhook.secret" placeholder="leave empty to skip" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+                <button type="submit" class="fz-btn fz-btn-primary" style="font-size:12px">Add</button>
+            </form>
+        </div>
+        <div class="fz-modal-footer">
+            <button @click="showWebhooksModal=false" class="fz-btn">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- ======== EDIT GROUPS MODAL ======== -->
 <div x-show="showGroupsModal" class="fz-modal-bg" @click.self="showGroupsModal=false">
     <div class="fz-modal" style="width:400px" @click.stop>
@@ -846,6 +900,7 @@ function app() {
         editingUserObj: null, editingGroupsStr: '',
         showAuditModal: false, auditEntries: [],
         showApiKeysModal: false, apiKeys: [], newApiKeyName: '', createdApiKey: null,
+        showWebhooksModal: false, webhooks: [], newWebhook: { name: '', url: '', events: '*', secret: '' },
         view: 'dashboard',
         ssh: { host: '', port: 22, username: '', password: '' },
         servers: [], groups: [], selectedGroup: '', searchQuery: '',
@@ -1428,6 +1483,29 @@ function app() {
         async confirmDeleteApiKey(k) {
             if (!confirm(`Revoke API key "${k.name}"?`)) return;
             try { await this.apiCall(`/api/auth/api-keys/${k.id}`, { method: 'DELETE' }); this.showToast('API key revoked'); this.apiKeys = await this.apiCall('/api/auth/api-keys'); } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // Webhooks
+        async openWebhooksModal() {
+            try { this.webhooks = await this.apiCall('/api/webhooks'); } catch (e) { this.showToast(e.message, 'error'); return; }
+            this.showWebhooksModal = true;
+        },
+        async createWebhook() {
+            const events = (this.newWebhook.events || '*').split(',').map(e => e.trim()).filter(Boolean);
+            const body = { name: this.newWebhook.name.trim(), url: this.newWebhook.url.trim(), events, secret: this.newWebhook.secret || '' };
+            try {
+                await this.apiCall('/api/webhooks', { method: 'POST', body: JSON.stringify(body) });
+                this.newWebhook = { name: '', url: '', events: '*', secret: '' };
+                this.webhooks = await this.apiCall('/api/webhooks');
+                this.showToast('Webhook added');
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async confirmDeleteWebhook(w) {
+            if (!confirm(`Delete webhook "${w.name}"?`)) return;
+            try { await this.apiCall(`/api/webhooks/${w.id}`, { method: 'DELETE' }); this.webhooks = await this.apiCall('/api/webhooks'); this.showToast('Webhook deleted'); } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async testWebhook(w) {
+            try { await this.apiCall(`/api/webhooks/${w.id}/test`, { method: 'POST' }); this.showToast(`Test queued for "${w.name}"`); setTimeout(async () => { this.webhooks = await this.apiCall('/api/webhooks'); }, 1500); } catch (e) { this.showToast(e.message, 'error'); }
         },
     };
 }

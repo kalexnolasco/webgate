@@ -424,6 +424,21 @@ When adding a server, pick another server from the **Jump Via** dropdown to tunn
 ### SSH command snippets
 
 Each user has a personal library of named commands. They appear as buttons in the terminal toolbar -- click to send `command + Enter`. Right-click to delete, `+` to create. Stored in the `snippets` table.
+
+### Webhooks
+
+Admins can register HTTPS endpoints that receive a JSON POST when events fire (`user_login`, `ssh_connect`, `server_added`, etc). Each webhook can subscribe to all events (`*`) or a specific subset.
+
+```json
+POST https://your-receiver.example.com/wh
+Content-Type: application/json
+X-Webgate-Signature: sha256=<hmac of body using your webhook's secret>
+
+{"event": "ssh_connect", "timestamp": "2026-04-15T18:03:18Z",
+ "data": {"user": "alice", "server": "prod-web-01", "host": "10.0.1.50:22"}}
+```
+
+Manage from the **Webhooks** button in the top toolbar (admin only). Last delivery status is shown next to each row.
 | `WEBGATE_LOG_LEVEL` | `info` | Log level |
 | `WEBGATE_SESSION_TIMEOUT` | `3600` | SSH session timeout (seconds) |
 | `WEBGATE_MAX_UPLOAD_SIZE` | `104857600` | Max upload size (100 MB) |

@@ -1,6 +1,6 @@
 [project]
 name = "webgate"
-version = "0.3.1"
+version = "0.3.2"
 description = "Self-hosted web application for remote server management via SSH terminal and SFTP file browser"
 readme = "README.md"
 license = "MIT"
@@ -41,6 +41,7 @@ dependencies = [
     "pyotp>=2.9.0",
     "qrcode[pil]>=8.2",
     "asyncpg>=0.30.0",
+    "httpx>=0.28.0",
 ]
 
 [project.urls]
