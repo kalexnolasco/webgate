@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     allowed_origins: str = "*"
     root_path: str = ""  # URL prefix when served behind a reverse proxy (e.g. "/webgate")
     demo_mode: bool = False  # Read-only public demo: blocks writes, hides admin UI
+    record_sessions: bool = False  # Capture SSH sessions to asciinema cast files
+    recordings_dir: str = "./recordings"  # Where to store .cast files
     log_level: str = "info"
     session_timeout: int = 3600
     max_upload_size: int = 104857600  # 100MB

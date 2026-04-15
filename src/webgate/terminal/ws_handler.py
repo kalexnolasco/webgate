@@ -9,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from webgate.auth.service import authenticate_api_key, decode_access_token
 from webgate.db.engine import async_session_factory
+from webgate.recordings.recorder import CastRecorder
 from webgate.terminal.shared import Participant, SharedSession, manager
 from webgate.terminal.ssh_session import SSHSession
 
@@ -44,6 +45,8 @@ async def handle_terminal_ws(
     jump_kwargs: dict[str, object] | None = None,
     owner_username: str = "owner",
     server_label: str | None = None,
+    recorder: CastRecorder | None = None,
+    on_close: object | None = None,
 ) -> None:
     """Open an SSH session as the owner. The session is registered with the
     shared-session manager so other users can join via a share token."""
@@ -64,6 +67,8 @@ async def handle_terminal_ws(
         server_label=server_label or f"{username}@{host}",
         owner_username=owner_username,
         ssh=session,
+        recorder=recorder,
+        on_close=on_close,
     )
     sess.participants.append(Participant(ws=ws, username=owner_username, mode="rw"))
     manager.register(sess)

@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 from fastapi import WebSocket
 
+from webgate.recordings.recorder import CastRecorder
 from webgate.terminal.ssh_session import SSHSession
 
 logger = logging.getLogger(__name__)
@@ -42,9 +43,13 @@ class SharedSession:
     ssh: SSHSession
     participants: list[Participant] = field(default_factory=list)
     share_token: str | None = None  # set when owner clicks "Share"
+    recorder: CastRecorder | None = None  # set when WEBGATE_RECORD_SESSIONS=true
+    on_close: object | None = None  # async callable invoked once on close
     closed: bool = False
 
     async def broadcast(self, text: str) -> None:
+        if self.recorder is not None:
+            self.recorder.write_output(text)
         dead: list[Participant] = []
         for p in self.participants:
             try:
@@ -70,6 +75,9 @@ class SharedSession:
                 await p.ws.close()
         self.participants.clear()
         await self.ssh.close()
+        if self.on_close is not None:
+            with contextlib.suppress(Exception):
+                await self.on_close()  # type: ignore[misc]
 
 
 class SharedSessionManager:

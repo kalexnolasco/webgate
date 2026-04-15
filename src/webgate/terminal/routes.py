@@ -15,6 +15,13 @@ from webgate.servers.service import (
     resolve_jump_creds,
     update_last_connected,
 )
+from datetime import UTC, datetime
+from pathlib import Path
+
+from webgate.config import settings
+from webgate.db.engine import async_session_factory as _session_factory
+from webgate.recordings.models import Recording
+from webgate.recordings.recorder import CastRecorder
 from webgate.terminal.shared import manager as shared_manager
 from webgate.terminal.ws_handler import authenticate_websocket, handle_join_ws, handle_terminal_ws
 from webgate.webhooks.dispatcher import fire as fire_webhook
@@ -142,6 +149,39 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
             "host": f"{server.hostname}:{server.port}", "via_jump": server.jump_via_id is not None,
         })
 
+    # Optional session recording (asciinema cast v2)
+    recording_id: int | None = None
+    recorder: CastRecorder | None = None
+    if settings.record_sessions:
+        ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        cast_path = (
+            Path(settings.recordings_dir) / str(server.id) / f"{ts}-{user_out.username}.cast"
+        )
+        recorder = CastRecorder(cast_path, cols=cols, rows=rows)
+        async with _session_factory() as db:
+            rec = Recording(
+                server_id=server.id, server_name=server.name,
+                user_id=user_out.id, username=user_out.username,
+                file_path=str(cast_path),
+            )
+            db.add(rec)
+            await db.commit()
+            recording_id = rec.id
+
+    async def _finalize_recording() -> None:
+        if recorder is None or recording_id is None:
+            return
+        size = recorder.close()
+        duration = recorder.duration
+        async with _session_factory() as db:
+            from sqlalchemy import select as _select
+            row = (await db.execute(_select(Recording).where(Recording.id == recording_id))).scalar_one_or_none()
+            if row is not None:
+                row.ended_at = datetime.now(UTC)
+                row.size_bytes = size
+                row.duration_s = round(duration, 3)
+                await db.commit()
+
     await handle_terminal_ws(
         ws,
         host=server.hostname,
@@ -154,6 +194,8 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
         jump_kwargs=jump_kwargs,
         owner_username=user_out.username,
         server_label=server.name,
+        recorder=recorder,
+        on_close=_finalize_recording,
     )
 
 

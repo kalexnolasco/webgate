@@ -194,6 +194,23 @@ flowchart TB
 ### Light Theme
 ![Light Theme](docs/screenshots/light-theme.png)
 
+### v0.4.1 — SSH Session Recording
+
+Set `WEBGATE_RECORD_SESSIONS=true` and every SSH session is captured to an asciinema cast v2 file. Replay in the browser with the embedded asciinema player, or download the `.cast` and `asciinema play` it locally.
+
+```bash
+docker run -e WEBGATE_RECORD_SESSIONS=true \
+  -e WEBGATE_RECORDINGS_DIR=/data/recordings \
+  -v webgate-data:/data \
+  kalexnolasco/webgate:0.4.1
+```
+
+| Recordings list | Replay in browser |
+| --- | --- |
+| ![Recordings](docs/screenshots/v0.4/04-recordings-modal.png) | ![Replay](docs/screenshots/v0.4/03-recording-replay.png) |
+
+Non-admins see only their own recordings; admins see everyone's. Each recording row has **▶ Play** (browser), **DL** (download `.cast`), and **Del**.
+
 ### v0.4.0 — Shared Terminal Sessions
 
 Pair-debugging or onboarding from anywhere: the owner clicks **🔗 Share** in the terminal toolbar, copies the URL, and any colleague who opens it joins the same live session. Output is broadcast to every participant; any RW participant can type.

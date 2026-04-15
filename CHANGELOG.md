@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.4.1 (2026-04-15)
+
+### Features
+
+- **SSH session recording** -- when `WEBGATE_RECORD_SESSIONS=true`, every SSH terminal session is captured to an asciinema cast v2 file under `WEBGATE_RECORDINGS_DIR` (default `./recordings`). Both owner-only and shared sessions are recorded. A new `recordings` table tracks file path, server, user, start/end, duration and size.
+- **Built-in web replay** -- `📹 Recordings` button (top toolbar) opens a list with **▶ Play** / **DL** / **Del** actions. Play opens an asciinema-player tab that streams the cast directly from the API. Non-admins see only their own recordings; admins see everyone's.
+- **Compliance-grade audit trail** -- the recording captures the full PTY output that every participant saw, including pasted commands and environment, in a portable, replayable, vendor-independent format (you can also `asciinema play file.cast` locally).
+
+### Details
+
+- New `WEBGATE_RECORD_SESSIONS` and `WEBGATE_RECORDINGS_DIR` settings (both off / `./recordings` by default)
+- New `Recording` model + REST CRUD at `/api/recordings`
+- New `webgate.recordings.recorder.CastRecorder` writes asciinema cast v2 (JSON Lines) line-buffered, very low overhead
+- Hook in `SharedSession.broadcast` -- recorder receives the same byte stream as every WS client
+- Player endpoint accepts a `?token=` query param (Authorization header isn't available when opening a tab)
+
+### Verified
+
+End-to-end against a real container with `WEBGATE_RECORD_SESSIONS=true`:
+
+- Open SSH, run `echo HELLO_RECORDED` + `uname -n`, disconnect
+- DB row populated: `started_at`, `ended_at`, `duration_s=3.0`, `size_bytes=1142`
+- File on disk: valid asciinema v2 cast, captures welcome banner + commands + responses
+- Open `/api/recordings/{id}/play?token=...` in browser → asciinema-player loads, hit Play → terminal replays the captured commands
+
+---
+
 ## v0.4.0 (2026-04-15)
 
 ### Features

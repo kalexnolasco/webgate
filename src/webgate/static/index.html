@@ -233,6 +233,7 @@ window._showToastImpl = function(message, type) {
             <button x-show="currentUser?.is_admin" @click="openUsersModal()" class="fz-btn" style="font-size:11px">Users</button>
             <button x-show="currentUser?.is_admin" @click="openAuditLog()" class="fz-btn" style="font-size:11px">Audit</button>
             <button x-show="currentUser?.is_admin" @click="openWebhooksModal()" class="fz-btn" style="font-size:11px">Webhooks</button>
+            <button @click="openRecordingsModal()" class="fz-btn" style="font-size:11px">📹 Recordings</button>
             <button @click="openApiKeysModal()" class="fz-btn" style="font-size:11px">Keys</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -798,6 +799,49 @@ window._showToastImpl = function(message, type) {
     </div>
 </div>
 
+<!-- ======== RECORDINGS MODAL ======== -->
+<div x-show="showRecordingsModal" class="fz-modal-bg" @click.self="showRecordingsModal=false">
+    <div class="fz-modal" style="width:760px" @click.stop>
+        <div class="fz-modal-title">📹 Session Recordings</div>
+        <div class="fz-modal-body" style="padding:0;max-height:55vh;overflow-y:auto">
+            <table style="width:100%;font-size:12px;border-collapse:collapse">
+                <thead style="position:sticky;top:0;background:var(--btn-bg)">
+                    <tr>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Server</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">User</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Started</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Duration</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;text-align:left">Size</th>
+                        <th style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-size:10px;text-transform:uppercase;width:160px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="r in recordings" :key="r.id">
+                        <tr style="border-bottom:1px solid var(--btn-bg)">
+                            <td style="padding:6px 12px;color:var(--text-primary);font-weight:500" x-text="r.server_name"></td>
+                            <td style="padding:6px 12px;color:var(--text-secondary)" x-text="r.username"></td>
+                            <td style="padding:6px 12px;color:var(--text-secondary);font-size:11px" x-text="new Date(r.started_at).toLocaleString()"></td>
+                            <td style="padding:6px 12px;color:var(--text-secondary);font-family:monospace" x-text="r.duration_s ? r.duration_s.toFixed(1) + 's' : '—'"></td>
+                            <td style="padding:6px 12px;color:var(--text-secondary);font-family:monospace" x-text="r.size_bytes ? (r.size_bytes < 1024 ? r.size_bytes + ' B' : (r.size_bytes/1024).toFixed(1) + ' KB') : '—'"></td>
+                            <td style="padding:6px 12px;display:flex;gap:4px">
+                                <a :href="BASE + '/api/recordings/' + r.id + '/play?token=' + encodeURIComponent(token)" target="_blank" class="fz-btn fz-btn-primary" style="font-size:10px;padding:2px 8px;text-decoration:none">▶ Play</a>
+                                <a :href="BASE + '/api/recordings/' + r.id + '/download?token=' + encodeURIComponent(token)" class="fz-btn" style="font-size:10px;padding:2px 8px;text-decoration:none">DL</a>
+                                <button @click="confirmDeleteRecording(r)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 6px">Del</button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="recordings.length === 0">
+                        <tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-muted);font-size:12px">No recordings. Set <code>WEBGATE_RECORD_SESSIONS=true</code> on the server to start recording.</td></tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <div class="fz-modal-footer">
+            <button @click="showRecordingsModal=false" class="fz-btn">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- ======== EDIT GROUPS MODAL ======== -->
 <div x-show="showGroupsModal" class="fz-modal-bg" @click.self="showGroupsModal=false">
     <div class="fz-modal" style="width:400px" @click.stop>
@@ -904,6 +948,7 @@ function app() {
         showAuditModal: false, auditEntries: [],
         showApiKeysModal: false, apiKeys: [], newApiKeyName: '', createdApiKey: null,
         showWebhooksModal: false, webhooks: [], newWebhook: { name: '', url: '', events: '*', secret: '' },
+        showRecordingsModal: false, recordings: [],
         view: 'dashboard',
         ssh: { host: '', port: 22, username: '', password: '' },
         servers: [], groups: [], selectedGroup: '', searchQuery: '',
@@ -1552,6 +1597,19 @@ function app() {
         },
         async testWebhook(w) {
             try { await this.apiCall(`/api/webhooks/${w.id}/test`, { method: 'POST' }); this.showToast(`Test queued for "${w.name}"`); setTimeout(async () => { this.webhooks = await this.apiCall('/api/webhooks'); }, 1500); } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // Recordings
+        get BASE() { return BASE; },
+        async openRecordingsModal() {
+            try { this.recordings = await this.apiCall('/api/recordings'); }
+            catch (e) { this.showToast(e.message, 'error'); return; }
+            this.showRecordingsModal = true;
+        },
+        async confirmDeleteRecording(r) {
+            if (!confirm(`Delete recording of "${r.server_name}" from ${new Date(r.started_at).toLocaleString()}?`)) return;
+            try { await this.apiCall(`/api/recordings/${r.id}`, { method: 'DELETE' }); this.recordings = await this.apiCall('/api/recordings'); this.showToast('Recording deleted'); }
+            catch (e) { this.showToast(e.message, 'error'); }
         },
     };
 }
