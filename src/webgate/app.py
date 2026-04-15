@@ -59,8 +59,12 @@ def create_app() -> FastAPI:
     )
 
     @app.get("/api/health")
-    async def health() -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
-        return {"status": "ok"}
+    async def health() -> dict[str, object]:  # pyright: ignore[reportUnusedFunction]
+        return {
+            "status": "ok",
+            "instance_id": server_monitor.instance_id,
+            "monitor_role": "leader" if server_monitor.is_leader else "follower",
+        }
 
     @app.get("/api/config")
     async def public_config() -> dict[str, object]:  # pyright: ignore[reportUnusedFunction]

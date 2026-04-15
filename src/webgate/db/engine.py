@@ -33,6 +33,8 @@ async def get_session() -> AsyncGenerator[AsyncSession]:
 # (table, column, sqlite_def, postgres_def)
 _MIGRATIONS: list[tuple[str, str, str, str]] = [
     ("servers", "sftp_read_only", "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
+    # Singleton lease table for monitor leader election (id always = 1).
+    # Created lazily by ServerMonitor.start() on first call; rows added there too.
     ("users", "totp_secret", "VARCHAR(255) DEFAULT ''", "VARCHAR(255) DEFAULT ''"),
     ("users", "totp_enabled", "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
     (

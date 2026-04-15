@@ -503,6 +503,48 @@ labels:
   - "traefik.http.services.webgate.loadbalancer.server.port=8443"
 ```
 
+### Multi-instance HA (N replicas + PostgreSQL)
+
+Run multiple webgate workers behind a load balancer, all sharing one Postgres database. Only one worker probes server connectivity at a time (leader election via a singleton lease row); the rest handle REST/WS traffic normally.
+
+```mermaid
+flowchart LR
+    U["Users"]
+    LB["Load balancer<br/>(sticky: ip_hash)"]
+    W1["webgate #1<br/>(leader)"]
+    W2["webgate #2<br/>(follower)"]
+    W3["webgate #3<br/>(follower)"]
+    PG[(PostgreSQL<br/>shared state)]
+    LEASE[["monitor_lease<br/>(singleton row)"]]
+    U --> LB
+    LB --> W1
+    LB --> W2
+    LB --> W3
+    W1 --> PG
+    W2 --> PG
+    W3 --> PG
+    W1 -- holds --> LEASE
+    W2 -. watches .-> LEASE
+    W3 -. watches .-> LEASE
+    style LB fill:#ffcc02,stroke:#e6a800,color:#333
+    style W1 fill:#5cb85c,stroke:#449d44,color:#fff
+    style W2 fill:#e8f0fe,stroke:#4a90d9
+    style W3 fill:#e8f0fe,stroke:#4a90d9
+    style PG fill:#fff3e0,stroke:#ff9800
+```
+
+Reference stack:
+
+```bash
+export WEBGATE_SECRET_KEY=$(openssl rand -hex 32)
+docker compose -f compose.ha.yml up -d
+curl -s http://localhost:8443/api/health   # shows instance_id + monitor_role
+```
+
+[`compose.ha.yml`](compose.ha.yml) spins up 2 webgate replicas + Postgres + nginx with `ip_hash` sticky sessions. On leader loss, the lease expires within 90 seconds and another replica picks it up automatically.
+
+> **Known limitation**: live shared-terminal sessions still need owner and joiner on the same worker. Sticky sessions mitigate it for same-browser joins; true cross-worker fan-out needs Redis pub/sub — planned for a later v0.5.x.
+
 ### Public read-only demo (Fly.io)
 
 The repo includes [`Dockerfile.demo`](Dockerfile.demo) (webgate + sandboxed sshd via supervisord) and [`fly.toml`](fly.toml). Deploy:

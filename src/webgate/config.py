@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     ldap_group_filter: str = "(member={dn})"  # AD: (member:1.2.840.113556.1.4.1941:={dn})
     ldap_group_map: str = "{}"  # JSON: {"ldap-group-cn": "webgate-group-name"}
     ldap_admin_groups: str = "[]"  # JSON list of LDAP group CNs that grant admin
+
+    # Multi-instance HA
+    instance_id: str = ""  # Unique per worker; auto-generated UUID if empty
+    disable_monitor: bool = False  # Skip leader election; never run server monitor
     log_level: str = "info"
     session_timeout: int = 3600
     max_upload_size: int = 104857600  # 100MB

@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.5.0 (2026-04-15)
+
+### Features
+
+- **Multi-instance HA deployment** -- run N webgate workers behind a load balancer, sharing a PostgreSQL database. Only one worker at a time performs server-connectivity probes (leader election via a singleton lease row); all workers serve REST + WS traffic normally.
+- **`compose.ha.yml`** reference deployment: 2 webgate replicas + Postgres + nginx LB with `ip_hash` sticky sessions. Verified end-to-end including automatic failover.
+- **`/api/health`** now reports `instance_id` (per-worker UUID) and `monitor_role` (`leader` / `follower`) so LB health checks and observability can tell replicas apart.
+
+### Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `WEBGATE_INSTANCE_ID` | auto (UUID) | Stable identifier for this worker |
+| `WEBGATE_DISABLE_MONITOR` | `false` | Skip leader election entirely (pure follower worker, useful if a separate process owns the monitor) |
+
+### Details
+
+- New `monitor_lease` singleton table (auto-created at startup) holds the current leader's instance id and expiry. 90 s TTL with 30 s heartbeat.
+- On leader loss / expiry, any other worker picks up the probe loop within ~1 check cycle (≤ 90 s).
+- Dialect-agnostic (works on SQLite for single-instance dev, PostgreSQL for real HA).
+
+### Known limitation
+
+- Shared terminal sessions (`/api/ws/terminal/join/{token}`) still require owner and joiner to land on the same worker. Sticky-session routing handles same-browser joins; cross-worker cross-engineer sharing needs Redis pub/sub (planned in v0.5.x).
+
+### Verified
+
+`compose.ha.yml` stack (2 replicas + Postgres + nginx):
+
+- Both replicas show `{"instance_id":"…","monitor_role":"follower"|"leader"}`
+- Exactly one replica holds the lease row in Postgres
+- Servers created on replica A immediately visible from replica B (shared DB)
+- Killed the leader → follower promoted automatically, LB kept serving
+
+---
+
 ## v0.4.2 (2026-04-15)
 
 ### Features

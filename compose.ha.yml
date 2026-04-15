@@ -1,0 +1,62 @@
+# High-availability deployment: 2 webgate workers share a Postgres DB
+# behind a nginx load balancer with sticky sessions.
+#
+# Run:  WEBGATE_SECRET_KEY=$(openssl rand -hex 32) docker compose -f compose.ha.yml up -d
+# Open: http://localhost:8443/  (login: admin / admin)
+#
+# /api/health reports the instance_id + monitor_role so you can see which
+# replica answered. Only one replica at a time becomes the monitor leader
+# via a lease row in the shared Postgres DB.
+#
+# Known limitation: shared terminal sessions (live "Share" URLs) still
+# require the owner and joiner to land on the same worker. Sticky sessions
+# by IP hash handle same-browser joins; cross-engineer sharing between
+# workers needs Redis pub/sub (planned for v0.5.x).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: webgate-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: webgate
+      POSTGRES_PASSWORD: webgate
+      POSTGRES_DB: webgate
+    volumes:
+      - webgate-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webgate"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  webgate-1: &webgate
+    image: kalexnolasco/webgate:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      WEBGATE_SECRET_KEY: "${WEBGATE_SECRET_KEY:?run: export WEBGATE_SECRET_KEY=$(openssl rand -hex 32)}"
+      WEBGATE_DB_URL: "postgresql+asyncpg://webgate:webgate@postgres:5432/webgate"
+      WEBGATE_FIRST_RUN: "true"
+
+  webgate-2:
+    <<: *webgate
+    # Same image + env, different instance. The monitor leader-election
+    # picks exactly one of these to do the probing.
+
+  nginx:
+    image: nginx:alpine
+    container_name: webgate-lb
+    restart: unless-stopped
+    depends_on:
+      - webgate-1
+      - webgate-2
+    ports:
+      - "8443:80"
+    volumes:
+      - ./deploy/nginx-ha.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  webgate-pg:
