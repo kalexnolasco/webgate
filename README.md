@@ -194,6 +194,43 @@ flowchart TB
 ### Light Theme
 ![Light Theme](docs/screenshots/light-theme.png)
 
+### v0.3.x — Operations Pack
+
+These screenshots come from the live demo at https://webgate-demo.fly.dev (login `demo` / `demo`).
+
+#### Demo banner on login
+![Demo banner](docs/screenshots/v0.3/01-login-demo-banner.png)
+
+#### Site Manager with jump-host indicator
+The `↺` next to `internal-app` means it tunnels through `bastion`.
+
+![Dashboard with jump host](docs/screenshots/v0.3/02-dashboard-jump-host.png)
+
+#### Terminal with snippets toolbar
+Click a snippet button to send `command + Enter` to the active session. Right-click to delete, `+` to create.
+
+![Terminal snippets](docs/screenshots/v0.3/03-terminal-snippets-jump.png)
+
+#### Snippet executed
+Clicking `ls -lah` sent the command and the output appears in the terminal.
+
+![Snippet executed](docs/screenshots/v0.3/04-snippet-executed.png)
+
+#### SFTP via jump host
+Browsing the `internal-app` filesystem — the SFTP connection is also tunneled through the bastion.
+
+![SFTP via jump](docs/screenshots/v0.3/05-sftp-via-jump.png)
+
+#### Webhooks management (admin)
+Per-event subscription, optional HMAC signing, last delivery status.
+
+![Webhooks modal](docs/screenshots/v0.3/06-webhooks-modal.png)
+
+#### Add Server form with Jump Via dropdown
+Pick any other registered server as the bastion.
+
+![Add Server with Jump Via](docs/screenshots/v0.3/08-add-server-jump-via.png)
+
 ## Quick Start
 
 ### Docker (recommended)

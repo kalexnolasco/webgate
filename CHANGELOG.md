@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.3 (2026-04-15)
+
+### Fixed
+
+- Snippets toolbar was empty after a fresh login until the page was reloaded. `loadSnippets()` was only called from `init()` (which only runs when a token is already in localStorage). Now also called after a successful login and after a forced password change.
+
+### Docs
+
+- Added end-to-end UI screenshots for v0.3.x features: jump host, snippets toolbar, snippet execution, SFTP browse via jump, webhooks management modal with delivery telemetry, server form with Jump Via dropdown.
+- Browser-tested every UI flow with `playwright-cli` against both the live Fly.io demo and a local container.
+
+---
+
 ## v0.3.2 (2026-04-15)
 
 ### Features

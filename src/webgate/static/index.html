@@ -1012,7 +1012,7 @@ function app() {
                 this.totpRequired = false; this.totpCode = ''; this.tempToken = '';
                 await this.fetchMe();
                 if (this.currentUser?.must_change_password) { this.showChangePassword = true; return; }
-                await this.loadServers(); await this.loadGroups();
+                await this.loadServers(); await this.loadGroups(); await this.loadStatuses(); await this.loadSnippets();
                 this.username = ''; this.password = '';
                 this.log('status', 'Logged in as ' + this.currentUser?.username);
             } catch (e) { this.showToast(e.message, 'error'); }
@@ -1023,7 +1023,7 @@ function app() {
             try {
                 await this.apiCall('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ new_password: this.newPassword }) });
                 this.showChangePassword = false; this.newPassword = ''; this.confirmPassword = '';
-                await this.fetchMe(); await this.loadServers(); await this.loadGroups();
+                await this.fetchMe(); await this.loadServers(); await this.loadGroups(); await this.loadStatuses(); await this.loadSnippets();
                 this.username = ''; this.password = '';
                 this.showToast('Password changed');
                 this.log('status', 'Logged in as ' + this.currentUser?.username);
