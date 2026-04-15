@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.1 (2026-04-15)
+
+### Fixed
+
+- **PostgreSQL actually works in Docker now.** v0.3.0 advertised PostgreSQL support but two bugs prevented it from working:
+  1. `asyncpg` was an optional extra (`webgate[postgres]`), so the official Docker image (and `pip install webgate`) didn't have the driver. Now bundled by default.
+  2. Lightweight migrations ran inside the same transaction as `create_all`. PostgreSQL aborts the entire transaction on any error (even when caught), so the first "column already exists" error rolled back table creation on subsequent runs. Each migration now uses its own transaction.
+
+Verified end-to-end against a real `postgres:16-alpine` container: tables created, login works, server creation and persistence across restarts confirmed.
+
+---
+
 ## v0.3.0 (2026-04-15)
 
 ### Features

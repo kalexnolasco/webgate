@@ -48,15 +48,19 @@ async def init_db() -> None:
     dialect = engine.dialect.name  # "sqlite", "postgresql", ...
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Lightweight migrations for columns added after initial release
-        for table, column, sqlite_def, pg_def in _MIGRATIONS:
-            col_def = pg_def if dialect == "postgresql" else sqlite_def
-            sql = f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"
-            try:
+    # Lightweight migrations: each in its OWN transaction. PostgreSQL aborts
+    # the whole transaction on any error (even one we catch), so running
+    # multiple ALTERs in a single txn would poison create_all on a fresh DB
+    # the moment the first "column already exists" fires.
+    for table, column, sqlite_def, pg_def in _MIGRATIONS:
+        col_def = pg_def if dialect == "postgresql" else sqlite_def
+        sql = f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"
+        try:
+            async with engine.begin() as conn:
                 await conn.execute(text(sql))
                 logger.info("Migration applied: %s.%s", table, column)
-            except Exception:
-                pass  # Column already exists
+        except Exception:
+            pass  # Column already exists, or table not yet present on fresh DB
 
 
 async def close_db() -> None:

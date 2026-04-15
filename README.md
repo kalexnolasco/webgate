@@ -409,10 +409,9 @@ All settings are configurable via environment variables with the `WEBGATE_` pref
 
 ### PostgreSQL
 
-SQLite is the default. To use PostgreSQL instead:
+SQLite is the default. To use PostgreSQL, just point `WEBGATE_DB_URL` at it (the `asyncpg` driver is bundled as of v0.3.1):
 
 ```bash
-pip install 'webgate[postgres]'   # adds asyncpg
 export WEBGATE_DB_URL='postgresql+asyncpg://user:pass@host:5432/webgate'
 ```
 
