@@ -1,3 +1,10 @@
+# Local development with a sandboxed SSH server pre-built into the network.
+# Run:  docker compose -f compose.dev.yml up --build
+# Open: http://localhost:8443/  (login: admin / admin → first-run password change)
+#
+# Inside the UI, register the dev SSH server with:
+#   hostname: ssh-demo  port: 22  username: demo  password: demo
+
 services:
   webgate:
     build: .
@@ -10,6 +17,8 @@ services:
     environment:
       WEBGATE_SECRET_KEY: "dev-secret-key-not-for-production"
       WEBGATE_FIRST_RUN: "true"
+      WEBGATE_RECORD_SESSIONS: "true"
+      WEBGATE_RECORDINGS_DIR: "/data/recordings"
     depends_on:
       - ssh-demo
 

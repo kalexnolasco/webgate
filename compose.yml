@@ -1,6 +1,18 @@
+# Production deployment.
+# Run:  WEBGATE_SECRET_KEY=$(openssl rand -hex 32) docker compose up -d
+# Then open http://localhost:8443/  (login: admin / admin → first-run password change)
+#
+# Optional features — uncomment the env vars you want:
+#   WEBGATE_RECORD_SESSIONS / WEBGATE_RECORDINGS_DIR  → asciinema cast recordings
+#   WEBGATE_LDAP_*                                    → LDAP / AD authentication
+#   WEBGATE_DEMO_MODE                                 → public read-only demo
+#   WEBGATE_ROOT_PATH                                 → serve under a sub-path
+#   WEBGATE_DB_URL=postgresql+asyncpg://...           → PostgreSQL backend
+# See README "Configuration" for the full list.
+
 services:
   webgate:
-    build: .
+    image: kalexnolasco/webgate:latest
     container_name: webgate
     restart: unless-stopped
     ports:
@@ -8,8 +20,10 @@ services:
     volumes:
       - webgate-data:/data
     environment:
-      WEBGATE_SECRET_KEY: "${WEBGATE_SECRET_KEY:-change-me-in-production}"
+      WEBGATE_SECRET_KEY: "${WEBGATE_SECRET_KEY:?set with: export WEBGATE_SECRET_KEY=$(openssl rand -hex 32)}"
       WEBGATE_FIRST_RUN: "true"
+      # WEBGATE_RECORD_SESSIONS: "true"
+      # WEBGATE_RECORDINGS_DIR: "/data/recordings"
 
 volumes:
   webgate-data:
