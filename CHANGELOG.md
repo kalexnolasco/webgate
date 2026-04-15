@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.4.2 (2026-04-15)
+
+### Features
+
+- **LDAP / Active Directory authentication** -- enable with `WEBGATE_LDAP_ENABLED=true` and login flow falls back to LDAP after the local user table. On a successful LDAP bind the user is auto-provisioned (or refreshed) in the local DB, with `allowed_groups` derived from LDAP group memberships and admin status from a configurable list of admin groups.
+
+### Configuration
+
+| Env var | Description |
+|---|---|
+| `WEBGATE_LDAP_ENABLED` | `true` to enable LDAP login |
+| `WEBGATE_LDAP_URL` | `ldap://host:389` or `ldaps://host:636` |
+| `WEBGATE_LDAP_BIND_DN` | service account DN, e.g. `cn=admin,dc=example,dc=com` |
+| `WEBGATE_LDAP_BIND_PASSWORD` | service account password |
+| `WEBGATE_LDAP_USER_BASE` | e.g. `ou=people,dc=example,dc=com` |
+| `WEBGATE_LDAP_USER_FILTER` | default `(uid={username})` (AD: `(sAMAccountName={username})`) |
+| `WEBGATE_LDAP_GROUP_BASE` | e.g. `ou=groups,dc=example,dc=com` (empty = no group lookup) |
+| `WEBGATE_LDAP_GROUP_FILTER` | default `(member={dn})` (AD nested: `(member:1.2.840.113556.1.4.1941:={dn})`) |
+| `WEBGATE_LDAP_GROUP_MAP` | JSON `{"ldap-cn":"webgate-group"}` |
+| `WEBGATE_LDAP_ADMIN_GROUPS` | JSON list of LDAP CNs that grant admin |
+
+### Details
+
+- Search-then-bind flow: bind as service account, search by username, re-bind as the user with their password
+- LDAP filter values are properly escaped (RFC 4515)
+- All `ldap3` calls run in `asyncio.to_thread` to avoid blocking the event loop
+- Local accounts (admin, API keys, 2FA) keep working as before -- LDAP is only consulted after a local-credential miss
+- Re-login refreshes admin status and group mapping from LDAP every time
+
+### Verified
+
+End-to-end against `osixia/openldap` with an `alice` user in groups `devs` and `admins`:
+
+- `alice / alicepass` → 200, JWT issued, `/api/auth/me` returns `is_admin=true`, `allowed_groups=["all","production"]` (mapped from LDAP CNs)
+- `alice / WRONG` → 401 Invalid credentials
+- `admin / admin` (local fallback) → still works
+
+---
+
 ## v0.4.1 (2026-04-15)
 
 ### Features

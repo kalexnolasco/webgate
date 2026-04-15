@@ -1,3 +1,5 @@
+import json
+import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -25,6 +27,7 @@ from webgate.auth.models import (
     UserOut,
     UserUpdateGroups,
 )
+from webgate.auth.ldap import authenticate_ldap
 from webgate.auth.service import (
     authenticate_api_key,
     create_access_token,
@@ -88,14 +91,32 @@ def _require_admin(user: UserOut) -> None:
 @limiter.limit("10/minute")
 async def login(request: Request, body: UserLogin, session: SessionDep) -> LoginOut:
     user = await get_user_by_username(session, body.username)
-    if not user or not verify_password(body.password, user.hashed_password):
-        await fire_webhook("user_login_failed", {
-            "username": body.username,
-            "ip": request.client.host if request.client else "",
-        })
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-        )
+    local_ok = bool(user and verify_password(body.password, user.hashed_password))
+
+    if not local_ok:
+        # Fall through to LDAP if it's enabled. On success we auto-provision
+        # or refresh the local row so the rest of the app keeps working
+        # against the User table (audit, allowed_groups, JWT subject, ...).
+        ldap_result = await authenticate_ldap(body.username, body.password)
+        if ldap_result is None:
+            await fire_webhook("user_login_failed", {
+                "username": body.username,
+                "ip": request.client.host if request.client else "",
+            })
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+            )
+        # LDAP passed -- create or refresh the local user row.
+        if user is None:
+            user = await create_user(
+                session, body.username, secrets.token_urlsafe(32), is_admin=ldap_result.is_admin
+            )
+            user.must_change_password = False
+        else:
+            user.is_admin = ldap_result.is_admin
+        user.allowed_groups = json.dumps(ldap_result.allowed_groups)
+        await session.commit()
+        await session.refresh(user)
     # Check if 2FA is enabled
     if user.totp_enabled and user.totp_secret:
         if not body.totp_code:

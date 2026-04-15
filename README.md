@@ -194,6 +194,26 @@ flowchart TB
 ### Light Theme
 ![Light Theme](docs/screenshots/light-theme.png)
 
+### v0.4.2 — LDAP / Active Directory authentication
+
+Enable LDAP and webgate falls back to it whenever the local credential check fails. On a successful LDAP bind the user row is auto-provisioned, admin status is taken from a configurable list of LDAP groups, and `allowed_groups` is mapped from LDAP CNs.
+
+```bash
+docker run \
+  -e WEBGATE_LDAP_ENABLED=true \
+  -e WEBGATE_LDAP_URL='ldap://ldap.corp:389' \
+  -e WEBGATE_LDAP_BIND_DN='cn=svc-webgate,ou=services,dc=corp,dc=com' \
+  -e WEBGATE_LDAP_BIND_PASSWORD='...' \
+  -e WEBGATE_LDAP_USER_BASE='ou=people,dc=corp,dc=com' \
+  -e WEBGATE_LDAP_USER_FILTER='(uid={username})' \
+  -e WEBGATE_LDAP_GROUP_BASE='ou=groups,dc=corp,dc=com' \
+  -e WEBGATE_LDAP_GROUP_MAP='{"sre":"production","devs":"staging"}' \
+  -e WEBGATE_LDAP_ADMIN_GROUPS='["sre-leads"]' \
+  kalexnolasco/webgate:0.4.2
+```
+
+For Active Directory, set `WEBGATE_LDAP_USER_FILTER='(sAMAccountName={username})'` and use the recursive group filter `(member:1.2.840.113556.1.4.1941:={dn})` if you need nested groups.
+
 ### v0.4.1 — SSH Session Recording
 
 Set `WEBGATE_RECORD_SESSIONS=true` and every SSH session is captured to an asciinema cast v2 file. Replay in the browser with the embedded asciinema player, or download the `.cast` and `asciinema play` it locally.
