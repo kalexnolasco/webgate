@@ -7,7 +7,7 @@
 # Free tier (1x shared-cpu, 256-512 MB) is enough for light demo traffic.
 
 app = "webgate-demo"
-primary_region = "mad"  # Madrid; pick the closest region for your audience
+primary_region = "cdg"  # Paris; closest EU region to Spain
 
 [build]
   dockerfile = "Dockerfile.demo"
