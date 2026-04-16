@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.5.1 (2026-04-16) — Security hotfix
+
+### Security (please upgrade)
+
+Three authentication gaps fixed after a focused security review.
+
+- **`must_change_password` is now enforced server-side**. Previously the flag was only surfaced by the UI; a valid JWT from a `admin/admin` first-run login let attackers hit every admin endpoint (`/api/auth/users`, `/api/servers`, audit log, ...) without ever changing the password. `get_current_user` now returns `403 Password change required` for any path other than `/api/auth/me` and `/api/auth/change-password` while the flag is `True`. *(Credit: user report on the public demo.)*
+- **Pre-2FA "temp token" is now truly short-lived and scoped.** The `create_access_token({"pending_2fa": True, "exp_minutes": 2})` call ignored `exp_minutes` — the token got the full 24-hour session TTL, and no endpoint checked the `pending_2fa` claim, so the "temp" token bypassed 2FA completely. Fixed by: adding `expires_minutes` parameter to `create_access_token`, setting it to 2, and rejecting any token with `pending_2fa=True` on every endpoint except `/api/auth/login` itself.
+- **API keys cannot bypass forced password change.** An account with `must_change_password=True` can no longer create or use an API key until the password has been rotated. Prevents workaround paths when an admin issues a temporary password.
+- **Recording replay page no longer leaks the session token via Referer.** `GET /api/recordings/{id}/play` now sends `Referrer-Policy: no-referrer` and `Cache-Control: private, no-store`, and all third-party assets on the page (asciinema-player CDN) are fetched with `referrerpolicy="no-referrer"`.
+
+### Docs
+
+- README: screenshot sub-sections renamed to functional titles (jump host / snippets / shared terminal / session recording / demo mode) instead of release-pack labels, so the README always describes what the current version ships.
+
+---
+
 ## v0.5.0 (2026-04-15)
 
 ### Features

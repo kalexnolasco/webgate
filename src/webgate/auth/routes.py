@@ -56,7 +56,12 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 AuthDep = Annotated[HTTPAuthorizationCredentials, Depends(security)]
 
 
-async def get_current_user(credentials: AuthDep, session: SessionDep) -> UserOut:
+async def get_current_user(
+    request: Request, credentials: AuthDep, session: SessionDep
+) -> UserOut:
+    """Resolve the user from JWT or API key and enforce account-level gates
+    (pending 2FA, forced password change). Only a short allowlist of endpoints
+    can be hit while a user is in one of those states."""
     token = credentials.credentials
 
     # Check if it's an API key (starts with "wg_")
@@ -64,6 +69,12 @@ async def get_current_user(credentials: AuthDep, session: SessionDep) -> UserOut
         user = await authenticate_api_key(session, token)
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+        if user.must_change_password:
+            # API keys cannot bypass a forced password change.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Password change required before using API keys",
+            )
         return UserOut.model_validate(user)
 
     # Otherwise treat as JWT
@@ -76,6 +87,23 @@ async def get_current_user(credentials: AuthDep, session: SessionDep) -> UserOut
     user = await get_user_by_id(session, int(user_id))
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    path = request.url.path
+    # Pre-2FA temp token: only /api/auth/login is allowed (for the code step).
+    if payload.get("pending_2fa"):
+        if path != "/api/auth/login":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Pending 2FA: submit totp_code via /api/auth/login to obtain a session token",
+            )
+    # Forced password change: only /api/auth/me and /api/auth/change-password are allowed.
+    if user.must_change_password and path not in {
+        "/api/auth/me", "/api/auth/change-password",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password change required",
+        )
     return UserOut.model_validate(user)
 
 
@@ -120,9 +148,11 @@ async def login(request: Request, body: UserLogin, session: SessionDep) -> Login
     # Check if 2FA is enabled
     if user.totp_enabled and user.totp_secret:
         if not body.totp_code:
-            # Issue a short-lived temp token for 2FA verification
+            # Short-lived pre-2FA token: only accepted by /api/auth/login
+            # itself (gated in get_current_user) and expires in 2 minutes.
             temp_token = create_access_token(
-                {"sub": str(user.id), "pending_2fa": True, "exp_minutes": 2}
+                {"sub": str(user.id), "pending_2fa": True},
+                expires_minutes=2,
             )
             return LoginOut(requires_2fa=True, temp_token=temp_token)
         # Verify the TOTP code

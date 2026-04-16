@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -10,7 +11,7 @@ from jose import JWTError, jwt
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from webgate.auth.models import User
+from webgate.auth.models import ApiKey, User
 from webgate.config import settings
 
 logger = logging.getLogger(__name__)
@@ -24,9 +25,12 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
-def create_access_token(data: dict[str, Any]) -> str:
+def create_access_token(data: dict[str, Any], expires_minutes: int | None = None) -> str:
+    """Mint a signed JWT. `expires_minutes` overrides the default session TTL
+    for short-lived tokens (e.g. the 2-minute pre-2FA token)."""
     to_encode = data.copy()
-    expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_expire_minutes)
+    minutes = expires_minutes if expires_minutes is not None else settings.jwt_expire_minutes
+    expire = datetime.now(UTC) + timedelta(minutes=minutes)
     to_encode["exp"] = expire
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
 
@@ -113,3 +117,81 @@ async def update_user_password(
 async def delete_user(session: AsyncSession, user: User) -> None:
     await session.delete(user)
     await session.commit()
+
+
+def generate_api_key() -> str:
+    """Generate a random API key like 'wg_xxxxxxxxxxxxxxxxxxxxxxxxxxxx'."""
+    return "wg_" + secrets.token_hex(24)
+
+
+async def create_api_key(session: AsyncSession, user_id: int, name: str) -> tuple[ApiKey, str]:
+    """Create an API key. Returns (model, plaintext_key)."""
+    key = generate_api_key()
+    key_obj = ApiKey(
+        user_id=user_id,
+        name=name,
+        key_hash=hash_password(key),
+        key_prefix=key[:10],
+    )
+    session.add(key_obj)
+    await session.commit()
+    await session.refresh(key_obj)
+    return key_obj, key
+
+
+async def get_api_keys(session: AsyncSession, user_id: int) -> list[ApiKey]:
+    """List all API keys for a user."""
+    result = await session.execute(
+        select(ApiKey).where(ApiKey.user_id == user_id).order_by(ApiKey.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def delete_api_key(session: AsyncSession, key_id: int, user_id: int) -> bool:
+    """Delete an API key. Returns True if found and deleted."""
+    result = await session.execute(
+        select(ApiKey).where(ApiKey.id == key_id, ApiKey.user_id == user_id)
+    )
+    key_obj = result.scalar_one_or_none()
+    if not key_obj:
+        return False
+    await session.delete(key_obj)
+    await session.commit()
+    return True
+
+
+async def authenticate_api_key(session: AsyncSession, key: str) -> User | None:
+    """Look up API key by prefix, then verify hash. Update last_used_at."""
+    prefix = key[:10]
+    result = await session.execute(
+        select(ApiKey).where(ApiKey.key_prefix == prefix)
+    )
+    for api_key in result.scalars().all():
+        if verify_password(key, api_key.key_hash):
+            api_key.last_used_at = datetime.now(UTC)
+            user_result = await session.execute(
+                select(User).where(User.id == api_key.user_id)
+            )
+            user = user_result.scalar_one_or_none()
+            await session.commit()
+            return user
+    return None
+
+
+def generate_totp_secret() -> str:
+    import pyotp
+
+    return pyotp.random_base32()
+
+
+def get_totp_uri(secret: str, username: str) -> str:
+    import pyotp
+
+    return pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name="webgate")
+
+
+def verify_totp(secret: str, code: str) -> bool:
+    import pyotp
+
+    totp = pyotp.TOTP(secret)
+    return totp.verify(code, valid_window=1)

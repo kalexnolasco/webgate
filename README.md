@@ -155,24 +155,35 @@ flowchart TB
 | ![Access Control](docs/screenshots/access-control.png) | ![Users](docs/screenshots/users.png) |
 | ![Audit](docs/screenshots/audit.png) | ![Light Theme](docs/screenshots/light-theme.png) |
 
-### Operations Pack — jump host, snippets, webhooks
+### Jump host, snippets, webhooks
 
 | | |
 |---|---|
-| ![Demo banner](docs/screenshots/v0.3/01-login-demo-banner.png) | ![Dashboard with jump host](docs/screenshots/v0.3/02-dashboard-jump-host.png) |
+| ![Dashboard with jump host](docs/screenshots/v0.3/02-dashboard-jump-host.png) | ![Add Server with Jump Via](docs/screenshots/v0.3/08-add-server-jump-via.png) |
 | ![Terminal snippets](docs/screenshots/v0.3/03-terminal-snippets-jump.png) | ![Snippet executed](docs/screenshots/v0.3/04-snippet-executed.png) |
-| ![SFTP via jump](docs/screenshots/v0.3/05-sftp-via-jump.png) | ![Add Server with Jump Via](docs/screenshots/v0.3/08-add-server-jump-via.png) |
-| ![Webhooks modal](docs/screenshots/v0.3/06-webhooks-modal.png) |  |
+| ![SFTP via jump](docs/screenshots/v0.3/05-sftp-via-jump.png) | ![Webhooks modal](docs/screenshots/v0.3/06-webhooks-modal.png) |
 
-### Shared terminal & session recording
+### Shared terminal sessions
 
-| Owner sees | Joiner sees |
+Click **🔗 Share** in the terminal toolbar to get a URL; anyone who opens it joins the same live SSH session (broadcast output, multiplexed input).
+
+| Owner | Joiner |
 |---|---|
 | ![Shared owner](docs/screenshots/v0.4/01-shared-terminal-owner.png) | ![Shared joiner](docs/screenshots/v0.4/02-shared-terminal-joiner.png) |
+
+### Session recording
+
+Enable `WEBGATE_RECORD_SESSIONS=true` and every SSH session is captured to an asciinema cast file with built-in browser replay.
 
 | Recordings list | Browser replay |
 |---|---|
 | ![Recordings](docs/screenshots/v0.4/04-recordings-modal.png) | ![Replay](docs/screenshots/v0.4/03-recording-replay.png) |
+
+### Public read-only demo mode
+
+`WEBGATE_DEMO_MODE=true` turns the app into a sandbox: banner, seeded `demo`/`demo` user, all writes blocked. Used by the live demo at [webgate-demo.fly.dev](https://webgate-demo.fly.dev/).
+
+![Demo banner](docs/screenshots/v0.3/01-login-demo-banner.png)
 
 ---
 
@@ -551,7 +562,7 @@ curl -s http://localhost:8443/api/health   # shows instance_id + monitor_role
 
 [`compose.ha.yml`](compose.ha.yml) spins up 2 webgate replicas + Postgres + nginx with `ip_hash` sticky sessions. On leader loss, the lease expires within 90 seconds and another replica picks it up automatically.
 
-> **Known limitation**: live shared-terminal sessions still need owner and joiner on the same worker. Sticky sessions mitigate it for same-browser joins; true cross-worker fan-out needs Redis pub/sub — planned for a later v0.5.x.
+> **Known limitation**: live shared-terminal sessions still need owner and joiner on the same worker. Sticky sessions mitigate it for same-browser joins; true cross-worker fan-out requires a Redis pub/sub layer (not yet implemented).
 
 ### Public read-only demo (Fly.io)
 

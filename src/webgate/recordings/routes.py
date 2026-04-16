@@ -81,11 +81,15 @@ async def play_recording(
     # Embed asciinema-player from CDN. The cast file is fetched via the
     # download endpoint so JWT auth is honored.
     started = rec.started_at.isoformat()
+    # Referrer-Policy no-referrer prevents leaking the ?token= to any
+    # external asset (CDN, browser history peeks, etc.). The meta refresh
+    # is a belt-and-braces for older browsers.
     html = f"""<!doctype html>
 <html><head>
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <title>webgate replay #{rec.id} — {rec.server_name}</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.7.0/dist/bundle/asciinema-player.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.7.0/dist/bundle/asciinema-player.css" referrerpolicy="no-referrer">
 <style>
   body {{ background:#1a1b26; color:#c0caf5; font-family:system-ui,sans-serif; margin:0; padding:20px; }}
   .meta {{ display:flex; gap:24px; font-size:13px; margin-bottom:16px; color:#9ba3c5; }}
@@ -101,13 +105,16 @@ async def play_recording(
   <span>💾 {rec.size_bytes:,} bytes</span>
 </div>
 <div id=\"player\"></div>
-<script src=\"https://cdn.jsdelivr.net/npm/asciinema-player@3.7.0/dist/bundle/asciinema-player.min.js\"></script>
+<script src=\"https://cdn.jsdelivr.net/npm/asciinema-player@3.7.0/dist/bundle/asciinema-player.min.js\" referrerpolicy="no-referrer"></script>
 <script>
   AsciinemaPlayer.create('cast?token={token}', document.getElementById('player'),
     {{ idleTimeLimit: 2, theme: 'tango', fit: 'width' }});
 </script>
 </body></html>"""
-    return HTMLResponse(content=html)
+    return HTMLResponse(
+        content=html,
+        headers={"Referrer-Policy": "no-referrer", "Cache-Control": "private, no-store"},
+    )
 
 
 @router.get("/{recording_id}/cast")
