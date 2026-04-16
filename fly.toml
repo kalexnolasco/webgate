@@ -35,6 +35,11 @@ primary_region = "cdg"  # Paris; closest EU region to Spain
     method = "get"
     path = "/api/health"
 
+# Hard cap on horizontal scale so traffic spikes never spawn extra VMs.
+# Auto-stop still applies so idle traffic stays at $0.
+[deploy]
+  max_scale = 1
+
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
