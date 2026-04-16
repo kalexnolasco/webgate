@@ -72,22 +72,34 @@ def create_app() -> FastAPI:
         return {"demo_mode": settings.demo_mode}
 
     if settings.demo_mode:
-        # In demo mode block any state-changing request on /api/* except login
-        # and the WS quick-connect endpoint (no arbitrary SSH targets allowed).
+        # In demo mode block any state-changing request on /api/* except an
+        # explicit allowlist of (method, path_pattern). Share-token endpoints
+        # need to be reachable so the public demo can exercise the shared
+        # terminal feature -- but only the exact two routes, not any URL
+        # that starts with /api/terminal/share/.
+        import re as _re
         WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-        WRITE_ALLOWLIST = {"/api/auth/login", "/api/auth/totp/verify"}
+        # (method, compiled regex of full path)
+        DEMO_WRITE_ALLOWLIST: list[tuple[str, _re.Pattern[str]]] = [
+            ("POST",   _re.compile(r"^/api/auth/login$")),
+            ("POST",   _re.compile(r"^/api/auth/totp/verify$")),
+            ("POST",   _re.compile(r"^/api/terminal/share/[\w-]+$")),
+            ("DELETE", _re.compile(r"^/api/terminal/share/[\w-]+$")),
+        ]
 
         @app.middleware("http")
         async def _demo_readonly(request: Request, call_next):  # pyright: ignore[reportUnusedFunction]
             path = request.url.path
-            # Allow share-token mint/revoke even in demo mode so the shared
-            # terminal feature can be exercised from the public demo.
-            allowed = path in WRITE_ALLOWLIST or path.startswith("/api/terminal/share/")
-            if request.method in WRITE_METHODS and path.startswith("/api/") and not allowed:
-                return JSONResponse(
-                    status_code=403,
-                    content={"detail": "Demo mode: write operations are disabled"},
+            if request.method in WRITE_METHODS and path.startswith("/api/"):
+                allowed = any(
+                    m == request.method and rx.match(path)
+                    for m, rx in DEMO_WRITE_ALLOWLIST
                 )
+                if not allowed:
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Demo mode: write operations are disabled"},
+                    )
             if path.endswith("/api/ws/terminal/quick"):
                 return JSONResponse(
                     status_code=403,

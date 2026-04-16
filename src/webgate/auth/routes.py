@@ -127,8 +127,16 @@ async def login(request: Request, body: UserLogin, session: SessionDep) -> Login
         # against the User table (audit, allowed_groups, JWT subject, ...).
         ldap_result = await authenticate_ldap(body.username, body.password)
         if ldap_result is None:
+            # Strip any control characters and truncate to 64 chars before
+            # emitting the attacker-controlled username into the webhook
+            # payload. Receivers (Slack, Discord, custom handlers) often
+            # render it verbatim, and we don't want payloads that contain
+            # terminal escapes, HTML, or 10 MB strings.
+            safe_username = "".join(
+                c for c in (body.username or "") if c.isprintable()
+            )[:64]
             await fire_webhook("user_login_failed", {
-                "username": body.username,
+                "username": safe_username,
                 "ip": request.client.host if request.client else "",
             })
             raise HTTPException(

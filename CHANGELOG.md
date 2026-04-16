@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.2 (2026-04-16) — Hardening
+
+Defense-in-depth follow-ups to v0.5.1's security hotfix — no active exploit fixed here, but the attack surface is reduced.
+
+### Hardening
+
+- **Demo-mode write allowlist is now an exact (method, path) list** instead of a `startswith("/api/terminal/share/")` prefix. Previously any `POST /api/terminal/share/<anything-here>` slipped past the middleware; now only the two real share routes (`POST` and `DELETE /api/terminal/share/{session_id}`) plus login and totp/verify are allowed. Any future endpoint accidentally added under that prefix stays blocked unless its route is explicitly added.
+- **`user_login_failed` webhook payload is now sanitized.** An unauthenticated attacker can hit `/api/auth/login` with any `username` string, which used to be dispatched verbatim to admin-configured webhook receivers (Slack, Discord, in-house). The dispatcher now strips non-printable characters (terminal escapes, NULLs) and truncates to 64 chars before emitting, so receivers that render the payload directly can't be targeted with control codes or HTML.
+
+### Docs
+
+- `CLAUDE.md`: corrected a stale line that described the access model as "each user sees only their own servers". The actual model is team-access-by-group: admins assign a server to a `group` and any user with that group in their `allowed_groups` can reach it. README already documented this correctly in the "Access model" section.
+
+---
+
 ## v0.5.1 (2026-04-16) — Security hotfix
 
 ### Security (please upgrade)
