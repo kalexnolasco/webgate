@@ -103,14 +103,29 @@
         .fz-editor-bar { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; }
 
         /* Server list in sidebar */
-        .fz-serverlist { overflow-y: auto; flex: 1; }
-        .fz-srv-item { padding: 10px 12px; border-bottom: 1px solid var(--btn-bg); cursor: pointer; transition: background 0.15s; }
+        .fz-sidebar { display: flex; flex-direction: column; min-height: 0; overflow: hidden; flex-shrink: 0; }
+        .fz-serverlist { overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; }
+        .fz-group-header { position: sticky; top: 0; z-index: 2; background: var(--bg-secondary); border-bottom: 1px solid var(--border); border-top: 1px solid var(--border); padding: 4px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; }
+        .fz-group-header .count { background: var(--btn-bg); color: var(--text-secondary); border-radius: 10px; padding: 0 6px; font-size: 9px; font-weight: 600; }
+        .fz-srv-item { padding: 7px 10px 7px 12px; border-bottom: 1px solid var(--btn-bg); cursor: pointer; transition: background 0.1s; position: relative; border-left: 3px solid transparent; }
         .fz-srv-item:hover { background: var(--bg-secondary); }
-        .fz-srv-item.active { background: #1f6feb15; border-left: 3px solid var(--accent); }
-        .fz-srv-item .srv-name { font-weight: 600; font-size: 13px; color: var(--text-primary); }
-        .fz-srv-item .srv-host { font-size: 11px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
-        .fz-srv-item .srv-group { font-size: 10px; color: var(--text-secondary); background: var(--btn-bg); border: 1px solid var(--border); padding: 1px 6px; border-radius: 10px; display: inline-block; margin-top: 4px; }
-        .fz-srv-actions { display: flex; gap: 4px; margin-top: 6px; }
+        .fz-srv-item.active { background: rgba(31,111,235,0.08); border-left-color: var(--accent); }
+        .fz-srv-item .srv-row1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .fz-srv-item .srv-name { font-weight: 600; font-size: 12.5px; color: var(--text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; }
+        .fz-srv-item .srv-host { font-size: 10.5px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fz-srv-item .srv-group { font-size: 9.5px; color: var(--text-secondary); background: var(--btn-bg); border: 1px solid var(--border); padding: 0 6px; border-radius: 8px; display: inline-block; flex-shrink: 0; line-height: 1.6; }
+        .fz-srv-actions { display: flex; gap: 3px; margin-top: 5px; align-items: center; }
+        .fz-srv-actions .fz-btn { font-size: 10px; padding: 1px 6px; }
+        .fz-srv-actions .fz-srv-secondary { opacity: 0; transition: opacity 0.1s; display: flex; gap: 3px; }
+        .fz-srv-item:hover .fz-srv-secondary, .fz-srv-item.active .fz-srv-secondary { opacity: 1; }
+        @media (hover: none) { .fz-srv-actions .fz-srv-secondary { opacity: 1; } }
+
+        /* Compact density mode */
+        .fz-srv-item.compact { padding: 4px 10px 4px 12px; }
+        .fz-srv-item.compact .srv-host { font-size: 10px; margin-top: 0; }
+        .fz-srv-item.compact .fz-srv-actions { margin-top: 3px; display: none; }
+        .fz-srv-item.compact:hover .fz-srv-actions, .fz-srv-item.compact.active .fz-srv-actions { display: flex; }
+        .fz-srv-item.compact .fz-srv-secondary { opacity: 1; }
 
         /* Terminal */
         .xterm { height: 100%; }
@@ -153,6 +168,8 @@
         /* Force flex display even when Alpine x-show toggles display */
         .fz-flex-col { display: flex !important; flex-direction: column; flex: 1; min-height: 0; }
         .fz-flex-col[style*="display: none"] { display: none !important; }
+        .fz-flex-row { display: flex !important; flex: 1; min-height: 0; overflow: hidden; }
+        .fz-flex-row[style*="display: none"] { display: none !important; }
 
         /* Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -285,12 +302,13 @@ window._showToastImpl = function(message, type) {
     <div style="flex:1;display:flex;flex-direction:column;min-height:0">
 
         <!-- ======== SITE MANAGER (dashboard) ======== -->
-        <div x-show="view === 'dashboard'" style="flex:1;display:flex;min-height:0">
+        <div x-show="view === 'dashboard'" class="fz-flex-row">
             <!-- Server list sidebar -->
-            <div style="width:260px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-tertiary);flex-shrink:0">
+            <div class="fz-sidebar" style="width:260px;border-right:1px solid var(--border);background:var(--bg-tertiary)">
                 <div class="fz-panel-header">
-                    <span>Servers</span>
-                    <div style="display:flex;gap:3px">
+                    <span>Servers <span x-show="filteredServers.length" style="font-weight:400;color:var(--text-muted);font-size:11px" x-text="'(' + filteredServers.length + ')'"></span></span>
+                    <div style="display:flex;gap:3px;align-items:center">
+                        <button @click="compactList = !compactList; localStorage.setItem('webgate_compact_list', compactList ? '1' : '0')" class="fz-btn" style="font-size:10px;padding:1px 5px" :title="compactList ? 'Switch to comfortable view' : 'Switch to compact view'" x-text="compactList ? '▤' : '▦'"></button>
                         <button x-show="currentUser?.is_admin" @click="exportServers()" class="fz-btn" style="font-size:10px;padding:1px 5px" title="Export">&#8595;</button>
                         <button x-show="currentUser?.is_admin" @click="$refs.importFile.click()" class="fz-btn" style="font-size:10px;padding:1px 5px" title="Import">&#8593;</button>
                         <input type="file" x-ref="importFile" accept=".json" style="display:none" @change="importServers($event)">
@@ -312,24 +330,39 @@ window._showToastImpl = function(message, type) {
                 </div>
                 <!-- Server list -->
                 <div class="fz-serverlist">
-                    <template x-for="srv in filteredServers" :key="srv.id">
-                        <div class="fz-srv-item" :class="selectedServerId===srv.id ? 'active' : ''" @click="selectedServerId=srv.id">
-                            <div class="srv-name" style="display:flex;align-items:center"><span :style="'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + (serverStatuses[srv.id]?.online === true ? '#3fb950' : serverStatuses[srv.id]?.online === false ? '#f85149' : '#484f58')" :title="serverStatuses[srv.id]?.online === true ? 'Online' : serverStatuses[srv.id]?.online === false ? 'Offline' : 'Checking...'"></span><span x-text="srv.name"></span></div>
-                            <div class="srv-host">
-                                <span x-text="srv.username + '@' + srv.hostname + ':' + srv.port"></span>
-                                <span x-show="srv.auth_method==='key'" style="color:#3fb950;margin-left:4px" title="Key auth">&#128273;</span>
-                                <span x-show="srv.jump_via_id" style="color:#a78bfa;margin-left:4px" :title="'Via ' + (servers.find(s => s.id === srv.jump_via_id)?.name || 'jump host')">&#8634;</span>
+                    <template x-for="grp in groupedServers" :key="grp.name">
+                        <div>
+                            <div x-show="grp.showHeader" class="fz-group-header">
+                                <span x-text="grp.name || 'Ungrouped'"></span>
+                                <span class="count" x-text="grp.items.length"></span>
                             </div>
-                            <span x-show="srv.group" class="srv-group" x-text="srv.group"></span>
-                            <div class="fz-srv-actions">
-                                <button @click.stop="openServerTerminal(srv)" class="fz-btn fz-btn-success" style="font-size:10px;padding:1px 6px" :disabled="srv.ssh_enabled===false" :title="srv.ssh_enabled===false ? 'SSH disabled for this server' : ''">SSH</button>
-                                <button @click.stop="openServerFiles(srv)" class="fz-btn fz-btn-primary" style="font-size:10px;padding:1px 6px" :disabled="srv.sftp_enabled===false" :title="srv.sftp_enabled===false ? 'SFTP disabled for this server' : ''">SFTP</button>
-                                <span x-show="srv.sftp_enabled && srv.sftp_read_only" style="font-size:9px;color:#f0883e;font-weight:700" title="SFTP Read-Only">RO</span>
-                                <button @click.stop="openSplit(srv)" class="fz-btn" style="font-size:10px;padding:1px 5px" :disabled="srv.ssh_enabled===false && srv.sftp_enabled===false" title="SSH + SFTP split">Split</button>
-                                <button @click.stop="testServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px" :disabled="testingServerId===srv.id" x-text="testingServerId===srv.id ? '...' : 'Test'"></button>
-                                <button x-show="currentUser?.is_admin" @click.stop="editServer(srv)" class="fz-btn" style="font-size:10px;padding:1px 6px">Edit</button>
-                                <button x-show="currentUser?.is_admin" @click.stop="confirmDeleteServer(srv)" class="fz-btn fz-btn-danger" style="font-size:10px;padding:1px 6px">Del</button>
-                            </div>
+                            <template x-for="srv in grp.items" :key="srv.id">
+                                <div class="fz-srv-item" :class="[selectedServerId===srv.id ? 'active' : '', compactList ? 'compact' : '']" @click="selectedServerId=srv.id">
+                                    <div class="srv-row1">
+                                        <span class="srv-name">
+                                            <span :style="'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;flex-shrink:0;background:' + (serverStatuses[srv.id]?.online === true ? '#3fb950' : serverStatuses[srv.id]?.online === false ? '#f85149' : '#484f58')" :title="serverStatuses[srv.id]?.online === true ? 'Online' : serverStatuses[srv.id]?.online === false ? 'Offline' : 'Checking...'"></span>
+                                            <span x-text="srv.name" style="overflow:hidden;text-overflow:ellipsis"></span>
+                                        </span>
+                                        <span x-show="srv.group && !selectedGroup && !grp.showHeader" class="srv-group" x-text="srv.group" :title="'Group: ' + srv.group"></span>
+                                    </div>
+                                    <div class="srv-host">
+                                        <span x-text="srv.username + '@' + srv.hostname + ':' + srv.port"></span>
+                                        <span x-show="srv.auth_method==='key'" style="color:#3fb950;margin-left:4px" title="Key auth">&#128273;</span>
+                                        <span x-show="srv.jump_via_id" style="color:#a78bfa;margin-left:4px" :title="'Via ' + (servers.find(s => s.id === srv.jump_via_id)?.name || 'jump host')">&#8634;</span>
+                                        <span x-show="srv.sftp_enabled && srv.sftp_read_only" style="color:#f0883e;margin-left:4px;font-weight:700;font-size:9px" title="SFTP Read-Only">RO</span>
+                                    </div>
+                                    <div class="fz-srv-actions">
+                                        <button @click.stop="openServerTerminal(srv)" class="fz-btn fz-btn-success" :disabled="srv.ssh_enabled===false" :title="srv.ssh_enabled===false ? 'SSH disabled for this server' : 'Open SSH terminal'">SSH</button>
+                                        <button @click.stop="openServerFiles(srv)" class="fz-btn fz-btn-primary" :disabled="srv.sftp_enabled===false" :title="srv.sftp_enabled===false ? 'SFTP disabled for this server' : 'Open SFTP browser'">SFTP</button>
+                                        <div class="fz-srv-secondary">
+                                            <button @click.stop="openSplit(srv)" class="fz-btn" :disabled="srv.ssh_enabled===false && srv.sftp_enabled===false" title="SSH + SFTP split">Split</button>
+                                            <button @click.stop="testServer(srv)" class="fz-btn" :disabled="testingServerId===srv.id" :title="'Test connectivity'" x-text="testingServerId===srv.id ? '...' : 'Test'"></button>
+                                            <button x-show="currentUser?.is_admin" @click.stop="editServer(srv)" class="fz-btn" title="Edit server">Edit</button>
+                                            <button x-show="currentUser?.is_admin" @click.stop="confirmDeleteServer(srv)" class="fz-btn fz-btn-danger" title="Delete server">Del</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
                     </template>
                     <div x-show="filteredServers.length===0" style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px">
@@ -953,6 +986,7 @@ function app() {
         ssh: { host: '', port: 22, username: '', password: '' },
         servers: [], groups: [], selectedGroup: '', searchQuery: '',
         selectedServerId: null,
+        compactList: localStorage.getItem('webgate_compact_list') === '1',
         showServerModal: false, editingServerId: null, testingServerId: null,
         serverForm: { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', group: '', tagsStr: '', description: '', jump_via_id: null },
         tabs: [], activeTabId: null,
@@ -966,7 +1000,42 @@ function app() {
             if (this.selectedGroup) s = s.filter(srv => srv.group === this.selectedGroup);
             return s;
         },
+        get groupedServers() {
+            // When a specific group is selected, render a single unnamed bucket (no headers).
+            // When "All Groups" is active, bucket by group with sticky headers sorted alphabetically.
+            const items = this.filteredServers;
+            if (this.selectedGroup || items.length === 0) {
+                return [{ name: this.selectedGroup || '', items, showHeader: false }];
+            }
+            const buckets = new Map();
+            for (const s of items) {
+                const key = s.group || '';
+                if (!buckets.has(key)) buckets.set(key, []);
+                buckets.get(key).push(s);
+            }
+            const sortedKeys = [...buckets.keys()].sort((a, b) => {
+                if (a === '' && b !== '') return 1;
+                if (b === '' && a !== '') return -1;
+                return a.localeCompare(b);
+            });
+            const hasMultiple = sortedKeys.length > 1;
+            return sortedKeys.map(k => ({ name: k, items: buckets.get(k), showHeader: hasMultiple }));
+        },
         get statusLeft() {
+            if (this.view === 'dashboard') {
+                const total = this.servers.length;
+                if (total === 0) return 'Ready';
+                let online = 0, offline = 0, unknown = 0;
+                for (const s of this.servers) {
+                    const st = this.serverStatuses[s.id];
+                    if (st?.online === true) online++;
+                    else if (st?.online === false) offline++;
+                    else unknown++;
+                }
+                const shown = this.filteredServers.length;
+                const base = shown === total ? `${total} servers` : `${shown} of ${total} servers`;
+                return `${base} · ${online} online · ${offline} offline${unknown ? ' · ' + unknown + ' unchecked' : ''}`;
+            }
             const tab = this.tabs.find(t => t.id === this.activeTabId);
             if (!tab) return 'Ready';
             if (tab.type === 'terminal') return 'SSH: ' + tab.title;
@@ -978,6 +1047,11 @@ function app() {
             return '';
         },
         get statusRight() {
+            if (this.view === 'dashboard') {
+                if (this.searchQuery) return `search: "${this.searchQuery}"`;
+                if (this.selectedGroup) return `group: ${this.selectedGroup}`;
+                return '';
+            }
             const tab = this.tabs.find(t => t.id === this.activeTabId);
             if (tab?.type === 'files') return tab.currentPath || '/';
             return '';

@@ -74,4 +74,7 @@ async def test_admin_list_users(client: AsyncClient, auth_headers: dict[str, str
 async def test_health(client: AsyncClient):
     resp = await client.get("/api/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert "instance_id" in body
+    assert body["monitor_role"] in {"leader", "follower"}

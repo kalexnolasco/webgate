@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.5.3 (2026-04-16) — UI hotfix: server dashboard
+
+### Bug fixes
+
+- **Site Manager sidebar no longer hides servers behind the status bar.** With enough registered servers, the left-hand list expanded past the viewport because the sidebar flex column was missing `min-height:0`, so the inner `.fz-serverlist` never clipped. The last cards scrolled off-screen underneath the blue status bar. Root cause was Alpine's `x-show` stripping the inline `display:flex` from the dashboard row when it toggled visibility. Fixed by introducing a `.fz-flex-row` CSS class (mirror of the existing `.fz-flex-col`) so the flex layout survives the `x-show` toggle, plus a proper `min-height:0` / `overflow:hidden` chain all the way down to the scrollable list.
+- **Global status bar no longer leaks file-browser state onto the dashboard.** When an SFTP tab was open in the background and the user switched to Site Manager, the bottom status bar kept showing `75 items (38 directories, 37 files)` / `/home/wdna`. The dashboard view now shows its own summary: `N servers · X online · Y offline · Z unchecked` on the left and the active filter (`group: RAN` or `search: "foo"`) on the right.
+- **`auth/models.py` committed.** The `User.totp_secret` / `User.totp_enabled` columns and the `ApiKey` model had been in use by `auth/routes.py` and `auth/service.py` since the 2FA / API-keys features shipped, but `auth/models.py` had never been rolled into a commit. A fresh `git clone` of `main` failed to start with `ImportError: cannot import name 'ApiKey' from 'webgate.auth.models'`. Docker Hub and fly.io kept working because those builds happened from the dirty working tree. Committing the file resolves the drift.
+
+### Dashboard redesign (triggered by the fix above)
+
+While fixing the overflow bug, the Site Manager's server list was redesigned to scale to fleets of dozens of servers without becoming a wall of buttons.
+
+- **Compact cards with hover-reveal secondary actions.** Each server row now shows `SSH` and `SFTP` by default; `Split`, `Test`, `Edit`, and `Del` only appear when the row is hovered or selected. This drops the per-row visual weight from ~100 px with 6 visible buttons to ~55 px with 2 primary buttons, while keeping every action one hover away.
+- **Sticky group headers in the sidebar.** When the "All Groups" filter is active and the fleet spans multiple groups, the list gets per-group headers (`CORE 12`, `RAN 20`, `STAGING 4` …) that stay pinned while you scroll. Per-card group pills are automatically hidden when the header is showing, since the grouping context is already visible.
+- **Compact / comfortable density toggle** (`▦` / `▤` button in the sidebar header) persisted in `localStorage`. Compact mode hides host:port and all action buttons until hover — roughly doubles the number of servers visible per screen.
+- **Server count next to the `Servers` heading** (`Servers (43)`) updates with the current filter.
+- **Status bar filter context.** When a group filter or search is active, the right-hand status cell shows `group: <name>` or `search: "<query>"` so the current view state is always visible.
+
+### Tests
+
+- `test_health` was stale since v0.5.0 introduced HA (`instance_id` + `monitor_role` in the payload). Updated to assert the current shape instead of the original two-key response.
+
+---
+
 ## v0.5.2 (2026-04-16) — Hardening
 
 Defense-in-depth follow-ups to v0.5.1's security hotfix — no active exploit fixed here, but the attack surface is reduced.
