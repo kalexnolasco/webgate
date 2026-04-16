@@ -1,5 +1,5 @@
 site_name: webgate
-site_description: Self-hosted SSH terminal & SFTP file browser
+site_description: Self-hosted web gateway for remote server management — SSH terminal, SFTP, jump hosts, shared sessions, session recording, LDAP, webhooks, HA.
 site_url: https://kalexnolasco.github.io/webgate/
 repo_url: https://github.com/kalexnolasco/webgate
 repo_name: kalexnolasco/webgate
@@ -37,12 +37,17 @@ nav:
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
+    - Local playground: LOCAL_TESTING.md
   - User Guide:
     - Server Management: guide/servers.md
     - SSH Terminal: guide/terminal.md
     - SFTP File Browser: guide/files.md
-    - User Management: guide/users.md
     - Split View: guide/split.md
+    - User Management: guide/users.md
+    - Access model (groups, LDAP, tags): guide/access-control.md
+    - Advanced (jump host, snippets, sharing, recording): guide/advanced.md
+    - Integrations (webhooks, LDAP, API keys, reverse proxy): guide/integrations.md
+    - HA deployment: guide/ha.md
   - API Reference:
     - Authentication: api/auth.md
     - Servers: api/servers.md
