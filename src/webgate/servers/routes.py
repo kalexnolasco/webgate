@@ -3,11 +3,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from webgate.audit.service import log_action
 from webgate.auth.models import UserOut
 from webgate.auth.routes import get_current_user
 from webgate.db.engine import get_session
-from webgate.servers.models import ServerCreate, ServerImport, ServerOut, ServerUpdate
-from webgate.webhooks.dispatcher import fire as fire_webhook
+from webgate.files.pool import sftp_pool
+from webgate.servers.hostkeys import describe
+from webgate.servers.models import Server, ServerCreate, ServerImport, ServerOut, ServerUpdate
 from webgate.servers.service import (
     create_server,
     delete_server,
@@ -19,6 +21,7 @@ from webgate.servers.service import (
     update_last_connected,
     update_server,
 )
+from webgate.webhooks.dispatcher import fire as fire_webhook
 
 router = APIRouter(prefix="/api/servers", tags=["servers"])
 
@@ -81,11 +84,78 @@ async def import_servers(
     body: ServerImport, session: SessionDep, current_user: CurrentUserDep
 ) -> list[ServerOut]:
     _require_admin(current_user)
-    results: list[ServerOut] = []
-    for srv in body.servers:
-        server = await create_server(session, srv, current_user.id)
-        results.append(server_to_out(server))
-    return results
+
+    # The exported jump_via_id refers to ids in the SOURCE database. Ids are
+    # reassigned here, so carrying one over would silently point a server at
+    # whatever host happens to land on that id. Resolve the hop by name instead.
+    # The exported jump_via_id refers to ids in the SOURCE database. Ids are
+    # reassigned here, so carrying one over would silently point a server at
+    # whatever host happens to land on that id. Resolve the hop by name instead.
+    exported_names = {s.id: s.name for s in body.servers if s.id is not None}
+
+    made: list[Server] = []
+    by_name: dict[str, Server] = {}
+    pending: list[tuple[Server, str]] = []
+
+    for item in body.servers:
+        target_name = item.jump_via_name or exported_names.get(item.jump_via_id or -1)
+        payload = ServerCreate(
+            **item.model_dump(exclude={"id", "jump_via_name", "jump_via_id"}),
+            jump_via_id=None,
+        )
+        server = await create_server(session, payload, current_user.id)
+        made.append(server)
+        by_name[server.name] = server
+        if target_name:
+            pending.append((server, target_name))
+
+    if pending:
+        for other in await list_servers(session, current_user.id, is_admin=True):
+            by_name.setdefault(other.name, other)
+        touched = False
+        for server, target_name in pending:
+            target = by_name.get(target_name)
+            if target is None or target.id == server.id:
+                continue  # unresolvable or self-referencing: leave the hop unset
+            server.jump_via_id = target.id
+            touched = True
+        if touched:
+            await session.commit()
+            for server in made:
+                await session.refresh(server)
+
+    return [server_to_out(s) for s in made]
+
+
+@router.delete("/{server_id}/host-key")
+async def clear_host_key(
+    server_id: int, session: SessionDep, current_user: CurrentUserDep
+) -> dict[str, str]:
+    """Forget the pinned key so the next connection learns the current one.
+
+    This is the deliberate act that accepts a rebuilt host or a rotated key. It is
+    admin-only precisely because it re-opens the first-contact window.
+    """
+    _require_admin(current_user)
+    server = await get_server(
+        session, server_id, current_user.id, is_admin=True, allowed_groups=None
+    )
+    if server is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
+    previous = describe(server.host_key or "")
+    server.host_key = ""
+    await session.commit()
+    await sftp_pool.drop(server_id)
+    await log_action(
+        current_user.id,
+        current_user.username,
+        "host_key_cleared",
+        detail=f"{server.name}: was {previous or 'unpinned'}",
+    )
+    return {
+        "cleared": previous,
+        "detail": f"The next connection to {server.name} will pin its key.",
+    }
 
 
 @router.get("/status")

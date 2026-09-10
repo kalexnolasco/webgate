@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
@@ -8,20 +10,17 @@ from webgate.audit.service import log_action
 from webgate.auth.models import UserOut
 from webgate.auth.routes import get_current_user
 from webgate.auth.service import get_user_by_id
+from webgate.config import settings
 from webgate.db.engine import async_session_factory
+from webgate.db.engine import async_session_factory as _session_factory
+from webgate.recordings.models import Recording
+from webgate.recordings.recorder import CastRecorder
 from webgate.servers.service import (
     get_server,
     get_server_credentials,
     resolve_jump_creds,
     update_last_connected,
 )
-from datetime import UTC, datetime
-from pathlib import Path
-
-from webgate.config import settings
-from webgate.db.engine import async_session_factory as _session_factory
-from webgate.recordings.models import Recording
-from webgate.recordings.recorder import CastRecorder
 from webgate.terminal.shared import manager as shared_manager
 from webgate.terminal.ws_handler import authenticate_websocket, handle_join_ws, handle_terminal_ws
 from webgate.webhooks.dispatcher import fire as fire_webhook

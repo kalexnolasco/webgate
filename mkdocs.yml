@@ -1,5 +1,5 @@
 site_name: webgate
-site_description: Self-hosted web gateway for remote server management — SSH terminal, SFTP, jump hosts, shared sessions, session recording, LDAP, webhooks, HA.
+site_description: Self-hosted web gateway for remote server management — SSH terminal, SFTP, verified host keys, AI agent, white-label branding, jump hosts, shared sessions, session recording, LDAP, webhooks, HA.
 site_url: https://kalexnolasco.github.io/webgate/
 repo_url: https://github.com/kalexnolasco/webgate
 repo_name: kalexnolasco/webgate
@@ -37,6 +37,7 @@ nav:
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
+    - Upgrading: getting-started/upgrade.md
     - Local playground: LOCAL_TESTING.md
   - User Guide:
     - Server Management: guide/servers.md

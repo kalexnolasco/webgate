@@ -8,11 +8,10 @@ from __future__ import annotations
 import json
 import logging
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webgate.auth.service import create_user, get_user_by_username
-from sqlalchemy import select
-
 from webgate.servers.models import ServerCreate
 from webgate.servers.service import create_server, list_servers
 from webgate.snippets.models import Snippet

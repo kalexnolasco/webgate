@@ -1,5 +1,258 @@
 # Changelog
 
+## v2.0.0 (2026-09-10) — AI agent, white-label branding, verified host keys
+
+The first release aimed at a company deploying webgate rather than an individual running
+it. It adds a per-server AI agent, full white-label branding, backup and restore, and it
+closes the largest hole in the project: until now the gateway handed stored fleet
+credentials to whatever answered on a server's address.
+
+Design direction is recorded in `DESIGN.md`, product context in `PRODUCT.md`.
+
+### Upgrading
+
+Stop, pull, start. The schema migrates itself on boot.
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Two things worth knowing before you do:
+
+- **Host key verification is on by default.** Existing servers have no pinned key, so the
+  next connection to each one pins whatever it presents and nothing breaks. From then on a
+  changed key is refused. Set `WEBGATE_VERIFY_HOST_KEYS=false` to postpone it.
+- **The AI agent stays off** until an admin configures a provider under **Admin → AI
+  agent**, and off per server until it is enabled there.
+
+Rolling back to v0.5.x works: schema changes are additive, so an older webgate simply
+ignores the columns it does not know. Full guide, including PostgreSQL and HA:
+[Upgrading](getting-started/upgrade.md).
+
+### Security
+
+- **SSH and SFTP now verify the host key (trust on first use).** Every connection the
+  gateway made passed `known_hosts=None`, which disables verification entirely: it would
+  authenticate to any machine answering on the target's address and hand it the stored
+  credentials. A poisoned internal DNS record, ARP spoofing or a compromised switch was
+  enough, and the gateway is exactly where every credential in the fleet lives. This was
+  demonstrated, not theorised — with a substituted host key, webgate reported *Connection
+  successful*.
+
+  The first connection to a server records the key it presents. Every connection after
+  that is checked against it **before authentication runs**, so a mismatch sends nothing.
+  All seven connection paths verify: terminal, SFTP browser, the SFTP pool, the status
+  monitor, connection tests, the agent, and jump hosts — the bastion most of all, since
+  everything behind it is reached through that one connection.
+
+- **A changed key stops the connection and explains itself.** The message names both
+  possibilities (an interceptor, or a rebuilt host), states that nothing was sent, and says
+  how to proceed. Accepting a new key is a deliberate admin action —
+  `DELETE /api/servers/{id}/host-key`, audited — never automatic, since silently re-pinning
+  would defeat the whole mechanism. Clearing a pin also drops the server's pooled SFTP
+  connection, which otherwise served the old one for up to five minutes.
+
+- **The declared auth method is honoured.** A server moved from key to password kept its
+  old key row, and connections preferred the key, failing with an unrelated PEM error.
+  This applied to connection tests, jump hosts and the status monitor alike.
+
+- **One unusable server no longer blinds the status monitor.** The private key was parsed
+  outside the guard, so an unreadable key row raised through the `gather` that checks every
+  server and killed the whole cycle: every other server's dot stayed frozen at whatever it
+  last showed, with no indication anything had stopped. The monitor had no tests at all,
+  which is how both this and a missing import survived in it.
+
+### AI agent
+
+An agent that reads a server and explains it, per server and iterative rather than
+one-shot, so a diagnosis can be followed up.
+
+- **Ollama or OpenRouter**, configured by an admin under **Admin → AI agent**: base URL,
+  API key (encrypted at rest), and a model picked from a dropdown the provider populates.
+  Nothing is read from environment variables — an operator should not need a redeploy to
+  change a model. Users see a clear "not configured yet" state instead of a broken feature.
+- **Per-server chat with history.** Conversations are stored per server and per user and
+  survive a reload. Context is trimmed in three passes as it grows, protecting the most
+  recent exchanges.
+- **Works on SFTP-only servers.** Many hosts in a fleet expose no shell. The agent has a
+  shell-free toolset — read, list, stat, search over SFTP — and picks it automatically, so
+  it stays useful where a command-running agent would simply fail.
+- **Read-only tools.** Twelve SSH tools and seven SFTP ones, all inspection; every argument
+  goes through `shlex.quote`. The agent cannot change a server.
+- **Results are cached with a TTL** so repeating a question does not re-run every command,
+  and **findings are stored and searchable**, so what was learned about a host is still
+  there next week.
+
+### Branding (white label)
+
+A company can make the deployment its own, and the look reaches every user, not just the
+admin who set it.
+
+- **App name, tagline, logo, sign-in image and browser icon** (emoji or uploaded file,
+  PNG/JPEG/SVG/WebP). Uploads are re-encoded from bytes the server decoded itself, so what
+  ends up in an `<img src>` is never the string that was submitted.
+- **Company colours with a palette picker and live preview**, separate light and dark
+  palettes, and a partial palette is fine — set an accent and leave the rest alone.
+- **Colours are validated as hex**, so a value like `#fff; background: url(//evil)` is
+  rejected rather than injected into the stylesheet.
+- Branding travels in a backup, so a migrating company keeps its look.
+
+### SFTP browser
+
+- **Sortable listings** by name, size or modified date, ascending or descending, with
+  directories kept together.
+- **Hidden files toggle**, off by default.
+- **Multi-select with `Shift`/`Ctrl`, and download as a ZIP.** The previous ZIP path
+  reported success while silently omitting files it could not read.
+- **Owner and group are shown by name** rather than numeric uid/gid where the server
+  resolves them.
+
+### Upgrades and schema
+
+Making sure a future release cannot break an existing install.
+
+- **Migrations no longer swallow failures.** The loop caught every exception and continued,
+  so a migration that genuinely failed left the column missing and surfaced later at some
+  unrelated query, with nothing pointing back to the cause. Whether a change is needed is
+  now decided by inspecting the schema, and a real failure stops startup with a message
+  that says what to do.
+- **A concurrent instance is no longer a failure.** `compose.ha.yml` starts N workers at
+  once and they all migrate; losing that race is now recognised as the normal outcome it is.
+- **Applied changes are recorded** in a `schema_migrations` table, backfilled for older
+  installs. A database written by a newer webgate is recognised and reported rather than
+  mistaken for a broken one — which is what makes a rollback safe to attempt.
+- **Every table is registered explicitly.** Tables were created only because some router
+  happened to import their model; a new model in a module nothing imported at startup would
+  have been skipped silently and failed on first use.
+- **The contract is tested.** `tests/test_migrations.py` locks it: additive only, append
+  only, idempotent. It upgrades an aged database and compares the result against a fresh
+  install, checks the rows survive, and asserts that a broken migration stops startup.
+- **The version is no longer hardcoded.** The API reported `0.1.0` for six releases.
+
+### Terminal, palette and UI
+
+The UI was the product's weakest part; this release replaces the visual world, adds the
+first real defence against dropped SSH sessions, and makes a large registry navigable by
+keyboard.
+
+#### Terminal resilience
+
+- **SSH terminals now reconnect automatically.** Previously `ws.onclose` wrote
+  `--- Disconnected ---` and stopped there: a three-second network blip during an incident
+  killed the session and forced the user to close and reopen the tab. The socket is now
+  re-opened with exponential backoff (1s, 2s, 4s, 8s, capped at 15s) for up to 6 attempts,
+  reusing the same xterm instance so scrollback survives.
+- **Connection state is visible.** A banner above the terminal reports `Connecting…`,
+  `Connection lost. Reconnecting in Ns — attempt N of 6`, or a terminal failure, with a
+  **Reconnect now** button. The countdown ticks down rather than showing a frozen number.
+- **Auth rejections (close code 4001) do not retry** — retrying with the same expired token
+  cannot succeed, so the banner asks the user to sign in again instead of burning attempts.
+- **Closing a tab cancels its pending retry**, so a closed session can no longer resurrect
+  itself or leak a timer. `_destroyTab` also now tears down `split` tabs' terminals, which
+  it previously skipped.
+
+#### Command palette
+
+- **`Ctrl+P` (or `Ctrl+Shift+P`) opens a fuzzy palette** over every server and every action.
+  Matching runs over name, `user@host`, group, and tags, preferring contiguous matches over
+  scattered ones. Arrow keys navigate, `Enter` opens, `Esc` closes.
+- `Ctrl+Shift+P` works even while focus is inside a terminal; plain `Ctrl+P` deliberately
+  does not, so readline keeps `previous-command`.
+
+#### Favourites and recents
+
+- **Star any server** in the Site Manager to pin it. Opening a server records it as recent
+  (deduplicated, most recent first, capped at 8). Both persist in `localStorage`.
+- The Site Manager detail pane, previously an empty placeholder, now lists **Favourites**
+  and **Recent** as dense quick-launch rows once there is anything to show.
+
+#### UI redesign
+
+- **Information architecture.** `Users`, `Audit`, `Webhooks`, `Recordings`, `API keys`, and
+  `2FA` moved out of the top bar — where they sat as seven flat peers of `Site Manager` —
+  into a grouped **Admin** menu. Quick Connect and the activity log are now collapsible and
+  remembered in `localStorage`, instead of permanently occupying two horizontal bands.
+- **Icon system.** All emoji and Unicode glyphs used as icons (`📹 ☀️ 🌙 ▤ ▦ 🔑 🔗 👥`,
+  `&#128193;`, `&#11014;`, `&#8635;` …) were replaced by an inline SVG sprite: 16px, 1.75
+  stroke weight, round caps.
+- **Typography.** Inter/JetBrains Mono replaced with IBM Plex Sans/Mono. All-caps
+  letter-spaced micro-labels removed from table headers, the path bar, and group headers.
+- **Terminal palette.** xterm was still on Tokyo Night (`#1a1b26`) while the rest of the app
+  had moved. It now derives from the app's own tokens, ships a full ANSI palette for both
+  themes, and **repaints when the theme is toggled** — previously an open terminal kept the
+  old palette until it was closed and reopened.
+- **Colour and contrast.** The status bar is a quiet footer rather than a `#1f6feb` band;
+  server rows use a selected fill instead of a 3px accent rail; tabs are underlines, not
+  pills. Every remaining hardcoded hex was replaced by a token, and all text now meets
+  WCAG AA (`--text-muted` was failing at 3.3:1 on the dark surfaces).
+- **Empty states teach.** The Site Manager tells a first-time admin to add a server or use
+  Quick Connect, and tells a non-admin with no group access what to ask for.
+
+#### Backup & restore
+
+Migrating an instance previously meant re-entering every credential by hand, and could
+silently rewire jump hosts. Both are fixed.
+
+- **`POST /api/backup/export` and `POST /api/backup/restore`**, in the Admin menu under
+  **Backup & restore**. Carries servers, users, groups, webhooks and API keys.
+- **Credentials travel.** Server credentials are encrypted with a key derived from
+  `WEBGATE_SECRET_KEY`, so ciphertext is meaningless on an instance with a different key.
+  A backup therefore decrypts them and the restore re-encrypts with the target's own key.
+  Because that makes the file a credential dump, credentials are only included when a
+  passphrase is supplied, and the payload is then sealed with PBKDF2-HMAC-SHA256
+  (480k iterations) + Fernet. Without a passphrase the backup is metadata only.
+- **Jump hosts are recorded by name, not id** — see the bug fix below.
+- Restore reports what it created and skipped. Users are never deleted by a restore, so a
+  bad file cannot lock the operator out. `replace` mode clears servers, webhooks and API
+  keys first; `merge` skips anything whose name already exists.
+- Session recordings are files on disk and are not included; the backup says so in its
+  `excludes` field.
+
+#### Bug fixes
+
+- **Auto-reconnect never gave up, and the attempt counter never advanced.** The retry
+  budget was reset in `ws.onopen`, but the socket reaching the gateway says nothing about
+  the SSH session behind it: the backend only attempts SSH *after* the client sends its
+  connection details, so a refused host still produced a clean `onopen`. Every cycle reset
+  the counter, so the log filled with `Reconnected` immediately followed by
+  `SSH connection failed`, forever, always reporting attempt `(1/6)`. Success is now what
+  the backend confirms — its `session` or `joined` control frame, or real terminal output
+  if that frame is lost — not what the transport does. The budget therefore counts, and
+  stops at six.
+- **A first connection to a host that refuses is no longer retried.** Reconnecting exists
+  for sessions that worked and then dropped; retrying six times against a host that plainly
+  answered "connection refused" is noise. The banner and log now name the backend's own
+  reason instead of a generic line, and **Reconnect now** still gets a full budget.
+- **Server import silently rewired jump hosts.**
+ `POST /api/servers/import` copied the
+  exported `jump_via_id` verbatim, but the target database assigns its own ids. A server
+  would then tunnel through whatever host happened to occupy that id. With bastions named
+  `bastion-*` this went unnoticed — they sort first alphabetically and tended to land on
+  the same ids — but with a convention like `ssh-proxy-*` or `gw-*`, all six jump routes in
+  a test fleet pointed at the wrong host, including production servers hopping through the
+  backup box. The import now resolves the hop by name and leaves it unset when it cannot,
+  rather than pointing at a guess. Export files also accept an explicit `jump_via_name`.
+- **Login errors are shown on the form**
+ instead of a toast that vanished after 4 seconds,
+  and the submit button reports its in-flight state.
+- **The 2FA QR `<img>` no longer renders broken** before its `src` arrives; it is now created
+  only once the QR is available, and has alt text.
+- **The activity-log splitter works again.** It was bound on `DOMContentLoaded`, but the
+  panel is now inside an `x-if` template, so the element did not exist at bind time. Drag
+  handling is delegated from `document`.
+- **The plain-text editor fallback** was hardcoded to a white background with dark text
+  regardless of theme.
+- The three one-time-code inputs had three different treatments; they now share one.
+
+#### Docs
+
+- `ROADMAP.md`: multi-instance HA was still listed as *planned* although it shipped in
+  v0.5.0. Moved to **Shipped** along with the v0.5.x security work.
+- `VERSION` said `0.1.0` while `pyproject.toml` said `0.5.3`. It is now the fallback the
+  running app reads when package metadata is unavailable, rather than a file nobody read.
+
+---
+
 ## v0.5.3 (2026-04-16) — UI hotfix: server dashboard
 
 ### Bug fixes

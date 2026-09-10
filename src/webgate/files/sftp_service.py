@@ -11,8 +11,12 @@ from typing import Any
 import asyncssh
 
 from webgate.files.models import FileEntry
+from webgate.servers.hostkeys import known_hosts_for
 
 logger = logging.getLogger(__name__)
+
+
+_ID_FILE_LIMIT = 512 * 1024  # generous for /etc/passwd on a large directory host
 
 
 def validate_path(path: str) -> str:
@@ -35,9 +39,18 @@ class SFTPClient:
     def __init__(self, conn: asyncssh.SSHClientConnection) -> None:
         self._conn = conn
         self._sftp: asyncssh.SFTPClient | None = None
+        # uid/gid -> name, resolved once per connection. The protocol only gives us
+        # numeric ids, and nobody reads a directory listing by uid.
+        self._users: dict[int, str] | None = None
+        self._groups: dict[int, str] | None = None
 
     async def connect(self) -> None:
         self._sftp = await self._conn.start_sftp_client()
+
+    @property
+    def conn(self) -> asyncssh.SSHClientConnection:
+        """The underlying connection, so a caller can pin the key it presented."""
+        return self._conn
 
     @property
     def sftp(self) -> asyncssh.SFTPClient:
@@ -45,8 +58,36 @@ class SFTPClient:
             raise RuntimeError("SFTP client not connected")
         return self._sftp
 
+    async def _load_id_maps(self) -> None:
+        """Best-effort uid/gid name lookup from the remote passwd and group files.
+
+        Hosts that lack or hide these (LDAP-only directories, minimal containers)
+        simply keep numeric ids; this never fails a listing.
+        """
+        if self._users is not None:
+            return
+        self._users, self._groups = {}, {}
+        for remote, target in (("/etc/passwd", self._users), ("/etc/group", self._groups)):
+            try:
+                async with self.sftp.open(remote, "rb") as fh:
+                    raw = await fh.read(_ID_FILE_LIMIT)
+                text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+                for line in text.splitlines():
+                    parts = line.split(":")
+                    if len(parts) > 2 and parts[2].isdigit():
+                        target[int(parts[2])] = parts[0]
+            except Exception:
+                logger.debug("Could not read %s for id names", remote)
+
+    @staticmethod
+    def _name_for(raw_id: int | None, table: dict[int, str] | None) -> str:
+        if raw_id is None:
+            return ""
+        return (table or {}).get(raw_id) or str(raw_id)
+
     async def ls(self, path: str) -> list[FileEntry]:
         safe_path = validate_path(path)
+        await self._load_id_maps()
         entries: list[FileEntry] = []
         items = await self.sftp.readdir(safe_path)
         for item in items:
@@ -61,8 +102,8 @@ class SFTPClient:
             perms = (
                 stat.filemode(attrs.permissions) if attrs.permissions is not None else "----------"
             )
-            owner = str(attrs.uid) if attrs.uid is not None else ""
-            group = str(attrs.gid) if attrs.gid is not None else ""
+            owner = self._name_for(attrs.uid, self._users)
+            group = self._name_for(attrs.gid, self._groups)
             mtime = (
                 datetime.fromtimestamp(attrs.mtime, tz=UTC).isoformat()
                 if attrs.mtime is not None
@@ -166,6 +207,38 @@ class SFTPClient:
             await self._add_to_zip(zf, safe_path, base_path=safe_path)
         return buffer.getvalue()
 
+    async def read_paths_as_zip(self, paths: list[str], base_path: str) -> tuple[bytes, list[str]]:
+        """Zip a caller-chosen set of files and directories.
+
+        Archive names are relative to ``base_path``, so a selection made in one
+        directory unpacks as that directory's contents rather than a deep tree.
+        Returns the archive and the names that could not be read, so the caller can
+        say so instead of handing back a quietly incomplete download.
+        """
+        safe_base = validate_path(base_path)
+        skipped: list[str] = []
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for raw in paths:
+                safe = validate_path(raw)
+                name = safe.rsplit("/", 1)[-1] or safe
+                try:
+                    attrs = await self.sftp.stat(safe)
+                except Exception:
+                    logger.warning("Skipping missing path in ZIP: %s", safe)
+                    skipped.append(name)
+                    continue
+                if attrs.type == asyncssh.FILEXFER_TYPE_DIRECTORY:
+                    await self._add_to_zip(zf, safe, base_path=safe_base)
+                else:
+                    try:
+                        rel = posixpath.relpath(safe, safe_base)
+                        zf.writestr(rel, await self.read_bytes(safe))
+                    except Exception:
+                        logger.warning("Skipping unreadable file in ZIP: %s", safe)
+                        skipped.append(name)
+        return buffer.getvalue(), skipped
+
     async def _add_to_zip(
         self, zf: zipfile.ZipFile, path: str, base_path: str
     ) -> None:
@@ -197,12 +270,13 @@ async def create_sftp_client(
     username: str,
     password: str | None = None,
     private_key: str | None = None,
+    host_key: str = "",
 ) -> tuple[asyncssh.SSHClientConnection, SFTPClient]:
     kwargs: dict[str, Any] = {
         "host": hostname,
         "port": port,
         "username": username,
-        "known_hosts": None,
+        "known_hosts": known_hosts_for(host_key),
     }
     if private_key:
         kwargs["client_keys"] = [asyncssh.import_private_key(private_key)]

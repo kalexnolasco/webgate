@@ -14,7 +14,6 @@ Lifecycle:
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import logging
 import secrets

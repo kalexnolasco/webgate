@@ -39,6 +39,8 @@ async def app():
             yield session
 
     application.dependency_overrides[get_session] = override_get_session
+    # Handed to the db_session fixture so a test can inspect exactly what the API stored.
+    application.state.test_session_factory = test_session_factory
 
     yield application
 
@@ -52,6 +54,13 @@ async def client(app) -> AsyncGenerator[AsyncClient]:
     transport = ASGITransport(app=app)  # type: ignore[arg-type]
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture
+async def db_session(app) -> AsyncGenerator[AsyncSession]:
+    """A session on the same database the API under test is writing to."""
+    async with app.state.test_session_factory() as session:
+        yield session
 
 
 @pytest.fixture

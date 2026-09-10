@@ -12,7 +12,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 from webgate.audit.models import AuditOut
 from webgate.audit.service import get_audit_log, log_action
-from webgate.webhooks.dispatcher import fire as fire_webhook
+from webgate.auth.ldap import authenticate_ldap
 from webgate.auth.models import (
     ApiKeyCreate,
     ApiKeyCreated,
@@ -27,7 +27,6 @@ from webgate.auth.models import (
     UserOut,
     UserUpdateGroups,
 )
-from webgate.auth.ldap import authenticate_ldap
 from webgate.auth.service import (
     authenticate_api_key,
     create_access_token,
@@ -48,6 +47,7 @@ from webgate.auth.service import (
     verify_totp,
 )
 from webgate.db.engine import get_session
+from webgate.webhooks.dispatcher import fire as fire_webhook
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 security = HTTPBearer()

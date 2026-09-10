@@ -1,6 +1,6 @@
 # webgate
 
-**Self-hosted web gateway for remote server management.** SSH terminal, SFTP file browser, server registry with jump hosts, shared live sessions, asciinema session recording, LDAP/AD auth, webhooks, 2FA, and HA deployment — all from one browser tab.
+**Self-hosted web gateway for remote server management.** SSH terminal, SFTP file browser, server registry with verified host keys and jump hosts, a per-server AI agent, white-label branding, shared live sessions, asciinema session recording, LDAP/AD auth, webhooks, 2FA, and HA deployment — all from one browser tab.
 
 !!! tip "Try it live"
     [webgate-demo.fly.dev](https://webgate-demo.fly.dev/) · login `demo` / `demo` (read-only sandbox, resets hourly)
@@ -11,6 +11,9 @@
     docker compose up -d
     ```
     Then open `http://localhost:8443/` and log in with `admin / admin` (first login forces a password change).
+
+!!! info "Already running webgate?"
+    `docker compose pull && docker compose up -d`. The schema migrates itself on boot and changes are additive, so a rollback works. See [Upgrading](getting-started/upgrade.md).
 
 ## Why webgate?
 

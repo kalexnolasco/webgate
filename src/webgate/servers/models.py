@@ -25,6 +25,11 @@ class Server(Base):
     sftp_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     sftp_allowed_paths: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of paths
     sftp_read_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Opt-in per server: the diagnostic agent sends this host's command output
+    # to the Anthropic API, so it is never on implicitly.
+    agent_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # OpenSSH public key line learned on first contact and checked from then on.
+    host_key: Mapped[str] = mapped_column(Text, default="")
     jump_via_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("servers.id"), nullable=True
     )
@@ -48,6 +53,7 @@ class ServerCreate(BaseModel):
     sftp_enabled: bool = True
     sftp_allowed_paths: list[str] = []
     sftp_read_only: bool = False
+    agent_enabled: bool = False
     jump_via_id: int | None = None
 
 
@@ -66,6 +72,7 @@ class ServerUpdate(BaseModel):
     sftp_enabled: bool | None = None
     sftp_allowed_paths: list[str] | None = None
     sftp_read_only: bool | None = None
+    agent_enabled: bool | None = None
     jump_via_id: int | None = None
 
 
@@ -83,6 +90,8 @@ class ServerOut(BaseModel):
     sftp_enabled: bool
     sftp_allowed_paths: list[str]
     sftp_read_only: bool
+    agent_enabled: bool = False
+    host_key_fingerprint: str = ""
     jump_via_id: int | None = None
     last_connected_at: datetime | None
     created_at: datetime
@@ -90,5 +99,18 @@ class ServerOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ServerImportItem(ServerCreate):
+    """A row from an export file.
+
+    Carries the SOURCE database's ``id`` so the importer can rebuild jump-host
+    links by name; ids themselves are never reused, since the target database
+    assigns its own. ``jump_via_name`` lets a hand-written or backup file express
+    the hop directly, without relying on ids at all.
+    """
+
+    id: int | None = None
+    jump_via_name: str | None = None
+
+
 class ServerImport(BaseModel):
-    servers: list[ServerCreate]
+    servers: list[ServerImportItem]

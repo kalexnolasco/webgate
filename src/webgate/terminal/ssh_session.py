@@ -8,6 +8,8 @@ from typing import Any
 
 import asyncssh
 
+from webgate.servers.hostkeys import known_hosts_for, learned_key
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,6 +21,8 @@ class SSHSession:
     password: str | None = None
     private_key: str | None = None
     jump_kwargs: dict[str, Any] | None = None  # connect kwargs for a bastion (optional)
+    host_key: str = ""  # pinned OpenSSH public key line; blank means first contact
+    learned_host_key: str = field(default="", repr=False)  # what the host presented
     _jump_conn: asyncssh.SSHClientConnection | None = field(default=None, repr=False)
     _conn: asyncssh.SSHClientConnection | None = field(default=None, repr=False)
     _process: asyncssh.SSHClientProcess[str] | None = field(default=None, repr=False)
@@ -29,7 +33,7 @@ class SSHSession:
             "host": self.host,
             "port": self.port,
             "username": self.username,
-            "known_hosts": None,
+            "known_hosts": known_hosts_for(self.host_key),
         }
         if self.private_key:
             connect_kwargs["client_keys"] = [asyncssh.import_private_key(self.private_key)]
@@ -41,6 +45,8 @@ class SSHSession:
             connect_kwargs["tunnel"] = self._jump_conn
 
         self._conn = await asyncssh.connect(**connect_kwargs)
+        if not self.host_key:
+            self.learned_host_key, _ = learned_key(self._conn)
         self._process = await self._conn.create_process(
             term_type="xterm-256color",
             term_size=(cols, rows),

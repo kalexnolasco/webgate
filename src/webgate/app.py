@@ -1,24 +1,31 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from webgate import __version__
+from webgate.agent.routes import router as agent_router
+from webgate.agent.store import load_config
 from webgate.auth.routes import limiter
 from webgate.auth.routes import router as auth_router
 from webgate.auth.service import seed_admin
+from webgate.backup.routes import router as backup_router
+from webgate.branding.routes import router as branding_router
 from webgate.config import settings
-from webgate.db.engine import async_session_factory, close_db, init_db
+from webgate.db.engine import async_session_factory, close_db, get_session, init_db
 from webgate.demo import seed_demo
 from webgate.files.pool import sftp_pool
 from webgate.files.routes import router as files_router
+from webgate.recordings.routes import router as recordings_router
 from webgate.servers.monitor import server_monitor
 from webgate.servers.routes import router as servers_router
-from webgate.recordings.routes import router as recordings_router
 from webgate.snippets.routes import router as snippets_router
 from webgate.terminal.routes import router as terminal_router
 from webgate.webhooks.routes import router as webhooks_router
@@ -42,7 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 def create_app() -> FastAPI:
     app = FastAPI(
         title="webgate",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
         root_path=settings.root_path,
     )
@@ -67,9 +74,16 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/api/config")
-    async def public_config() -> dict[str, object]:  # pyright: ignore[reportUnusedFunction]
-        # Public flags consumed by the frontend before login.
-        return {"demo_mode": settings.demo_mode}
+    async def public_config(  # pyright: ignore[reportUnusedFunction]
+        session: Annotated[AsyncSession, Depends(get_session)],
+    ) -> dict[str, object]:
+        # Public flags consumed by the frontend before login. The agent flag comes
+        # from the database because an admin owns that setting, not the deployment;
+        # environment variables only seed a fresh install.
+        agent_available = False
+        if not settings.demo_mode:
+            agent_available = (await load_config(session)).enabled
+        return {"demo_mode": settings.demo_mode, "agent_available": agent_available}
 
     if settings.demo_mode:
         # In demo mode block any state-changing request on /api/* except an
@@ -108,6 +122,9 @@ def create_app() -> FastAPI:
             return await call_next(request)
 
     app.include_router(auth_router)
+    app.include_router(backup_router)
+    app.include_router(agent_router)
+    app.include_router(branding_router)
     app.include_router(servers_router)
     app.include_router(terminal_router)
     app.include_router(files_router)

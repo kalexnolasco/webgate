@@ -47,24 +47,41 @@ Tracks the development plan for **webgate**. Items are organized by release.
 - [x] **SSH session recording** (asciinema cast v2, browser replay)
 - [x] **LDAP / Active Directory authentication** (search-then-bind, group→role mapping)
 
+### v0.5.x — Enterprise & Scale (2026-09)
+- [x] **Multi-instance HA deployment** (stateless workers behind a LB on a shared Postgres; `compose.ha.yml`)
+- [x] Security hardening: enforced `must_change_password`, 2FA temp-token flow, API-key gates
+- [x] Narrowed demo allowlist + sanitized webhook payloads
+- [x] **UI redesign** — grouped Admin menu, collapsible chrome, SVG icon system, themed terminal palette, WCAG-AA contrast
+- [x] **Backup & restore** — full-state export/import (servers with credentials, users, groups, webhooks, API keys), passphrase-encrypted, portable across instances with different encryption keys
+
+### v2.0.0 — Company deployment (2026-09-10)
+- [x] **Verified SSH host keys** (trust on first use) across all seven connection paths, including jump hosts; a changed key is refused before authentication runs, and accepting one is a deliberate audited admin action
+- [x] **AI agent** — per-server iterative chat over Ollama or OpenRouter, configured in the admin panel rather than by environment variable, with read-only tools, a TTL cache and searchable findings
+- [x] **Agent support for SFTP-only hosts** — a shell-free toolset for servers that expose no shell
+- [x] **White-label branding** — app name, logo, sign-in image, browser icon, company colours with palette picker and live preview, light and dark palettes, applied for every user
+- [x] **Terminal auto-reconnect** with backoff, and a **command palette** (`Ctrl+P`)
+- [x] **Favourites and recents**
+- [x] **SFTP sortable columns, hidden-file toggle, multi-select with ZIP download, owner names**
+- [x] **A tested upgrade contract** — additive, append-only, idempotent migrations; failures stop startup instead of being swallowed; concurrent HA workers no longer collide
+
 ---
 
 ## Planned
 
-### v0.5.x — Enterprise & Scale
+### v2.1.x — Next
 | Feature | Priority | Description |
 |---------|----------|-------------|
-| Multi-instance HA deployment | High | Multiple stateless webgate workers behind a LB sharing a Postgres DB |
-| Backup / restore UI | Medium | Export & import full state (users, servers, audit, recordings) from the admin panel |
+| Resource limits on file transfers | High | Downloads and ZIPs read whole files into memory with no size cap; a large log can take a worker down |
+| Refuse the default `SECRET_KEY` off localhost | High | With the shipped placeholder, a token minted against one deployment authenticates against another — the user ids usually collide |
+| Enforce `WEBGATE_SESSION_TIMEOUT` | Medium | Documented and configurable, but read by nobody: idle SSH sessions are never expired. Also no per-user concurrent-session limit |
+| Host key fingerprint in the UI | Medium | The API exposes it and can clear it; the Site Manager does not show it yet |
 | Per-server recording opt-in | Medium | Toggle recording on a per-server basis instead of the current global flag |
-| Custom branding | Low | Configurable logo, app name, color scheme |
 | Internationalization (i18n) | Low | UI translations starting with English / Spanish |
 
-### v0.6.x — Workflow & Automation
+### Later
 | Feature | Priority | Description |
 |---------|----------|-------------|
 | Scheduled commands | Medium | Run a snippet on a cron schedule against one or more servers |
-| Per-user dashboard | Medium | Recent connections, favorite servers, personal stats |
 | Slack / Teams formatter for webhooks | Low | Pre-built payload templates for popular receivers |
 | Browser-shareable file download links | Low | Time-limited signed URLs for SFTP downloads |
 

@@ -7,8 +7,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
+import asyncssh
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webgate.auth.models import UserOut
@@ -24,6 +26,7 @@ from webgate.files.models import (
 )
 from webgate.files.pool import sftp_pool
 from webgate.files.sftp_service import SFTPClient, validate_path
+from webgate.servers.hostkeys import remember, translate
 from webgate.servers.models import Server
 from webgate.servers.service import get_server, get_server_credentials, resolve_jump_creds
 from webgate.webhooks.dispatcher import fire as fire_webhook
@@ -99,7 +102,17 @@ async def _sftp(
             password=password,
             private_key=private_key,
             jump_kwargs=jump_kwargs,
+            host_key=getattr(server, "host_key", "") or "",
         )
+        await remember(session, server, client.conn)
+    except asyncssh.HostKeyNotVerifiable as exc:
+        # An opaque 500 here would read as "SFTP is broken" rather than "this host is
+        # not the one you pinned", which is the whole point of refusing.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(translate(exc, server.name, getattr(server, "host_key", "") or "")),
+        ) from exc
+    try:
         yield client, allowed_paths, read_only
     finally:
         sftp_pool.release(server_id)
@@ -180,6 +193,57 @@ async def download_zip(
             )
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+class ZipSelection(BaseModel):
+    """A set of paths to archive together, named relative to ``base_path``."""
+
+    paths: list[str] = Field(min_length=1, max_length=500)
+    base_path: str = "/"
+
+
+@router.post("/{server_id}/download-zip")
+async def download_zip_selection(
+    server_id: int,
+    body: ZipSelection,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> Response:
+    """Archive a caller-chosen selection.
+
+    The GET form above zips one whole directory; this takes the files and folders the
+    user actually ticked, which is what a listing selection means.
+    """
+    # Shape of the request is checked before opening SSH: a traversal attempt should
+    # cost a 400, not a connection attempt that has to time out first.
+    try:
+        safe_base = validate_path(body.base_path)
+        safe_paths = [validate_path(raw) for raw in body.paths]
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
+        try:
+            check_path_allowed(safe_base, allowed_paths)
+            for safe in safe_paths:
+                check_path_allowed(safe, allowed_paths)
+            data, skipped = await client.read_paths_as_zip(safe_paths, safe_base)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    folder = safe_base.rsplit("/", 1)[-1] or "download"
+    name = folder if len(safe_paths) > 1 else safe_paths[0].rsplit("/", 1)[-1] or folder
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}.zip"',
+            # Unreadable entries are dropped rather than failing the whole archive;
+            # say so, so the download is never quietly incomplete.
+            "X-Skipped-Count": str(len(skipped)),
+            "X-Skipped-Names": ", ".join(skipped[:10]),
+        },
+    )
 
 
 @router.post("/{server_id}/upload")

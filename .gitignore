@@ -26,6 +26,8 @@ htmlcov/
 
 # Database
 *.db
+*.db.bak*
+*.db-journal
 
 # OS
 .DS_Store
@@ -35,5 +37,6 @@ Thumbs.db
 CLAUDE.md
 CLAUDE.local.md
 .claude/
+.cursor/
 .playwright-cli/
 site/

@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 import asyncssh
 
 from webgate.files.sftp_service import SFTPClient
+from webgate.servers.hostkeys import known_hosts_for
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ class SFTPPool:
         password: str | None = None,
         private_key: str | None = None,
         jump_kwargs: dict[str, object] | None = None,
+        host_key: str = "",
     ) -> SFTPClient:
         key = self._key(server_id)
         if key not in self._locks:
@@ -91,7 +93,7 @@ class SFTPPool:
                 "host": hostname,
                 "port": port,
                 "username": username,
-                "known_hosts": None,
+                "known_hosts": known_hosts_for(host_key),
             }
             if private_key:
                 kwargs["client_keys"] = [asyncssh.import_private_key(private_key)]
@@ -110,6 +112,17 @@ class SFTPPool:
             self._pool[key] = entry
             logger.info("SFTP pool: new connection to %s:%s (server_id=%s)", hostname, port, server_id)
             return client
+
+    async def drop(self, server_id: int) -> None:
+        """Close and forget this server's pooled connection.
+
+        Called when its pinned host key changes: a connection opened under the old
+        pin must not keep serving for the rest of the TTL.
+        """
+        key = self._key(server_id)
+        entry = self._pool.pop(key, None)
+        if entry is not None:
+            await self._close_entry(entry)
 
     def release(self, server_id: int) -> None:
         key = self._key(server_id)

@@ -26,6 +26,7 @@ from sqlalchemy import select, text
 from webgate.config import settings
 from webgate.db.engine import async_session_factory, engine
 from webgate.servers.crypto import decrypt_value
+from webgate.servers.hostkeys import known_hosts_for
 from webgate.servers.models import Server
 
 logger = logging.getLogger(__name__)
@@ -192,15 +193,22 @@ class ServerMonitor:
         )
         kwargs: dict[str, object] = {
             "host": server.hostname, "port": server.port, "username": server.username,
-            "known_hosts": None,
+            "known_hosts": known_hosts_for(getattr(server, "host_key", "") or ""),
         }
-        if private_key_str:
-            kwargs["client_keys"] = [asyncssh.import_private_key(private_key_str)]
-        elif password:
-            kwargs["password"] = password
         now = datetime.now(UTC)
         start = time.monotonic()
         try:
+            # Parsing the key belongs inside the try. An unreadable key row raised out
+            # of here, through the gather in _check_all, and killed the whole monitor
+            # cycle: one bad server left every other status stale.
+            # Honour the declared auth method too, so a server moved from key to
+            # password is not probed with the key it still carries.
+            if server.auth_method == "key" and private_key_str:
+                kwargs["client_keys"] = [asyncssh.import_private_key(private_key_str)]
+            elif password:
+                kwargs["password"] = password
+            elif private_key_str:
+                kwargs["client_keys"] = [asyncssh.import_private_key(private_key_str)]
             conn = await asyncio.wait_for(asyncssh.connect(**kwargs), timeout=CONNECT_TIMEOUT)  # type: ignore[arg-type]
             elapsed = (time.monotonic() - start) * 1000
             conn.close()

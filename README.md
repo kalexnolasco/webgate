@@ -8,7 +8,7 @@
 [![Status](https://img.shields.io/badge/status-beta-orange?style=flat-square)](https://pypi.org/project/webgate/)
 [![Docs](https://img.shields.io/badge/docs-kalexnolasco.github.io-blue?style=flat-square)](https://kalexnolasco.github.io/webgate/)
 
-Self-hosted web app for remote server management — **SSH terminal**, **SFTP file browser**, **server registry**, all in your browser. A modern Python replacement that combines the best of [webssh](https://github.com/huashengdun/webssh) and [filebrowser](https://github.com/filebrowser/filebrowser) into a single tool with a FileZilla-inspired interface.
+Self-hosted web app for remote server management — **SSH terminal**, **SFTP file browser**, **server registry**, all in your browser. A modern Python replacement that combines the best of [webssh](https://github.com/huashengdun/webssh) and [filebrowser](https://github.com/filebrowser/filebrowser) into a single tool. It borrows FileZilla's workflow — a site list, quick connect, a path bar — without copying its chrome: a dense, keyboard-first console meant to sit behind a terminal for hours.
 
 > 🎮 **Try it live: [webgate-demo.fly.dev](https://webgate-demo.fly.dev/)** — login `demo` / `demo` (read-only sandbox, resets hourly)
 >
@@ -27,6 +27,16 @@ docker compose up -d
 That's it. The first login forces a password change. Add servers from the **Site Manager**, click **SSH** or **SFTP** to connect.
 
 For a richer dev environment with a sandboxed SSH target pre-baked: `docker compose -f compose.dev.yml up --build`.
+
+### Upgrading
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+The schema migrates itself on boot — no migration command, no tool to learn. Changes are **additive only**, so rolling back to an older image works if you need it. Back up first (`cp webgate.db webgate.db.bak`, or **Admin → Backup & restore**). Full guide: [Upgrading](docs/getting-started/upgrade.md).
+
+> **Coming from v0.5.x?** Host key verification is now on by default: the next connection to each server pins the key it presents, and a change is refused after that. The AI agent stays off until an admin configures a provider.
 
 > 🧪 **Want to try every feature end-to-end?** A ready-to-run playground brings up webgate **plus** an LDAP server, a public SSH host, a private SSH host only reachable via a bastion, and an HTTP echo for webhooks:
 >
@@ -126,19 +136,38 @@ flowchart TB
 
 | Category | Capabilities |
 |---|---|
-| **Terminal** | xterm.js + asyncssh, multi-tab, resize, copy/paste, **shared sessions** with one-click URL, **command snippets** library |
-| **SFTP** | Full file ops + drag & drop upload, ZIP folder download, in-browser editor (CodeMirror 6), PDF/image preview |
-| **Server Registry** | Groups, tags, password/key auth, encrypted at rest (Fernet), import/export JSON, **jump host / bastion** chaining |
+| **Terminal** | xterm.js + asyncssh, multi-tab, resize, copy/paste, **auto-reconnect** with backoff on a dropped link, **shared sessions** with one-click URL, **command snippets** library |
+| **SFTP** | Full file ops + drag & drop upload, **sortable columns**, **multi-select** with batch ZIP download and delete, hidden-file toggle, in-browser editor (CodeMirror 6), PDF/image preview |
+| **Server Registry** | Groups, tags, password/key auth, encrypted at rest (Fernet), **verified host keys** (TOFU), **favourites and recents**, import/export JSON, **jump host / bastion** chaining |
 | **Access Control** | Admin/user roles, per-server SSH/SFTP toggles, SFTP path restrictions, read-only SFTP mode, group-based visibility |
 | **Auth** | JWT + bcrypt locally, **2FA TOTP**, **API keys** for automation, **LDAP / Active Directory** with group→role mapping |
 | **Compliance** | **Session recording** to asciinema cast files with browser replay, structured **audit log**, **webhooks** (HMAC-signed) on key events |
+| **Migration** | **Full-state backup and restore** — servers with credentials, users, groups, webhooks and API keys in one passphrase-encrypted file, portable between instances |
+| **AI agent** | Per-server iterative chat over **Ollama** or **OpenRouter**, read-only inspection tools, **works on SFTP-only hosts**, cached results and searchable findings — configured in the admin panel, off until then |
+| **Branding** | White-label the deployment: app name, logo, sign-in image, browser icon, company colours with a palette picker and live preview, light and dark palettes — applied for every user |
 | **Monitoring** | Background SSH connectivity probes, online/offline indicator |
 | **Deployment** | Multi-stage Docker image, SQLite default or PostgreSQL, runs behind any reverse proxy at any sub-path, **demo mode** for public read-only deployments |
-| **UX** | Dark/light theme, responsive, keyboard shortcuts, vanilla JS + Alpine.js (no npm needed), session persistence across reloads |
+| **UX** | **Command palette** (`Ctrl+P`), dark/light theme, responsive, vanilla JS + Alpine.js (no npm needed), session persistence across reloads |
+
+### Keyboard
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+P` / `Ctrl+Shift+P` | Command palette — fuzzy jump to any server or action |
+| `Ctrl+K` | Quick Connect |
+| `Ctrl+1` | Site Manager |
+| `Ctrl+N` | New server (admin) |
+| `Esc` | Close the palette, a dialog, or the quick-connect bar |
+
+`Ctrl+Shift+P` reaches the palette from inside a terminal too; plain `Ctrl+P` is deliberately left alone there so readline keeps `previous-command`.
 
 ---
 
 ## Screenshots
+
+> **Note:** the shots below predate the v2.0 interface redesign (grouped Admin menu,
+> collapsible chrome, SVG icon set, rethemed terminal). They still show the features
+> accurately; the chrome around them has changed. The live demo runs the current build.
 
 ### Core (Site Manager, terminal, SFTP, editor)
 
@@ -165,7 +194,7 @@ flowchart TB
 
 ### Shared terminal sessions
 
-Click **🔗 Share** in the terminal toolbar to get a URL; anyone who opens it joins the same live SSH session (broadcast output, multiplexed input).
+Click **Share** in the terminal toolbar to get a URL; anyone who opens it joins the same live SSH session (broadcast output, multiplexed input).
 
 | Owner | Joiner |
 |---|---|
@@ -266,7 +295,7 @@ flowchart LR
 
 ### Shared terminal session
 
-The owner's terminal is registered with a `SharedSession`. When the owner clicks **🔗 Share**, a token is minted and any joiner with the URL attaches a second WebSocket. There's still **one** SSH PTY — output is broadcast to all clients, input from any RW client is multiplexed into the same `stdin`.
+The owner's terminal is registered with a `SharedSession`. When the owner clicks **Share**, a token is minted and any joiner with the URL attaches a second WebSocket. There's still **one** SSH PTY — output is broadcast to all clients, input from any RW client is multiplexed into the same `stdin`.
 
 ```mermaid
 flowchart LR
@@ -378,6 +407,7 @@ All settings are environment variables prefixed with `WEBGATE_`.
 | `WEBGATE_PORT` | `8443` | Bind port |
 | `WEBGATE_LOG_LEVEL` | `info` | uvicorn log level |
 | `WEBGATE_FIRST_RUN` | `true` | Allow first-user auto-creation as admin |
+| `WEBGATE_VERIFY_HOST_KEYS` | `true` | Pin and verify SSH host keys. Turning it off means the gateway will hand stored credentials to whatever answers on a server's address — only sensible in a throwaway lab |
 
 ### Database
 
@@ -389,7 +419,7 @@ All settings are environment variables prefixed with `WEBGATE_`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `WEBGATE_SESSION_TIMEOUT` | `3600` | SSH session idle timeout (seconds) |
+| `WEBGATE_SESSION_TIMEOUT` | `3600` | Reserved — **not enforced yet**; idle SSH sessions are not currently expired |
 | `WEBGATE_MAX_UPLOAD_SIZE` | `104857600` | Max upload size (100 MB) |
 | `WEBGATE_JWT_ALGORITHM` | `HS256` | JWT algorithm |
 | `WEBGATE_JWT_EXPIRE_MINUTES` | `1440` | Token expiry (24 h) |
@@ -564,6 +594,43 @@ curl -s http://localhost:8443/api/health   # shows instance_id + monitor_role
 
 > **Known limitation**: live shared-terminal sessions still need owner and joiner on the same worker. Sticky sessions mitigate it for same-browser joins; true cross-worker fan-out requires a Redis pub/sub layer (not yet implemented).
 
+### Backup, restore and migration
+
+**Admin → Backup & restore**, or the API directly. One file carries servers, users, groups,
+webhooks and API keys.
+
+```bash
+# Back up, credentials included, encrypted under a passphrase you choose
+curl -X POST https://gate.example.com/api/backup/export \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"passphrase":"choose-a-strong-one","include_audit":false}' \
+  -o webgate-backup.json
+
+# Restore onto another instance
+curl -X POST https://new-gate.example.com/api/backup/restore \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"passphrase\":\"choose-a-strong-one\",\"mode\":\"merge\",\"data\":$(cat webgate-backup.json)}"
+```
+
+**Why the passphrase matters.** Server credentials are encrypted with a key derived from
+`WEBGATE_SECRET_KEY`, so the stored ciphertext is meaningless on an instance with a
+different key. A backup therefore decrypts them, and the restore re-encrypts with the
+target's own key — which is what makes the file portable, and also what makes it a
+credential dump. Supplying a passphrase seals the payload with PBKDF2-HMAC-SHA256
+(480k iterations) + Fernet. **Without a passphrase the backup is metadata only** and you
+would re-enter every credential by hand.
+
+| | |
+|---|---|
+| `mode: "merge"` | Keeps what is already there; anything whose name exists is skipped |
+| `mode: "replace"` | Clears servers, webhooks and API keys first |
+| Users | **Never deleted by a restore** — a bad file cannot lock the operator out |
+| Jump hosts | Stored **by name**, so bastion routes survive the id renumbering a new database performs |
+| Session recordings | Files on disk, not database rows — copy `WEBGATE_RECORDINGS_DIR` separately |
+
+A fresh instance blocks writes until the seeded admin password is changed, so change it
+before restoring into one.
+
 ### Public read-only demo (Fly.io)
 
 The repo includes [`Dockerfile.demo`](Dockerfile.demo) (webgate + sandboxed sshd via supervisord) and [`fly.toml`](fly.toml). Deploy:
@@ -586,7 +653,8 @@ The demo middleware blocks all writes on `/api/*` (login, terminal share and tot
 | **Auth** | `POST /api/auth/login`, `GET /api/auth/me`, `POST/PUT /api/auth/users/...`, `POST /api/auth/totp/setup`, `GET/POST/DELETE /api/auth/api-keys`, `GET /api/auth/audit` |
 | **Servers** | `GET/POST/PUT/DELETE /api/servers`, `POST /api/servers/{id}/test`, `GET /api/servers/groups`, `POST /api/servers/import`, `GET /api/servers/export`, `GET /api/servers/status` |
 | **Terminal** | `WS /api/ws/terminal/{server_id}` (owner), `WS /api/ws/terminal/quick` (one-off), `WS /api/ws/terminal/join/{token}?mode=rw\|ro` (joiner), `POST/DELETE /api/terminal/share/{session_id}` |
-| **Files (SFTP)** | `GET /ls`, `GET /read`, `GET /download`, `GET /download-zip`, `POST /upload`, `PUT /write`, `POST /mkdir`, `POST /rename`, `DELETE /delete`, `POST /chmod`, `GET /stat` (all under `/api/files/{server_id}/`) |
+| **Files (SFTP)** | `GET /ls`, `GET /read`, `GET /download`, `GET /download-zip` (one directory), `POST /download-zip` (a chosen selection), `POST /upload`, `PUT /write`, `POST /mkdir`, `POST /rename`, `DELETE /delete`, `POST /chmod`, `GET /stat` (all under `/api/files/{server_id}/`) |
+| **Backup** | `POST /api/backup/export`, `POST /api/backup/restore` (admin only) |
 | **Snippets** | `GET/POST /api/snippets`, `DELETE /api/snippets/{id}` |
 | **Webhooks** | `GET/POST /api/webhooks`, `PUT/DELETE /api/webhooks/{id}`, `POST /api/webhooks/{id}/test`, `GET /api/webhooks/events` |
 | **Recordings** | `GET /api/recordings`, `GET /api/recordings/{id}/download`, `GET /api/recordings/{id}/play`, `GET /api/recordings/{id}/cast`, `DELETE /api/recordings/{id}` |
@@ -635,6 +703,7 @@ docker compose -f compose.dev.yml up --build
 
 ## Security
 
+- **Host keys are verified** — trust on first use. The first connection to a server records the key it presents; every connection after that is checked against it *before authentication runs*, so a mismatch sends nothing. Accepting a changed key is a deliberate, audited admin action. This covers the terminal, SFTP, the connection pool, the status monitor, the agent and jump hosts
 - All SSH passwords and private keys are encrypted at rest with **Fernet** (key derived from `WEBGATE_SECRET_KEY`)
 - Passwords use **bcrypt**; sessions use **JWT** (HS256)
 - **2FA TOTP** available per user

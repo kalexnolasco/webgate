@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webgate.servers.crypto import decrypt_value, encrypt_value
+from webgate.servers.hostkeys import describe, known_hosts_for, remember, translate
 from webgate.servers.models import Server, ServerCreate, ServerOut, ServerUpdate
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,8 @@ def server_to_out(server: Server) -> ServerOut:
         sftp_enabled=server.sftp_enabled,
         sftp_allowed_paths=_paths_from_json(server.sftp_allowed_paths),
         sftp_read_only=server.sftp_read_only,
+        agent_enabled=bool(getattr(server, "agent_enabled", False)),
+        host_key_fingerprint=describe(getattr(server, "host_key", "") or ""),
         jump_via_id=server.jump_via_id,
         last_connected_at=server.last_connected_at,
         created_at=server.created_at,
@@ -126,6 +129,7 @@ async def create_server(session: AsyncSession, data: ServerCreate, user_id: int)
         sftp_enabled=data.sftp_enabled,
         sftp_allowed_paths=_tags_to_json(data.sftp_allowed_paths),
         sftp_read_only=data.sftp_read_only,
+        agent_enabled=data.agent_enabled,
         jump_via_id=data.jump_via_id,
         user_id=user_id,
     )
@@ -168,6 +172,8 @@ async def update_server(
         server.sftp_allowed_paths = _tags_to_json(data.sftp_allowed_paths)
     if data.sftp_read_only is not None:
         server.sftp_read_only = data.sftp_read_only
+    if data.agent_enabled is not None:
+        server.agent_enabled = data.agent_enabled
     if data.jump_via_id is not None:
         server.jump_via_id = data.jump_via_id or None  # 0 means "clear"
     await session.commit()
@@ -192,9 +198,12 @@ async def test_server_connectivity(
         "host": server.hostname,
         "port": server.port,
         "username": server.username,
-        "known_hosts": None,
+        "known_hosts": known_hosts_for(getattr(server, "host_key", "") or ""),
     }
-    if private_key_str:
+    # Honour the declared auth method rather than whatever is stored: a server moved
+    # from key to password keeps its old key row, and preferring it fails every
+    # connection with an unrelated PEM error.
+    if server.auth_method == "key" and private_key_str:
         kwargs["client_keys"] = [asyncssh.import_private_key(private_key_str)]
     elif password:
         kwargs["password"] = password
@@ -211,8 +220,18 @@ async def test_server_connectivity(
 
     try:
         conn = await asyncssh.connect(**kwargs)  # type: ignore[arg-type]
+        learned = ""
+        if session is not None:
+            learned = await remember(session, server, conn)
         conn.close()
-        return True, "Connection successful" + (" (via jump host)" if jump_conn else "")
+        detail = "Connection successful"
+        if jump_conn:
+            detail += " (via jump host)"
+        if learned:
+            detail += f"; host key pinned {learned}"
+        return True, detail
+    except asyncssh.HostKeyNotVerifiable as e:
+        return False, str(translate(e, server.name, getattr(server, "host_key", "") or ""))
     except Exception as e:
         return False, str(e)
     finally:
@@ -258,12 +277,16 @@ async def resolve_jump_creds(
         "host": jump.hostname,
         "port": jump.port,
         "username": jump.username,
-        "known_hosts": None,
+        # The bastion is the one host most worth verifying: everything behind it
+        # is reached through this connection.
+        "known_hosts": known_hosts_for(getattr(jump, "host_key", "") or ""),
     }
-    if private_key:
+    if jump.auth_method == "key" and private_key:
         kwargs["client_keys"] = [asyncssh.import_private_key(private_key)]
     elif password:
         kwargs["password"] = password
+    elif private_key:
+        kwargs["client_keys"] = [asyncssh.import_private_key(private_key)]
     return kwargs
 
 
