@@ -21,9 +21,12 @@ from webgate.branding.routes import router as branding_router
 from webgate.config import settings
 from webgate.db.engine import async_session_factory, close_db, get_session, init_db
 from webgate.demo import seed_demo
+from webgate.files.limits import TooLarge
 from webgate.files.pool import sftp_pool
 from webgate.files.routes import router as files_router
 from webgate.recordings.routes import router as recordings_router
+from webgate.runtime_config import store as runtime_settings
+from webgate.runtime_config.routes import router as settings_router
 from webgate.servers.monitor import server_monitor
 from webgate.servers.routes import router as servers_router
 from webgate.snippets.routes import router as snippets_router
@@ -38,11 +41,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await seed_admin(session)
         if settings.demo_mode:
             await seed_demo(session)
+    # Before anything that reads a setting: the monitor's own interval is one.
+    await runtime_settings.start()
     await sftp_pool.start()
     await server_monitor.start()
     yield
     await server_monitor.stop()
     await sftp_pool.stop()
+    await runtime_settings.stop()
     await close_db()
 
 
@@ -55,6 +61,12 @@ def create_app() -> FastAPI:
     )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    async def _too_large(_request: Request, exc: Exception) -> JSONResponse:
+        # 413, not 500: the request was understood and deliberately refused.
+        return JSONResponse(status_code=413, content={"detail": str(exc)})
+
+    app.add_exception_handler(TooLarge, _too_large)
 
     origins = [o.strip() for o in settings.allowed_origins.split(",")]
     app.add_middleware(
@@ -131,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(snippets_router)
     app.include_router(webhooks_router)
     app.include_router(recordings_router)
+    app.include_router(settings_router)
 
     app.mount("/", StaticFiles(directory=str(settings.static_dir), html=True), name="static")
 

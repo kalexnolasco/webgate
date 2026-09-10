@@ -78,12 +78,14 @@ async def handle_terminal_ws(
         await ws.send_text(json.dumps({"type": "session", "session_id": sess.session_id}))
 
     read_task = asyncio.create_task(manager.run_read_loop(sess))
+    idle_task = asyncio.create_task(manager.watch_idle(sess))
     try:
         await _client_input_loop(ws, session, sess, owner_username)
     finally:
-        read_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await read_task
+        for task in (read_task, idle_task):
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         manager.unregister(sess.session_id)
 
 

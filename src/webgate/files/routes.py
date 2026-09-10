@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from webgate.auth.models import UserOut
 from webgate.auth.routes import get_current_user
 from webgate.db.engine import get_session
+from webgate.files.limits import Budget
+from webgate.files.limits import budget as transfer_budget
 from webgate.files.models import (
     ChmodRequest,
     DirectoryListing,
@@ -30,6 +32,8 @@ from webgate.servers.hostkeys import remember, translate
 from webgate.servers.models import Server
 from webgate.servers.service import get_server, get_server_credentials, resolve_jump_creds
 from webgate.webhooks.dispatcher import fire as fire_webhook
+
+UPLOAD_CHUNK = 256 * 1024  # bytes read per pass from a multipart upload
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -156,6 +160,18 @@ async def read_file(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
+async def _read_upload(f: UploadFile, budget: Budget) -> bytes:
+    """Read an upload in chunks so an oversized one is stopped, not swallowed."""
+    chunks: list[bytes] = []
+    while True:
+        chunk = await f.read(UPLOAD_CHUNK)
+        if not chunk:
+            break
+        budget.spend(len(chunk), f.filename or "This upload")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @router.get("/{server_id}/download")
 async def download_file(
     server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
@@ -164,7 +180,10 @@ async def download_file(
         try:
             safe_path = validate_path(path)
             check_path_allowed(safe_path, allowed_paths)
-            data = await client.read_bytes(safe_path)
+            budget = transfer_budget()
+            entry = await client.stat(safe_path)
+            budget.check(entry.size, entry.name or "This file")
+            data = await client.read_bytes(safe_path, budget)
             filename = safe_path.rsplit("/", 1)[-1] or "download"
             media_type, _ = mimetypes.guess_type(filename)
             return Response(
@@ -184,7 +203,7 @@ async def download_zip(
         try:
             safe_path = validate_path(path)
             check_path_allowed(safe_path, allowed_paths)
-            data = await client.read_directory_as_zip(safe_path)
+            data = await client.read_directory_as_zip(safe_path, transfer_budget())
             folder_name = safe_path.rsplit("/", 1)[-1] or "download"
             return Response(
                 content=data,
@@ -227,7 +246,7 @@ async def download_zip_selection(
             check_path_allowed(safe_base, allowed_paths)
             for safe in safe_paths:
                 check_path_allowed(safe, allowed_paths)
-            data, skipped = await client.read_paths_as_zip(safe_paths, safe_base)
+            data, skipped = await client.read_paths_as_zip(safe_paths, safe_base, transfer_budget())
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
@@ -257,11 +276,16 @@ async def upload_files(
             safe_path = validate_path(path)
             check_path_allowed(safe_path, allowed_paths)
             uploaded: list[str] = []
+            budget = transfer_budget()
             for f in files:
                 if not f.filename:
                     continue
                 dest = f"{safe_path}/{f.filename}" if safe_path != "/" else f"/{f.filename}"
-                data = await f.read()
+                # The multipart parser knows the size, so refuse before reading. It is
+                # only a hint, though -- the chunked read below is what enforces it.
+                if f.size is not None:
+                    budget.check(f.size, f.filename)
+                data = await _read_upload(f, budget)
                 await client.upload(dest, data)
                 uploaded.append(dest)
             await fire_webhook("sftp_upload", {

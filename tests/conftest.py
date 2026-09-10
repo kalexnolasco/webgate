@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -7,7 +8,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from webgate.auth.routes import limiter
 from webgate.auth.service import create_user
-from webgate.db.engine import Base, get_session
+from webgate.db.engine import Base, _import_models, get_session
+
+
+@pytest.fixture(autouse=True)
+def _clean_runtime_settings():
+    """The settings snapshot is module state; a test that writes one must not leak
+    it into the next."""
+    from webgate.runtime_config import store
+
+    store._overrides.clear()
+    yield
+    store._overrides.clear()
 
 
 @pytest.fixture(scope="session")
@@ -18,12 +30,14 @@ def event_loop():
 
 
 @pytest.fixture
-async def app():
+async def app(monkeypatch):
     from webgate.app import create_app
 
     test_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     test_session_factory = async_sessionmaker(test_engine, expire_on_commit=False)
 
+    # Same registration production uses, so the test schema is a fresh install's.
+    _import_models()
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -39,6 +53,21 @@ async def app():
             yield session
 
     application.dependency_overrides[get_session] = override_get_session
+    # Several modules hold their own reference to the global session factory and so
+    # bypass the dependency override entirely -- audit entries, webhook lookups and
+    # the settings snapshot were all being written to the developer's real database
+    # by the test suite. Point every one of them at the test database.
+    for module in (
+        "webgate.audit.service",
+        "webgate.webhooks.dispatcher",
+        "webgate.runtime_config.store",
+        "webgate.terminal.routes",
+        "webgate.terminal.ws_handler",
+        "webgate.servers.monitor",
+    ):
+        mod = importlib.import_module(module)
+        if hasattr(mod, "async_session_factory"):
+            monkeypatch.setattr(mod, "async_session_factory", test_session_factory)
     # Handed to the db_session fixture so a test can inspect exactly what the API stored.
     application.state.test_session_factory = test_session_factory
 

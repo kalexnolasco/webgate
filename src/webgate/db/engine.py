@@ -115,6 +115,7 @@ def _import_models() -> None:
     from webgate.auth import models as auth_models  # noqa: F401
     from webgate.branding import store as branding_store  # noqa: F401
     from webgate.recordings import models as recording_models  # noqa: F401
+    from webgate.runtime_config import store as runtime_settings  # noqa: F401
     from webgate.servers import models as server_models  # noqa: F401
     from webgate.snippets import models as snippet_models  # noqa: F401
     from webgate.webhooks import models as webhook_models  # noqa: F401

@@ -396,53 +396,59 @@ sequenceDiagram
 
 ## Configuration
 
-All settings are environment variables prefixed with `WEBGATE_`.
+Most settings live in **Admin → Settings**, in the app. They take effect without a
+restart and apply to every instance of the gateway, so changing a monitor interval or
+pointing at a different LDAP server is not a redeploy.
 
-### Core
+The rest are environment variables prefixed with `WEBGATE_`, because they are read
+before webgate can serve the request that would change them — or because letting the
+panel change them would be a way to lock yourself out.
 
-| Variable | Default | Description |
+### In the admin panel
+
+| Setting | Default | What it does |
 |---|---|---|
-| `WEBGATE_SECRET_KEY` | `change-me-in-production` | JWT signing + Fernet credential encryption (set this!) |
-| `WEBGATE_HOST` | `0.0.0.0` | Bind address |
-| `WEBGATE_PORT` | `8443` | Bind port |
-| `WEBGATE_LOG_LEVEL` | `info` | uvicorn log level |
-| `WEBGATE_FIRST_RUN` | `true` | Allow first-user auto-creation as admin |
-| `WEBGATE_VERIFY_HOST_KEYS` | `true` | Pin and verify SSH host keys. Turning it off means the gateway will hand stored credentials to whatever answers on a server's address — only sensible in a throwaway lab |
+| Verify SSH host keys | `true` | Pin each server's key on first connection and refuse a changed one. Off means the gateway hands stored credentials to whatever answers — only sensible in a throwaway lab |
+| Session token lifetime | `1440` | Minutes a sign-in stays valid |
+| Idle SSH timeout | `3600` | Seconds a session may sit with no input or output before it is closed. `0` disables it |
+| Maximum transfer size | `104857600` | Bytes, for uploads and downloads alike. `0` removes the limit, and with it the protection against one large file exhausting the gateway |
+| Disable status checks | `false` | Stop probing servers for their online/offline dot |
+| Check interval / timeout / parallel checks | `60` / `5` / `10` | How the status monitor sweeps the registry |
+| Record SSH sessions | `false` | Capture terminal sessions to asciinema cast files |
+| LDAP (10 settings) | off | Directory URL, bind account, search bases and filters, group mapping, admin groups |
 
-### Database
+Each one shows where its current value comes from — this panel, an environment
+variable, or the shipped default — and can be reset back to the environment.
 
-| Variable | Default | Description |
-|---|---|---|
-| `WEBGATE_DB_URL` | `sqlite+aiosqlite:///./webgate.db` | SQLAlchemy async URL. Use `postgresql+asyncpg://user:pass@host:5432/webgate` for Postgres |
+An environment variable still seeds a fresh install, which is what makes automated
+provisioning work; once a value is set in the panel, the panel wins. To keep
+configuration entirely in your manifests, set `WEBGATE_CONFIG_LOCKED=true` and the
+panel becomes read-only.
 
-### Sessions, JWT, monitoring
+### Environment only
 
-| Variable | Default | Description |
-|---|---|---|
-| `WEBGATE_SESSION_TIMEOUT` | `3600` | Reserved — **not enforced yet**; idle SSH sessions are not currently expired |
-| `WEBGATE_MAX_UPLOAD_SIZE` | `104857600` | Max upload size (100 MB) |
-| `WEBGATE_JWT_ALGORITHM` | `HS256` | JWT algorithm |
-| `WEBGATE_JWT_EXPIRE_MINUTES` | `1440` | Token expiry (24 h) |
-| `WEBGATE_MONITOR_INTERVAL` | `60` | Server status check interval (s) |
-| `WEBGATE_MONITOR_TIMEOUT` | `5` | SSH connect timeout for status checks (s) |
-| `WEBGATE_MONITOR_CONCURRENCY` | `10` | Max parallel status checks |
-| `WEBGATE_ALLOWED_ORIGINS` | `*` | CORS origins (comma-separated) |
+| Variable | Default | Description | Why not in the panel |
+|---|---|---|---|
+| `WEBGATE_SECRET_KEY` | `change-me-in-production` | JWT signing + Fernet credential encryption (set this!) | It decrypts what is in the database, so it cannot live there |
+| `WEBGATE_DB_URL` | `sqlite+aiosqlite:///./webgate.db` | SQLAlchemy async URL. Use `postgresql+asyncpg://user:pass@host:5432/webgate` for Postgres | It is how the database is reached |
+| `WEBGATE_HOST` | `0.0.0.0` | Bind address | Read before the app can serve a request |
+| `WEBGATE_PORT` | `8443` | Bind port | Read before the app can serve a request |
+| `WEBGATE_ROOT_PATH` | `` (empty) | URL prefix behind a reverse proxy (e.g. `/webgate`); the proxy must forward it unchanged | Routes are mounted at startup |
+| `WEBGATE_LOG_LEVEL` | `info` | uvicorn log level | Read once by the server process |
+| `WEBGATE_DEMO_MODE` | `false` | Read-only public demo: blocks writes, hides admin UI, seeds `demo`/`demo`, shows a banner | Enabling it from the panel would block turning it off |
+| `WEBGATE_JWT_ALGORITHM` | `HS256` | JWT algorithm | One typo away from accepting unsigned tokens |
+| `WEBGATE_FIRST_RUN` | `true` | Create the default `admin`/`admin` account when no users exist. Set `false` when accounts come from LDAP or a restored backup | Decided before anyone can sign in |
+| `WEBGATE_CONFIG_LOCKED` | `false` | Make the settings panel read-only | It is the lock itself |
+| `WEBGATE_ALLOWED_ORIGINS` | `*` | CORS origins (comma-separated) | Middleware is built at startup |
+| `WEBGATE_RECORDINGS_DIR` | `./recordings` | Storage directory for `.cast` files | A volume mount, not a preference |
+| `WEBGATE_INSTANCE_ID` | auto | Unique per worker; a UUID is generated when empty | Identifies the process |
 
-### Reverse proxy & demo mode
-
-| Variable | Default | Description |
-|---|---|---|
-| `WEBGATE_ROOT_PATH` | `` (empty) | URL prefix when served behind a sub-path (e.g. `/webgate`). The proxy must forward the prefix unchanged |
-| `WEBGATE_DEMO_MODE` | `false` | Read-only public demo: blocks writes, hides admin UI, seeds `demo`/`demo` user, shows top banner |
-
-### Session recording (asciinema)
-
-| Variable | Default | Description |
-|---|---|---|
-| `WEBGATE_RECORD_SESSIONS` | `false` | Capture every terminal session to a cast v2 file |
-| `WEBGATE_RECORDINGS_DIR` | `./recordings` | Storage directory for `.cast` files |
+Every panel setting also accepts its `WEBGATE_`-prefixed variable as the initial
+value: `WEBGATE_MONITOR_INTERVAL`, `WEBGATE_LDAP_URL`, and so on.
 
 ### LDAP / Active Directory
+
+The same fields, for seeding them from the environment:
 
 | Variable | Default | Description |
 |---|---|---|

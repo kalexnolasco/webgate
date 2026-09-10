@@ -1,5 +1,91 @@
 # Changelog
 
+## v2.1.0 (2026-09-10) — admin settings panel
+
+### Upgrading
+
+Stop, pull, start, as always. The settings table is created on boot; there is no
+migration, which is the point of storing settings as key/value rather than a column
+each. Nothing changes behaviour until an admin sets something: every setting starts at
+whatever your environment already configures.
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Two of the settings that now work were previously ignored, so their configured values
+start applying:
+
+- **`WEBGATE_MAX_UPLOAD_SIZE`** (default 100 MB) now limits downloads as well as
+  uploads. If you move large files through webgate, raise it before upgrading, or set
+  it to `0` to keep the old unlimited behaviour.
+- **`WEBGATE_SESSION_TIMEOUT`** (default 3600) now closes idle SSH sessions. `0`
+  disables it.
+
+
+Configuration moves out of the environment and into the app. **Admin → Settings** now
+owns 19 settings across security, monitoring, recording and LDAP; they take effect
+without a restart and apply to every instance.
+
+### Settings panel
+
+- **A value set in the panel overrides the environment**, and an environment variable
+  still seeds a fresh install, so automated provisioning keeps working. Each setting
+  shows where its value came from — the panel, a named variable, or the shipped
+  default — and can be reset back.
+- **`WEBGATE_CONFIG_LOCKED=true` makes the panel read-only**, for deployments whose
+  configuration is managed as code. Values stay visible so an operator can see what is
+  in force.
+- **Settings are stored as key/value, not a column each.** Adding one needs no
+  migration, which is what keeps the upgrade contract cheap to honour.
+- **The panel is generated from a registry**, so a new setting appears in the UI with
+  no HTML change, and the same entry supplies its validation.
+- **The LDAP bind password is encrypted** with the key that protects server
+  credentials, and the API never returns it. Saving the form again with the field blank
+  keeps what is stored rather than wiping it.
+- **A batch is validated before anything is written**, so one bad value cannot leave
+  the panel half-applied. Changes are audited by key; the values are not logged.
+- **What cannot be moved is listed, with the reason.** `WEBGATE_SECRET_KEY` decrypts
+  what is in the database and so cannot live there; `WEBGATE_DEMO_MODE` would block the
+  writes needed to turn it off. An admin hunting for a missing knob finds out why.
+
+### Six settings that did nothing
+
+Each was documented in the README, accepted from the environment, and read by no code
+at all. They are now real.
+
+- **`max_upload_size`** — there were no size checks anywhere. Downloads read the whole
+  file into memory, uploads read the whole body, and a ZIP accumulated an entire
+  directory tree, so one person fetching a 2 GB log asked the gateway for 2 GB and took
+  the worker down with every session on it. Transfers are now chunked against a budget
+  and refused with `413` and a message naming the file, the limit, and where to change
+  it. A ZIP that runs over fails rather than arriving quietly incomplete.
+- **`session_timeout`** — an abandoned tab held an SSH session, and the credentials
+  behind it, open for as long as the gateway ran. Sessions now close when idle, counting
+  output as well as input so watching a long build is not idleness. Lowering the limit
+  reaches sessions that are already open.
+- **`monitor_interval`, `monitor_timeout`, `monitor_concurrency`** — the monitor used
+  hardcoded constants. The leader's lease now stretches with the interval, which the
+  constants used to guarantee implicitly; without that, raising the interval would have
+  made the leader drop its own lease mid-sweep. Turning the monitor off no longer needs
+  a restart.
+- **`first_run`** — documented as suppressing the default `admin`/`admin` account. It
+  was created regardless.
+
+### Fixes
+
+- **The test suite was writing to the developer's real database.** Several modules hold
+  their own reference to the global session factory and so bypassed the fixture's
+  override: every audit entry, webhook lookup and settings read during a test went to
+  whatever `WEBGATE_DB_URL` pointed at. Test users `plain`, `viewer` and `dev2` had
+  accumulated hundreds of audit rows in a real install. No test could assert on audit
+  behaviour either, which is why none did.
+- **Tables in tests are registered the way production registers them**, so the test
+  schema is a fresh install's schema rather than whatever the imports happened to pull
+  in.
+
+---
+
 ## v2.0.0 (2026-09-10) — AI agent, white-label branding, verified host keys
 
 The first release aimed at a company deploying webgate rather than an individual running

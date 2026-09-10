@@ -14,17 +14,22 @@ Lifecycle:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import secrets
+import time
 from dataclasses import dataclass, field
 
 from fastapi import WebSocket
 
 from webgate.recordings.recorder import CastRecorder
+from webgate.runtime_config import store as runtime
 from webgate.terminal.ssh_session import SSHSession
 
 logger = logging.getLogger(__name__)
+
+IDLE_POLL = 15  # seconds between idle checks
 
 
 @dataclass
@@ -45,8 +50,18 @@ class SharedSession:
     recorder: CastRecorder | None = None  # set when WEBGATE_RECORD_SESSIONS=true
     on_close: object | None = None  # async callable invoked once on close
     closed: bool = False
+    # Monotonic clock, so a system time change cannot expire a live session.
+    last_activity: float = field(default_factory=time.monotonic)
+
+    def touch(self) -> None:
+        self.last_activity = time.monotonic()
+
+    @property
+    def idle_seconds(self) -> float:
+        return time.monotonic() - self.last_activity
 
     async def broadcast(self, text: str) -> None:
+        self.touch()
         if self.recorder is not None:
             self.recorder.write_output(text)
         dead: list[Participant] = []
@@ -63,6 +78,7 @@ class SharedSession:
         sender = next((p for p in self.participants if p.username == from_username), None)
         if sender is None or sender.mode != "rw":
             return
+        self.touch()
         await self.ssh.write(data)
 
     async def close(self) -> None:
@@ -118,6 +134,33 @@ class SharedSessionManager:
         if sess and sess.share_token:
             self._by_token.pop(sess.share_token, None)
             sess.share_token = None
+
+    async def watch_idle(self, sess: SharedSession) -> None:
+        """Close a session that has gone quiet for longer than the configured limit.
+
+        `session_timeout` was a documented, configurable setting that nothing read;
+        an abandoned tab held an SSH session and its credentials open indefinitely.
+        The limit is read each pass, so lowering it in the panel applies to sessions
+        that are already open.
+        """
+        while not sess.closed:
+            limit = int(runtime.get("session_timeout"))
+            if limit <= 0:
+                await asyncio.sleep(IDLE_POLL)
+                continue
+            remaining = limit - sess.idle_seconds
+            if remaining > 0:
+                await asyncio.sleep(min(remaining, IDLE_POLL))
+                continue
+            logger.info(
+                "Closing idle session %s after %.0fs", sess.session_id, sess.idle_seconds
+            )
+            with contextlib.suppress(Exception):
+                await sess.broadcast(
+                    f"\r\n\x1b[33m*** Disconnected after {limit}s idle ***\x1b[0m\r\n"
+                )
+            await sess.close()
+            return
 
     async def run_read_loop(self, sess: SharedSession) -> None:
         """Single read loop per shared session. Broadcasts SSH output to all

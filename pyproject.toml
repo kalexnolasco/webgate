@@ -1,6 +1,6 @@
 [project]
 name = "webgate"
-version = "2.0.0"
+version = "2.1.0"
 description = "Self-hosted web application for remote server management via SSH terminal and SFTP file browser"
 readme = "README.md"
 license = "MIT"

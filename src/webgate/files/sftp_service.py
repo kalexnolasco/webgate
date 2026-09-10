@@ -10,10 +10,13 @@ from typing import Any
 
 import asyncssh
 
+from webgate.files.limits import Budget, TooLarge
 from webgate.files.models import FileEntry
 from webgate.servers.hostkeys import known_hosts_for
 
 logger = logging.getLogger(__name__)
+
+READ_CHUNK = 256 * 1024  # bytes pulled per round trip when a budget applies
 
 
 _ID_FILE_LIMIT = 512 * 1024  # generous for /etc/passwd on a large directory host
@@ -154,11 +157,26 @@ class SFTPClient:
         async with self.sftp.open(safe_path, "w") as f:  # pyright: ignore[reportUnknownMemberType]
             await f.write(content)  # pyright: ignore[reportUnknownMemberType]
 
-    async def read_bytes(self, path: str) -> bytes:
+    async def read_bytes(self, path: str, budget: Budget | None = None) -> bytes:
+        """Read a file, refusing to accumulate more than `budget` allows.
+
+        Chunked rather than one `read()`: with no budget the whole file lands in the
+        gateway's memory regardless of size, which is how a single large log could
+        take a worker down.
+        """
         safe_path = validate_path(path)
         async with self.sftp.open(safe_path, "rb") as f:  # pyright: ignore[reportUnknownMemberType]
-            data: bytes = await f.read()  # pyright: ignore[reportUnknownMemberType]
-            return data
+            if budget is None or budget.unlimited:
+                data: bytes = await f.read()  # pyright: ignore[reportUnknownMemberType]
+                return data
+            chunks: list[bytes] = []
+            while True:
+                chunk: bytes = await f.read(READ_CHUNK)  # pyright: ignore[reportUnknownMemberType]
+                if not chunk:
+                    break
+                budget.spend(len(chunk), posixpath.basename(safe_path))
+                chunks.append(chunk)
+            return b"".join(chunks)
 
     async def upload(self, remote_path: str, data: bytes) -> None:
         safe_path = validate_path(remote_path)
@@ -199,15 +217,17 @@ class SFTPClient:
         safe_path = validate_path(path)
         await self.sftp.chmod(safe_path, mode)
 
-    async def read_directory_as_zip(self, path: str) -> bytes:
+    async def read_directory_as_zip(self, path: str, budget: Budget | None = None) -> bytes:
         """Recursively read a directory and return its contents as a ZIP archive."""
         safe_path = validate_path(path)
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            await self._add_to_zip(zf, safe_path, base_path=safe_path)
+            await self._add_to_zip(zf, safe_path, base_path=safe_path, budget=budget)
         return buffer.getvalue()
 
-    async def read_paths_as_zip(self, paths: list[str], base_path: str) -> tuple[bytes, list[str]]:
+    async def read_paths_as_zip(
+        self, paths: list[str], base_path: str, budget: Budget | None = None
+    ) -> tuple[bytes, list[str]]:
         """Zip a caller-chosen set of files and directories.
 
         Archive names are relative to ``base_path``, so a selection made in one
@@ -229,18 +249,20 @@ class SFTPClient:
                     skipped.append(name)
                     continue
                 if attrs.type == asyncssh.FILEXFER_TYPE_DIRECTORY:
-                    await self._add_to_zip(zf, safe, base_path=safe_base)
+                    await self._add_to_zip(zf, safe, base_path=safe_base, budget=budget)
                 else:
                     try:
                         rel = posixpath.relpath(safe, safe_base)
-                        zf.writestr(rel, await self.read_bytes(safe))
+                        zf.writestr(rel, await self.read_bytes(safe, budget))
+                    except TooLarge:
+                        raise  # the archive is over budget; skipping would hide that
                     except Exception:
                         logger.warning("Skipping unreadable file in ZIP: %s", safe)
                         skipped.append(name)
         return buffer.getvalue(), skipped
 
     async def _add_to_zip(
-        self, zf: zipfile.ZipFile, path: str, base_path: str
+        self, zf: zipfile.ZipFile, path: str, base_path: str, budget: Budget | None = None
     ) -> None:
         items = await self.sftp.readdir(path)
         for item in items:
@@ -250,11 +272,13 @@ class SFTPClient:
             child = posixpath.join(path, name)
             rel_path = posixpath.relpath(child, base_path)
             if item.attrs.type == asyncssh.FILEXFER_TYPE_DIRECTORY:
-                await self._add_to_zip(zf, child, base_path)
+                await self._add_to_zip(zf, child, base_path, budget)
             else:
                 try:
-                    data = await self.read_bytes(child)
+                    data = await self.read_bytes(child, budget)
                     zf.writestr(rel_path, data)
+                except TooLarge:
+                    raise  # over budget: the caller must be told, not handed a partial zip
                 except Exception:
                     logger.warning("Skipping file in ZIP: %s", child)
 

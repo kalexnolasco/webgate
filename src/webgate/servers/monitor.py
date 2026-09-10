@@ -25,16 +25,38 @@ from sqlalchemy import select, text
 
 from webgate.config import settings
 from webgate.db.engine import async_session_factory, engine
+from webgate.runtime_config import store as runtime
 from webgate.servers.crypto import decrypt_value
 from webgate.servers.hostkeys import known_hosts_for
 from webgate.servers.models import Server
 
 logger = logging.getLogger(__name__)
 
-CHECK_INTERVAL = 60  # seconds between full check cycles (leader only)
-CONNECT_TIMEOUT = 5  # seconds per SSH connect attempt
-MAX_CONCURRENT = 10  # max parallel checks
-LEASE_TTL = 90  # seconds; longer than CHECK_INTERVAL so a slow cycle doesn't drop the lease
+# These were fixed constants and the three matching settings were read by nobody.
+# They are now the floor and the fallback; the effective values come from the admin
+# panel, which is why they are read at the point of use rather than captured once.
+LEASE_TTL_FLOOR = 90  # seconds
+
+
+def _interval() -> int:
+    return int(runtime.get("monitor_interval"))
+
+
+def _connect_timeout() -> int:
+    return int(runtime.get("monitor_timeout"))
+
+
+def _concurrency() -> int:
+    return int(runtime.get("monitor_concurrency"))
+
+
+def _lease_ttl() -> int:
+    """The lease has to outlast a full sweep, or the leader drops it mid-cycle.
+
+    That invariant used to hold because both numbers were constants. Now that an
+    admin can stretch the interval, the lease has to follow it.
+    """
+    return max(LEASE_TTL_FLOOR, int(_interval() * 1.5))
 LEASE_RENEW = 30  # seconds; heartbeat interval
 
 
@@ -64,7 +86,7 @@ class ServerMonitor:
         return self._is_leader
 
     async def start(self) -> None:
-        if settings.disable_monitor:
+        if runtime.get("disable_monitor"):
             logger.info("Monitor disabled by WEBGATE_DISABLE_MONITOR (instance %s)", self._instance_id)
             return
         await self._ensure_lease_table()
@@ -106,7 +128,7 @@ class ServerMonitor:
         # Store as naive UTC so we work with both SQLite's TEXT storage and
         # Postgres' TIMESTAMP WITHOUT TIME ZONE.
         now = datetime.now(UTC).replace(tzinfo=None)
-        new_expiry = now + timedelta(seconds=LEASE_TTL)
+        new_expiry = now + timedelta(seconds=_lease_ttl())
         async with engine.begin() as conn:
             try:
                 row = (await conn.execute(text("SELECT instance_id, expires_at FROM monitor_lease WHERE id = 1"))).fetchone()
@@ -149,6 +171,14 @@ class ServerMonitor:
         last_renew = 0.0
         while True:
             try:
+                if runtime.get("disable_monitor"):
+                    # Toggled off in the panel while running: stand down, but keep the
+                    # loop alive so turning it back on does not need a restart.
+                    if self._is_leader:
+                        await self._release_lease()
+                        self._is_leader = False
+                    await asyncio.sleep(min(LEASE_RENEW, _interval()))
+                    continue
                 if not self._is_leader:
                     self._is_leader = await self._try_claim()
                     if self._is_leader:
@@ -166,18 +196,18 @@ class ServerMonitor:
                     await self._check_all()
                 else:
                     # Followers wake up roughly once per check interval to retry leadership.
-                    await asyncio.sleep(min(LEASE_RENEW, CHECK_INTERVAL))
+                    await asyncio.sleep(min(LEASE_RENEW, _interval()))
                     continue
             except Exception:
                 logger.exception("Error in monitor loop (instance %s)", self._instance_id)
-            await asyncio.sleep(CHECK_INTERVAL)
+            await asyncio.sleep(_interval())
 
     async def _check_all(self) -> None:
         async with async_session_factory() as session:
             result = await session.execute(select(Server))
             servers = result.scalars().all()
 
-        semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+        semaphore = asyncio.Semaphore(_concurrency())
 
         async def _check_one(server: Server) -> None:
             async with semaphore:
@@ -209,7 +239,7 @@ class ServerMonitor:
                 kwargs["password"] = password
             elif private_key_str:
                 kwargs["client_keys"] = [asyncssh.import_private_key(private_key_str)]
-            conn = await asyncio.wait_for(asyncssh.connect(**kwargs), timeout=CONNECT_TIMEOUT)  # type: ignore[arg-type]
+            conn = await asyncio.wait_for(asyncssh.connect(**kwargs), timeout=_connect_timeout())  # type: ignore[arg-type]
             elapsed = (time.monotonic() - start) * 1000
             conn.close()
             return ServerStatus(online=True, last_checked=now, latency_ms=round(elapsed, 1))

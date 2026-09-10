@@ -26,7 +26,7 @@ from typing import Any
 
 import asyncssh
 
-from webgate.config import settings
+from webgate.runtime_config import store as runtime
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def known_hosts_for(stored: str) -> Any:
     A tuple of key lists is matched without hostname patterns, which is right here:
     the caller already resolved which server this is. `None` means first contact.
     """
-    if not settings.verify_host_keys:
+    if not runtime.get("verify_host_keys"):
         return None
     stored = (stored or "").strip()
     if not stored:
@@ -109,7 +109,7 @@ async def remember(session: Any, server: Any, conn: Any) -> str:
     Only ever fills a blank pin. Overwriting an existing one here would defeat the
     whole mechanism: a changed key must be an admin decision, not a side effect.
     """
-    if not settings.verify_host_keys or (server.host_key or "").strip():
+    if not runtime.get("verify_host_keys") or (server.host_key or "").strip():
         return ""
     line, fp = learned_key(conn)
     if not line:

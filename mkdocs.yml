@@ -48,6 +48,7 @@ nav:
     - Access model (groups, LDAP, tags): guide/access-control.md
     - Advanced (jump host, snippets, sharing, recording): guide/advanced.md
     - Integrations (webhooks, LDAP, API keys, reverse proxy): guide/integrations.md
+    - Settings (admin panel): guide/settings.md
     - HA deployment: guide/ha.md
   - API Reference:
     - Authentication: api/auth.md

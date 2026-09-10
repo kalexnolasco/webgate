@@ -340,6 +340,21 @@
         .fz-modal-body textarea { font-family: var(--mono); font-size: 12px; }
         .fz-modal-body input:focus, .fz-modal-body select:focus, .fz-modal-body textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
         .fz-modal-body .hint { font-size: 12px; color: var(--text-muted); margin-top: 5px; line-height: 1.55; }
+        .fz-section-title { font-size: 11px; font-weight: 600; color: var(--text-muted); margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+        .fz-setting { margin-bottom: 16px; }
+        .fz-setting-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .fz-setting-head label { margin: 0; }
+        .fz-setting-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+        .fz-setting-warn { color: var(--danger) !important; }
+        .fz-source { font-family: var(--mono); font-size: 10px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--border); color: var(--text-muted); }
+        .fz-source-admin { color: var(--accent); border-color: var(--accent-dim); }
+        .fz-btn-sm { padding: 2px 8px; font-size: 11px; }
+        .fz-lock-note { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: var(--radius-md); background: var(--bg-sunken); font-size: 12px; color: var(--text-secondary); line-height: 1.55; }
+        .fz-lock-note svg { color: var(--warning); flex-shrink: 0; margin-top: 1px; }
+        .fz-fixed { border-top: 1px solid var(--border); padding-top: 12px; }
+        .fz-fixed summary { cursor: pointer; font-size: 12px; color: var(--text-muted); }
+        .fz-fixed-row { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
+        .fz-fixed-row code { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
         .fz-modal-footer { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; background: var(--modal-bg); }
         .fz-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .fz-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -428,6 +443,7 @@ window._showToastImpl = function(message, type) {
 <g id="i-plus"><path d="M12 5v14M5 12h14"/></g>
 <g id="i-search"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></g>
 <g id="i-layers"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3.5 12.5 8.5 4.7 8.5-4.7"/></g>
+<g id="i-sliders"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></g>
 <g id="i-shield"><path d="M12 3 5 6v5.5c0 4.2 2.9 7.6 7 9.5 4.1-1.9 7-5.3 7-9.5V6l-7-3Z"/></g>
 <g id="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g>
 <g id="i-moon"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></g>
@@ -563,6 +579,9 @@ window._showToastImpl = function(message, type) {
                     </button>
                     <button x-show="currentUser?.is_admin" @click="adminMenu=false;openBrandingPanel()" role="menuitem">
                         <svg class="fz-icon" viewBox="0 0 24 24"><use href="#i-palette"/></svg> Branding
+                    </button>
+                    <button x-show="currentUser?.is_admin" @click="adminMenu=false;openSettingsPanel()" role="menuitem">
+                        <svg class="fz-icon" viewBox="0 0 24 24"><use href="#i-sliders"/></svg> Settings
                     </button>
                     <button x-show="currentUser?.is_admin" @click="adminMenu=false;openAgentSettings()" role="menuitem">
                         <svg class="fz-icon" viewBox="0 0 24 24"><use href="#i-stethoscope"/></svg> AI agent
@@ -1119,6 +1138,102 @@ window._showToastImpl = function(message, type) {
 </div>
 
 <!-- ======== BRANDING (admin) ======== -->
+<div x-show="showSettingsPanel" class="fz-modal-bg" @click.self="showSettingsPanel=false">
+    <div class="fz-modal" style="width:720px">
+        <div class="fz-modal-title">
+            <span style="display:flex;align-items:center;gap:8px">
+                <svg class="fz-icon" viewBox="0 0 24 24"><use href="#i-sliders"/></svg>
+                Settings
+            </span>
+            <button @click="showSettingsPanel=false" class="fz-btn fz-btn-ghost fz-btn-icon" aria-label="Close">
+                <svg class="fz-icon" viewBox="0 0 24 24"><use href="#i-close"/></svg>
+            </button>
+        </div>
+        <div class="fz-modal-body">
+            <p class="hint" style="margin:0 0 16px;font-size:13px;color:var(--text-secondary);line-height:1.55">
+                These take effect without a restart, and apply to every instance of this
+                gateway. A value set here overrides the matching environment variable.
+            </p>
+
+            <div x-show="settingsLocked" class="fz-lock-note">
+                <svg class="fz-icon" viewBox="0 0 24 24"><use href="#i-lock"/></svg>
+                <span>This deployment sets <code>WEBGATE_CONFIG_LOCKED</code>. Settings are shown
+                but cannot be changed here — change them where the deployment is defined.</span>
+            </div>
+
+            <template x-for="section in settingsSections" :key="section.name">
+                <section style="margin-bottom:22px">
+                    <h3 class="fz-section-title" x-text="section.name"></h3>
+                    <template x-for="item in section.settings" :key="item.key">
+                        <div class="fz-setting">
+                            <div class="fz-setting-head">
+                                <label :for="'set-'+item.key" x-text="item.label"></label>
+                                <span class="fz-source" :class="'fz-source-'+item.source"
+                                      x-text="item.source === 'admin' ? 'set here' : (item.source === 'environment' ? item.env_var : 'default')"
+                                      :title="item.source === 'admin' ? 'Overrides ' + item.env_var : 'From ' + (item.source === 'environment' ? 'the environment' : 'the shipped default')"></span>
+                                <button x-show="item.source === 'admin' && !settingsLocked"
+                                        @click="resetSetting(item.key)" class="fz-btn fz-btn-ghost fz-btn-sm"
+                                        :aria-label="'Reset ' + item.label">Reset</button>
+                            </div>
+
+                            <template x-if="item.kind === 'bool'">
+                                <label class="fz-setting-check">
+                                    <input :id="'set-'+item.key" type="checkbox" x-model="settingsForm[item.key]" :disabled="settingsLocked" style="width:auto">
+                                    <span x-text="settingsForm[item.key] ? 'On' : 'Off'"></span>
+                                </label>
+                            </template>
+                            <template x-if="item.kind === 'int'">
+                                <input :id="'set-'+item.key" type="number" x-model.number="settingsForm[item.key]"
+                                       :min="item.minimum" :max="item.maximum" :disabled="settingsLocked">
+                            </template>
+                            <template x-if="item.kind === 'text'">
+                                <input :id="'set-'+item.key" type="text" x-model="settingsForm[item.key]"
+                                       :placeholder="item.placeholder" :disabled="settingsLocked">
+                            </template>
+                            <template x-if="item.kind === 'secret'">
+                                <input :id="'set-'+item.key" type="password" x-model="settingsForm[item.key]"
+                                       :placeholder="item.value ? 'Saved — leave blank to keep it' : 'Not set'"
+                                       autocomplete="new-password" :disabled="settingsLocked">
+                            </template>
+                            <template x-if="item.kind === 'choice'">
+                                <select :id="'set-'+item.key" x-model="settingsForm[item.key]" :disabled="settingsLocked">
+                                    <template x-for="c in item.choices" :key="c">
+                                        <option :value="c" x-text="c"></option>
+                                    </template>
+                                </select>
+                            </template>
+
+                            <div class="hint" x-text="item.help"></div>
+                            <div class="hint fz-setting-warn" x-show="item.warning" x-text="item.warning"></div>
+                        </div>
+                    </template>
+                </section>
+            </template>
+
+            <details class="fz-fixed">
+                <summary>Set by the deployment, not here</summary>
+                <p class="hint" style="margin:8px 0 10px">
+                    These are read before webgate can serve a request, or would let the panel
+                    lock itself out. Change them where the deployment is defined.
+                </p>
+                <template x-for="f in settingsFixed" :key="f.env_var">
+                    <div class="fz-fixed-row">
+                        <code x-text="f.env_var"></code>
+                        <span class="hint" x-text="f.reason"></span>
+                    </div>
+                </template>
+            </details>
+        </div>
+        <div class="fz-modal-footer">
+            <button @click="showSettingsPanel=false" class="fz-btn fz-btn-ghost">Close</button>
+            <button @click="resetSetting(null)" x-show="!settingsLocked" class="fz-btn fz-btn-ghost">Reset all</button>
+            <button @click="saveSettings()" x-show="!settingsLocked" class="fz-btn fz-btn-primary" :disabled="savingSettings">
+                <span x-text="savingSettings ? 'Saving…' : 'Save'"></span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <div x-show="showBrandingPanel" class="fz-modal-bg" @click.self="stopPreview(); showBrandingPanel=false">
     <div class="fz-modal" style="width:640px">
         <div class="fz-modal-title">
@@ -2023,6 +2138,8 @@ function app() {
         showHidden: localStorage.getItem('webgate_hidden') === '1',
         showBackupModal: false, backupTab: 'export', backupBusy: false,
         agentAvailable: false,
+        showSettingsPanel: false, settingsSections: [], settingsFixed: [], settingsForm: {},
+        settingsLocked: false, savingSettings: false,
         branding: {}, showBrandingPanel: false, brandForm: {colors:{},colors_dark:{}},
         brandSaved: null, brandBusy: false, brandPreview: false,
         brandPresets: [
@@ -2431,6 +2548,60 @@ function app() {
         },
 
         // ---- Branding panel (admin) ----
+        // Admin settings panel. The form is built from what the API describes, so a new
+        // setting on the server shows up here without touching this file.
+        async openSettingsPanel() {
+            this.showSettingsPanel = true;
+            try {
+                const data = await this.apiCall('/api/settings');
+                this.settingsLocked = !!data.locked;
+                this.settingsSections = data.sections || [];
+                this.settingsFixed = data.fixed || [];
+                const form = {};
+                for (const section of this.settingsSections) {
+                    for (const item of section.settings) {
+                        // A secret comes back masked; sending the mask back would store it.
+                        form[item.key] = item.kind === 'secret' ? '' : item.value;
+                    }
+                }
+                this.settingsForm = form;
+            } catch (e) {
+                this.showToast(e.message || 'Could not load settings', 'error');
+                this.showSettingsPanel = false;
+            }
+        },
+        async saveSettings() {
+            this.savingSettings = true;
+            try {
+                const values = {};
+                for (const section of this.settingsSections) {
+                    for (const item of section.settings) {
+                        const v = this.settingsForm[item.key];
+                        // Blank secret means "keep what is stored", which is what the
+                        // server does with it too.
+                        if (item.kind === 'secret' && !v) continue;
+                        values[item.key] = v;
+                    }
+                }
+                const res = await this.apiCall('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) });
+                const n = (res.changed || []).length;
+                this.showToast(n ? `Saved ${n} setting${n === 1 ? '' : 's'}` : 'Nothing to change', 'success');
+                await this.openSettingsPanel();
+            } catch (e) {
+                this.showToast(e.message || 'Could not save settings', 'error');
+            } finally { this.savingSettings = false; }
+        },
+        async resetSetting(key) {
+            const what = key ? 'this setting' : 'every setting';
+            if (!confirm(`Reset ${what} to what the deployment configures?`)) return;
+            try {
+                await this.apiCall('/api/settings/reset', { method: 'POST', body: JSON.stringify({ keys: key ? [key] : null }) });
+                await this.openSettingsPanel();
+                this.showToast('Reset', 'success');
+            } catch (e) {
+                this.showToast(e.message || 'Could not reset', 'error');
+            }
+        },
         async openBrandingPanel() {
             this.showBrandingPanel = true;
             this.brandPreview = false;
@@ -2646,6 +2817,7 @@ function app() {
                 if (this.showBackupModal) { this.showBackupModal = false; event.preventDefault(); return; }
                 if (this.showAgentModal) { this.showAgentModal = false; event.preventDefault(); return; }
                 if (this.showAgentSettings) { this.showAgentSettings = false; event.preventDefault(); return; }
+                if (this.showSettingsPanel) { this.showSettingsPanel = false; event.preventDefault(); return; }
                 if (this.showBrandingPanel) { this.stopPreview(); this.showBrandingPanel = false; event.preventDefault(); return; }
                 if (this.ctxMenu.show) { this.ctxMenu.show = false; event.preventDefault(); return; }
                 if (this.adminMenu) { this.adminMenu = false; event.preventDefault(); return; }

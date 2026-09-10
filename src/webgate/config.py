@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     db_url: str = "sqlite+aiosqlite:///./webgate.db"
     allowed_origins: str = "*"
     root_path: str = ""  # URL prefix when served behind a reverse proxy (e.g. "/webgate")
+    # Makes the admin settings panel read-only, for deployments whose configuration
+    # is managed as code and should not drift from what the manifest says.
+    config_locked: bool = False
     demo_mode: bool = False  # Read-only public demo: blocks writes, hides admin UI
 
     # --- Diagnostic agent (opt-in, off by default) ---

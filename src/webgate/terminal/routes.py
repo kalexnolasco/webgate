@@ -15,6 +15,7 @@ from webgate.db.engine import async_session_factory
 from webgate.db.engine import async_session_factory as _session_factory
 from webgate.recordings.models import Recording
 from webgate.recordings.recorder import CastRecorder
+from webgate.runtime_config import store as runtime
 from webgate.servers.service import (
     get_server,
     get_server_credentials,
@@ -151,7 +152,7 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
     # Optional session recording (asciinema cast v2)
     recording_id: int | None = None
     recorder: CastRecorder | None = None
-    if settings.record_sessions:
+    if runtime.get("record_sessions"):
         ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         cast_path = (
             Path(settings.recordings_dir) / str(server.id) / f"{ts}-{user_out.username}.cast"

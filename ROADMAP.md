@@ -64,6 +64,12 @@ Tracks the development plan for **webgate**. Items are organized by release.
 - [x] **SFTP sortable columns, hidden-file toggle, multi-select with ZIP download, owner names**
 - [x] **A tested upgrade contract** — additive, append-only, idempotent migrations; failures stop startup instead of being swallowed; concurrent HA workers no longer collide
 
+### v2.1.0 — Admin settings panel (2026-09-10)
+- [x] **Admin settings panel** — 19 settings across security, monitoring, recording and LDAP, changed in the app rather than the environment, effective without a restart and shared across instances
+- [x] **`WEBGATE_CONFIG_LOCKED`** for deployments that manage configuration as code
+- [x] **Six documented settings that did nothing now work** — transfer size limits, idle SSH expiry, the three monitor knobs, and `first_run`
+- [x] **Transfer size limits** — chunked reads against a per-request budget, so one large file can no longer exhaust a worker
+
 ---
 
 ## Planned
@@ -71,9 +77,8 @@ Tracks the development plan for **webgate**. Items are organized by release.
 ### v2.1.x — Next
 | Feature | Priority | Description |
 |---------|----------|-------------|
-| Resource limits on file transfers | High | Downloads and ZIPs read whole files into memory with no size cap; a large log can take a worker down |
 | Refuse the default `SECRET_KEY` off localhost | High | With the shipped placeholder, a token minted against one deployment authenticates against another — the user ids usually collide |
-| Enforce `WEBGATE_SESSION_TIMEOUT` | Medium | Documented and configurable, but read by nobody: idle SSH sessions are never expired. Also no per-user concurrent-session limit |
+| Per-user concurrent-session limit | Medium | Nothing caps how many SSH sessions one account may hold open |
 | Host key fingerprint in the UI | Medium | The API exposes it and can clear it; the Site Manager does not show it yet |
 | Per-server recording opt-in | Medium | Toggle recording on a per-server basis instead of the current global flag |
 | Internationalization (i18n) | Low | UI translations starting with English / Spanish |

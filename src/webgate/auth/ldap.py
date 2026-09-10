@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from ldap3 import ALL, SIMPLE, SUBTREE, Connection, Server
 from ldap3.core.exceptions import LDAPException
 
-from webgate.config import settings
+from webgate.runtime_config import store as runtime
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +38,15 @@ class LdapResult:
 
 
 def _server() -> Server:
-    return Server(settings.ldap_url, get_info=ALL)
+    return Server(runtime.get("ldap_url"), get_info=ALL)
 
 
 def _service_bind() -> Connection:
     conn = Connection(
         _server(),
-        user=settings.ldap_bind_dn or None,
-        password=settings.ldap_bind_password or None,
-        authentication=SIMPLE if settings.ldap_bind_dn else None,
+        user=runtime.get("ldap_bind_dn") or None,
+        password=runtime.get("ldap_bind_password") or None,
+        authentication=SIMPLE if runtime.get("ldap_bind_dn") else None,
         auto_bind=True,
     )
     return conn
@@ -54,9 +54,9 @@ def _service_bind() -> Connection:
 
 def _find_user_dn(conn: Connection, username: str) -> tuple[str, dict[str, object]] | None:
     """Resolve a username to (DN, attrs) under ldap_user_base."""
-    flt = settings.ldap_user_filter.replace("{username}", _escape(username))
+    flt = runtime.get("ldap_user_filter").replace("{username}", _escape(username))
     conn.search(
-        search_base=settings.ldap_user_base,
+        search_base=runtime.get("ldap_user_base"),
         search_filter=flt,
         search_scope=SUBTREE,
         attributes=["cn", "mail"],
@@ -72,11 +72,11 @@ def _find_user_dn(conn: Connection, username: str) -> tuple[str, dict[str, objec
 
 
 def _list_group_cns(conn: Connection, user_dn: str) -> list[str]:
-    if not settings.ldap_group_base:
+    if not runtime.get("ldap_group_base"):
         return []
-    flt = settings.ldap_group_filter.replace("{dn}", _escape(user_dn))
+    flt = runtime.get("ldap_group_filter").replace("{dn}", _escape(user_dn))
     conn.search(
-        search_base=settings.ldap_group_base,
+        search_base=runtime.get("ldap_group_base"),
         search_filter=flt,
         search_scope=SUBTREE,
         attributes=["cn"],
@@ -135,11 +135,11 @@ def _authenticate_sync(username: str, password: str) -> LdapResult | None:
         user_conn.unbind()
 
     try:
-        group_map: dict[str, str] = json.loads(settings.ldap_group_map or "{}")
+        group_map: dict[str, str] = json.loads(runtime.get("ldap_group_map") or "{}")
     except json.JSONDecodeError:
         group_map = {}
     try:
-        admin_groups: list[str] = json.loads(settings.ldap_admin_groups or "[]")
+        admin_groups: list[str] = json.loads(runtime.get("ldap_admin_groups") or "[]")
     except json.JSONDecodeError:
         admin_groups = []
 
@@ -158,6 +158,6 @@ def _authenticate_sync(username: str, password: str) -> LdapResult | None:
 
 async def authenticate_ldap(username: str, password: str) -> LdapResult | None:
     """Async wrapper. Returns None on any failure (auth fail, network, etc.)."""
-    if not settings.ldap_enabled or not settings.ldap_url:
+    if not runtime.get("ldap_enabled") or not runtime.get("ldap_url"):
         return None
     return await asyncio.to_thread(_authenticate_sync, username, password)

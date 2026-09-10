@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from webgate.auth.models import ApiKey, User
 from webgate.config import settings
+from webgate.runtime_config import store as runtime
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,11 @@ def create_access_token(data: dict[str, Any], expires_minutes: int | None = None
     """Mint a signed JWT. `expires_minutes` overrides the default session TTL
     for short-lived tokens (e.g. the 2-minute pre-2FA token)."""
     to_encode = data.copy()
-    minutes = expires_minutes if expires_minutes is not None else settings.jwt_expire_minutes
+    minutes = (
+        expires_minutes
+        if expires_minutes is not None
+        else runtime.get("jwt_expire_minutes")
+    )
     expire = datetime.now(UTC) + timedelta(minutes=minutes)
     to_encode["exp"] = expire
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
@@ -81,7 +86,16 @@ async def create_user(
 
 
 async def seed_admin(session: AsyncSession) -> None:
-    """Create default admin user if no users exist."""
+    """Create the default admin user if no users exist.
+
+    `WEBGATE_FIRST_RUN=false` suppresses it, for a deployment that provisions its
+    first account another way -- LDAP, or a restored backup. The setting was
+    documented as doing exactly this and was read by nobody, so an admin/admin
+    account appeared regardless.
+    """
+    if not settings.first_run:
+        logger.info("Skipping default admin: WEBGATE_FIRST_RUN is false")
+        return
     count = await get_user_count(session)
     if count > 0:
         return
