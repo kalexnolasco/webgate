@@ -9,7 +9,7 @@ Open `http://localhost:8443` and login with the default credentials:
 - **Username:** `admin`
 - **Password:** `admin`
 
-![Login](../screenshots/login.png)
+![Login](../screenshots/v2/login.png)
 
 ## 2. Change Password
 
@@ -36,19 +36,19 @@ From the Site Manager, click:
 - **SFTP** -- opens a file browser tab
 - **Split** -- opens both side by side
 
-![Site Manager](../screenshots/site-manager.png)
+![Site Manager](../screenshots/v2/site-manager.png)
 
 ## 5. SSH Terminal
 
 Full terminal in your browser. Supports copy/paste, resize, and multiple tabs.
 
-![Terminal](../screenshots/terminal.png)
+![Terminal](../screenshots/v2/terminal.png)
 
 ## 6. Browse Files
 
 Navigate directories, upload/download files, edit text files with CodeMirror, preview PDFs and images.
 
-![SFTP](../screenshots/sftp.png)
+![SFTP](../screenshots/v2/sftp.png)
 
 ## 7. Create Users
 

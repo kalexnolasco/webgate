@@ -5,10 +5,10 @@
 [![License](https://img.shields.io/pypi/l/webgate?style=flat-square)](https://github.com/kalexnolasco/webgate/blob/main/LICENSE)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/kalexnolasco/webgate)
-[![Status](https://img.shields.io/badge/status-beta-orange?style=flat-square)](https://pypi.org/project/webgate/)
+[![Tests](https://img.shields.io/badge/tests-248%20passing-3dcf8e?style=flat-square)](https://github.com/kalexnolasco/webgate/tree/main/tests)
 [![Docs](https://img.shields.io/badge/docs-kalexnolasco.github.io-blue?style=flat-square)](https://kalexnolasco.github.io/webgate/)
 
-Self-hosted web app for remote server management — **SSH terminal**, **SFTP file browser**, **server registry**, all in your browser. A modern Python replacement that combines the best of [webssh](https://github.com/huashengdun/webssh) and [filebrowser](https://github.com/filebrowser/filebrowser) into a single tool. It borrows FileZilla's workflow — a site list, quick connect, a path bar — without copying its chrome: a dense, keyboard-first console meant to sit behind a terminal for hours.
+Self-hosted web app for remote server management — **SSH terminal**, **SFTP file browser**, **server registry**, all in your browser. Host keys are verified, credentials are encrypted at rest, and an admin configures the whole thing from inside the app. A modern Python replacement that combines the best of [webssh](https://github.com/huashengdun/webssh) and [filebrowser](https://github.com/filebrowser/filebrowser) into a single tool. It borrows FileZilla's workflow — a site list, quick connect, a path bar — without copying its chrome: a dense, keyboard-first console meant to sit behind a terminal for hours.
 
 > 🎮 **Try it live: [webgate-demo.fly.dev](https://webgate-demo.fly.dev/)** — login `demo` / `demo` (read-only sandbox, resets hourly)
 >
@@ -36,7 +36,7 @@ docker compose pull && docker compose up -d
 
 The schema migrates itself on boot — no migration command, no tool to learn. Changes are **additive only**, so rolling back to an older image works if you need it. Back up first (`cp webgate.db webgate.db.bak`, or **Admin → Backup & restore**). Full guide: [Upgrading](docs/getting-started/upgrade.md).
 
-> **Coming from v0.5.x?** Host key verification is now on by default: the next connection to each server pins the key it presents, and a change is refused after that. The AI agent stays off until an admin configures a provider.
+> **On v0.x?** That line is **legacy and unsupported** — see [Legacy versions](#legacy-versions) before upgrading.
 
 > 🧪 **Want to try every feature end-to-end?** A ready-to-run playground brings up webgate **plus** an LDAP server, a public SSH host, a private SSH host only reachable via a bastion, and an HTTP echo for webhooks:
 >
@@ -165,54 +165,37 @@ flowchart TB
 
 ## Screenshots
 
-> **Note:** the shots below predate the v2.0 interface redesign (grouped Admin menu,
-> collapsible chrome, SVG icon set, rethemed terminal). They still show the features
-> accurately; the chrome around them has changed. The live demo runs the current build.
+Taken from v2.1.1. The terminal and file browser are real sessions against a live SSH
+host reached through a bastion.
 
-### Core (Site Manager, terminal, SFTP, editor)
-
-| | |
-|---|---|
-| ![Login](docs/screenshots/login.png) | ![Site Manager](docs/screenshots/site-manager.png) |
-| ![SSH Terminal](docs/screenshots/terminal.png) | ![SFTP Browser](docs/screenshots/sftp.png) |
-| ![Editor](docs/screenshots/editor.png) | ![Split View](docs/screenshots/split-view.png) |
-
-### Access control & admin
+### Site Manager, terminal, SFTP, command palette
 
 | | |
 |---|---|
-| ![Access Control](docs/screenshots/access-control.png) | ![Users](docs/screenshots/users.png) |
-| ![Audit](docs/screenshots/audit.png) | ![Light Theme](docs/screenshots/light-theme.png) |
+| ![Site Manager](docs/screenshots/v2/site-manager.png) | ![SSH terminal](docs/screenshots/v2/terminal.png) |
+| ![SFTP browser](docs/screenshots/v2/sftp.png) | ![Command palette](docs/screenshots/v2/palette.png) |
 
-### Jump host, snippets, webhooks
+Left to right: the registry with live status dots and grouped servers; an SSH session
+opened through `bastion-eu`; the file browser with sortable columns, owner names and
+multi-select; `Ctrl+P` over every server and action.
+
+### Admin
 
 | | |
 |---|---|
-| ![Dashboard with jump host](docs/screenshots/v0.3/02-dashboard-jump-host.png) | ![Add Server with Jump Via](docs/screenshots/v0.3/08-add-server-jump-via.png) |
-| ![Terminal snippets](docs/screenshots/v0.3/03-terminal-snippets-jump.png) | ![Snippet executed](docs/screenshots/v0.3/04-snippet-executed.png) |
-| ![SFTP via jump](docs/screenshots/v0.3/05-sftp-via-jump.png) | ![Webhooks modal](docs/screenshots/v0.3/06-webhooks-modal.png) |
+| ![Settings](docs/screenshots/v2/settings.png) | ![AI agent](docs/screenshots/v2/agent.png) |
+| ![Branding](docs/screenshots/v2/branding.png) | ![Users](docs/screenshots/v2/users.png) |
 
-### Shared terminal sessions
+**Settings** shows where each value comes from — this panel, a named environment
+variable, or the shipped default — and warns in red where a choice loosens something.
+**AI agent** is off until a provider is configured. **Branding** white-labels the
+deployment for every user.
 
-Click **Share** in the terminal toolbar to get a URL; anyone who opens it joins the same live SSH session (broadcast output, multiplexed input).
+### Light theme, and the sign-in screen
 
-| Owner | Joiner |
+| | |
 |---|---|
-| ![Shared owner](docs/screenshots/v0.4/01-shared-terminal-owner.png) | ![Shared joiner](docs/screenshots/v0.4/02-shared-terminal-joiner.png) |
-
-### Session recording
-
-Enable `WEBGATE_RECORD_SESSIONS=true` and every SSH session is captured to an asciinema cast file with built-in browser replay.
-
-| Recordings list | Browser replay |
-|---|---|
-| ![Recordings](docs/screenshots/v0.4/04-recordings-modal.png) | ![Replay](docs/screenshots/v0.4/03-recording-replay.png) |
-
-### Public read-only demo mode
-
-`WEBGATE_DEMO_MODE=true` turns the app into a sandbox: banner, seeded `demo`/`demo` user, all writes blocked. Used by the live demo at [webgate-demo.fly.dev](https://webgate-demo.fly.dev/).
-
-![Demo banner](docs/screenshots/v0.3/01-login-demo-banner.png)
+| ![Light theme](docs/screenshots/v2/light.png) | ![Sign in](docs/screenshots/v2/login.png) |
 
 ---
 
@@ -364,7 +347,7 @@ Three concepts, easy to mix up. Here's how they fit together:
 | `Server.group` | single string per server (e.g. `production`) | admin, in the Add Server form | gates **visibility**: a non-admin user only sees servers whose `group` is in their `allowed_groups` |
 | `Server.tags` | list of strings (e.g. `["nginx","eu-west-1"]`) | admin, in the Add Server form | **cosmetic / search only** — does **not** affect access |
 | `User.allowed_groups` | list of strings | admin (Users panel) **or** LDAP mapping | the set of `Server.group` values a non-admin user is allowed to see |
-| `User.is_admin` | bool | admin (Users panel) **or** LDAP `WEBGATE_LDAP_ADMIN_GROUPS` | admins see everything regardless of `allowed_groups` |
+| `User.is_admin` | bool | admin (Users panel) **or** an LDAP admin group | admins see everything regardless of `allowed_groups` |
 
 **With LDAP**, the admin still controls **which group names exist** by typing them when registering each server. LDAP only populates the user side of the equation:
 
@@ -374,7 +357,7 @@ flowchart LR
         L1["alice ∈ cn=devs"]
         L2["alice ∈ cn=admins"]
     end
-    subgraph "WEBGATE_LDAP_GROUP_MAP<br/>(env var)"
+    subgraph "Group mapping<br/>(Admin → Settings → LDAP)"
         M["{<br/>  &quot;devs&quot;: &quot;production&quot;,<br/>  &quot;sre&quot;: &quot;all&quot;<br/>}"]
     end
     subgraph User
@@ -394,9 +377,9 @@ flowchart LR
 
 Key rules:
 
-- LDAP **does not create** groups on the webgate side. The right-hand value of `WEBGATE_LDAP_GROUP_MAP` must match exactly what you typed in `Server.group`.
+- LDAP **does not create** groups on the webgate side. The right-hand value of the group mapping must match exactly what you typed in `Server.group`.
 - An LDAP group that isn't in the map is silently ignored.
-- `WEBGATE_LDAP_ADMIN_GROUPS` is independent of the map: any membership in those groups grants admin (and admins see all servers).
+- **Admin groups** is independent of the map: any membership in those groups grants admin (and admins see all servers).
 - **Tags** are never used for access control, only for filtering / search in the UI.
 
 ### LDAP authentication
@@ -692,6 +675,9 @@ The demo middleware blocks all writes on `/api/*` (login, terminal share and tot
 | **Servers** | `GET/POST/PUT/DELETE /api/servers`, `POST /api/servers/{id}/test`, `GET /api/servers/groups`, `POST /api/servers/import`, `GET /api/servers/export`, `GET /api/servers/status` |
 | **Terminal** | `WS /api/ws/terminal/{server_id}` (owner), `WS /api/ws/terminal/quick` (one-off), `WS /api/ws/terminal/join/{token}?mode=rw\|ro` (joiner), `POST/DELETE /api/terminal/share/{session_id}` |
 | **Files (SFTP)** | `GET /ls`, `GET /read`, `GET /download`, `GET /download-zip` (one directory), `POST /download-zip` (a chosen selection), `POST /upload`, `PUT /write`, `POST /mkdir`, `POST /rename`, `DELETE /delete`, `POST /chmod`, `GET /stat` (all under `/api/files/{server_id}/`) |
+| **Settings** | `GET /api/settings`, `PUT /api/settings`, `POST /api/settings/reset` (admin only) |
+| **Agent** | `GET/PUT /api/agent/settings`, `POST /api/agent/models`, `POST /api/agent/chat/{server_id}`, `GET/DELETE /api/agent/conversations/{server_id}`, `GET /api/agent/findings` |
+| **Branding** | `GET /api/branding` (public), `PUT/DELETE /api/branding` (admin only) |
 | **Backup** | `POST /api/backup/export`, `POST /api/backup/restore` (admin only) |
 | **Snippets** | `GET/POST /api/snippets`, `DELETE /api/snippets/{id}` |
 | **Webhooks** | `GET/POST /api/webhooks`, `PUT/DELETE /api/webhooks/{id}`, `POST /api/webhooks/{id}/test`, `GET /api/webhooks/events` |
@@ -758,6 +744,39 @@ docker compose -f compose.dev.yml up --build
 - Python 3.11+ (or just Docker)
 - 256 MB RAM minimum (512 MB recommended)
 - ~100 MB disk for the image plus your data (DB + uploaded SSH keys + recordings)
+
+## Legacy versions
+
+**v2.x is the only supported line.** Everything before it — v0.1 through v0.5.3 — is
+legacy: no fixes, no backports, and it is missing the security work v2 exists for.
+
+| | |
+|---|---|
+| **Supported** | v2.x |
+| **Legacy, unsupported** | v0.1.0 – v0.5.3 |
+
+If you are running v0.x, the thing to know is that **every SSH and SFTP connection it
+makes runs with host key verification disabled**. It authenticates to whatever answers
+on a server's address and hands it the stored credentials. That is fixed in v2.0.0, and
+it is the reason to move.
+
+Upgrading from v0.x is the same command as any other upgrade — the schema migrates
+itself, additively, and your servers, users and credentials come across untouched:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Two things change on first boot. Existing servers have no pinned host key, so the next
+connection to each one records what it presents and nothing breaks; from then on a
+changed key is refused. And `WEBGATE_MAX_UPLOAD_SIZE` and `WEBGATE_SESSION_TIMEOUT`,
+which v0.x accepted and ignored, now actually apply. Full detail:
+[Upgrading](docs/getting-started/upgrade.md).
+
+There is no v1.x. The jump from v0.5.3 to v2.0.0 was deliberate: the release changed
+what the product is responsible for, and a minor bump would have undersold that.
+
+---
 
 ## Roadmap
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.1.2 (2026-09-11) — the README stops describing an older product
+
+Documentation only. No code, schema or API changes.
+
+The README had been patched release by release and had drifted into describing a
+product that no longer exists.
+
+- **Every screenshot was from v0.3 or v0.4**, with a note admitting the interface had
+  been redesigned since. Replaced with ten taken from v2.1.1 — the Site Manager, a real
+  SSH session opened through a bastion, the file browser, the command palette, and the
+  admin panels for settings, the agent, branding and users, in both themes. The terminal
+  and file shots are live sessions against an SSH host, not mockups.
+- **v0.x is now marked legacy and unsupported**, with the reason stated plainly: every
+  connection it makes runs with host key verification disabled. The section also explains
+  why there is no v1.x.
+- **Instructions that stopped being true.** Session recording was still documented as
+  `WEBGATE_RECORD_SESSIONS=true`; LDAP group mapping and admin groups were still
+  described as environment variables. All three moved to the admin panel in v2.1.0.
+- **The API reference was missing three routers** — settings, agent and branding.
+- **The `beta` badge** is gone; `compose.yml` no longer offers to uncomment settings that
+  are now configured in the app.
+
+---
+
 ## v2.1.1 (2026-09-11) — architecture documentation
 
 Documentation only. No code, schema or API changes; upgrading is optional.
