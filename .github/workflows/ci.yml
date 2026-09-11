@@ -68,11 +68,17 @@ jobs:
           set -euo pipefail
 
           echo "--- refuses to start with the shipped default key ---"
-          if docker run --rm webgate:ci 2>&1 | tee /tmp/refusal | grep -q "WEBGATE_SECRET_KEY is still the shipped default"; then
-            echo "ok: refused"
-          else
-            echo "FAILED: started under the default key"; cat /tmp/refusal; exit 1
+          # Refusing means a non-zero exit, so the run cannot sit inside a pipeline
+          # under `pipefail` -- that would report the refusal as this step failing.
+          rc=0
+          docker run --rm webgate:ci > /tmp/refusal 2>&1 || rc=$?
+          cat /tmp/refusal
+          if [ "$rc" -eq 0 ]; then
+            echo "FAILED: started under the default key"; exit 1
           fi
+          grep -q "WEBGATE_SECRET_KEY is still the shipped default" /tmp/refusal \
+            || { echo "FAILED: refused, but not for the reason we expect"; exit 1; }
+          echo "ok: refused, with the message that says what to do"
 
           echo "--- starts and answers with a real key ---"
           docker run -d --name wg -p 8443:8443 \
