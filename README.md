@@ -713,6 +713,8 @@ uv run pyright src/
 uv build
 ```
 
+Every push runs the same checks in CI, plus a Docker build that has to start and answer, and a strict docs build. Cutting a release is one tag — see **[RELEASING.md](RELEASING.md)** for what that triggers and the one-time setup behind it.
+
 Or use the dev compose with a sandboxed SSH target ready to register:
 
 ```bash

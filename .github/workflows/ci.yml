@@ -1,0 +1,100 @@
+name: CI
+
+# Everything that must be true before a release can be cut. The release workflow
+# runs this same suite again on the tag rather than trusting that main was green.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:        # release.yml reuses this instead of duplicating it
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor from requires-python, and what development actually runs on.
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --all-extras --dev --python ${{ matrix.python-version }}
+
+      - name: Lint
+        run: uv run ruff check src/ tests/ scripts/
+
+      - name: Format check
+        run: uv run ruff format --check src/ tests/ scripts/
+
+      - name: Tests
+        run: uv run pytest tests/ -q
+
+  docker:
+    # A Dockerfile only breaks when someone builds it, and nobody was.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: webgate:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: It starts, serves, and refuses the default secret key
+        run: |
+          set -euo pipefail
+
+          echo "--- refuses to start with the shipped default key ---"
+          if docker run --rm webgate:ci 2>&1 | tee /tmp/refusal | grep -q "WEBGATE_SECRET_KEY is still the shipped default"; then
+            echo "ok: refused"
+          else
+            echo "FAILED: started under the default key"; cat /tmp/refusal; exit 1
+          fi
+
+          echo "--- starts and answers with a real key ---"
+          docker run -d --name wg -p 8443:8443 \
+            -e WEBGATE_SECRET_KEY="$(openssl rand -hex 32)" webgate:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8443/api/health >/dev/null 2>&1; then
+              echo "ok: healthy after ${i}s"
+              curl -fsS http://localhost:8443/openapi.json | grep -o '"version":"[^"]*"' | head -1
+              docker rm -f wg >/dev/null
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "FAILED: never became healthy"; docker logs wg; docker rm -f wg; exit 1
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install mkdocs-material mkdocstrings mkdocstrings-python
+      - name: Build the site (strict — a broken link fails here, not on deploy)
+        run: mkdocs build --strict

@@ -1,0 +1,63 @@
+name: Deploy demo
+
+# The public demo at webgate-demo.fly.dev. Deployed by hand until now, which is why
+# it spent months serving a version several releases behind the repository.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: demo
+      url: https://webgate-demo.fly.dev/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: The demo must already hold a real secret key
+        # Without it the app refuses to start, and the deploy would replace a working
+        # demo with a crash loop. Checking first turns that into a clear failure here.
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if flyctl secrets list --app webgate-demo | grep -q WEBGATE_SECRET_KEY; then
+            echo "ok: WEBGATE_SECRET_KEY is set"
+          else
+            echo "WEBGATE_SECRET_KEY is not set on the demo app. Run once:"
+            echo "  flyctl secrets set WEBGATE_SECRET_KEY=\$(openssl rand -hex 32) --app webgate-demo"
+            exit 1
+          fi
+
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only
+
+      - name: It is up, and it is the version we just released
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            got=$(curl -fsS https://webgate-demo.fly.dev/openapi.json 2>/dev/null \
+                  | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4) || got=""
+            if [ -n "$got" ]; then
+              echo "demo reports $got"
+              want="$(cat VERSION)"
+              [ "$got" = "$want" ] || { echo "expected $want"; exit 1; }
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "the demo never answered"; exit 1
