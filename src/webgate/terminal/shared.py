@@ -152,9 +152,7 @@ class SharedSessionManager:
             if remaining > 0:
                 await asyncio.sleep(min(remaining, IDLE_POLL))
                 continue
-            logger.info(
-                "Closing idle session %s after %.0fs", sess.session_id, sess.idle_seconds
-            )
+            logger.info("Closing idle session %s after %.0fs", sess.session_id, sess.idle_seconds)
             with contextlib.suppress(Exception):
                 await sess.broadcast(
                     f"\r\n\x1b[33m*** Disconnected after {limit}s idle ***\x1b[0m\r\n"

@@ -117,11 +117,7 @@ async def _search_file(client: SFTPClient, args: dict[str, Any]) -> str:
     if len(data) > MAX_READ_BYTES:
         data = data[-MAX_READ_BYTES:]
     needle = pattern.lower()
-    hits = [
-        line
-        for line in data.decode("utf-8", "replace").splitlines()
-        if needle in line.lower()
-    ]
+    hits = [line for line in data.decode("utf-8", "replace").splitlines() if needle in line.lower()]
     if not hits:
         return f"No line in {path} contains {pattern!r}."
     return f"{len(hits)} matching lines in {path} (last {min(limit, len(hits))}):\n" + "\n".join(
@@ -158,9 +154,7 @@ async def _largest_files(client: SFTPClient, args: dict[str, Any]) -> str:
     found.sort(reverse=True)
     total = sum(size for size, _ in found)
     body = "\n".join(f"{_fmt_size(size):>8}  {path}" for size, path in found[:limit])
-    return (
-        f"{len(found)} files under {root}, {_fmt_size(total)} total. Largest:\n{body}"
-    )
+    return f"{len(found)} files under {root}, {_fmt_size(total)} total. Largest:\n{body}"
 
 
 async def _find_recent(client: SFTPClient, args: dict[str, Any]) -> str:
@@ -288,9 +282,7 @@ def describe(name: str, arguments: dict[str, Any]) -> str:
     return f"sftp:{name}({', '.join(parts)})"
 
 
-async def run_sftp_tool(
-    client: SFTPClient, name: str, arguments: dict[str, Any]
-) -> str:
+async def run_sftp_tool(client: SFTPClient, name: str, arguments: dict[str, Any]) -> str:
     spec = SFTP_TOOLS.get(name)
     if spec is None:
         raise SftpToolError(f"{name!r} is not an available tool.")

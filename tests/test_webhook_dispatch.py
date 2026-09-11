@@ -21,7 +21,7 @@ def _no_leftovers():
     dispatcher._pending.clear()
 
 
-async def _hook(client, auth_headers, events="[\"*\"]"):
+async def _hook(client, auth_headers, events='["*"]'):
     import json as _json
 
     resp = await client.post(

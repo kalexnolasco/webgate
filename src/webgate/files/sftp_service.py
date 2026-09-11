@@ -98,9 +98,7 @@ class SFTPClient:
             if name in (".", ".."):
                 continue
             attrs = item.attrs
-            is_dir = (
-                bool(attrs.type == asyncssh.FILEXFER_TYPE_DIRECTORY) if attrs.type else False
-            )
+            is_dir = bool(attrs.type == asyncssh.FILEXFER_TYPE_DIRECTORY) if attrs.type else False
             size = attrs.size or 0
             perms = (
                 stat.filemode(attrs.permissions) if attrs.permissions is not None else "----------"
@@ -112,16 +110,18 @@ class SFTPClient:
                 if attrs.mtime is not None
                 else ""
             )
-            entries.append(FileEntry(
-                name=name,
-                path=posixpath.join(safe_path, name),
-                is_dir=is_dir,
-                size=size,
-                permissions=perms,
-                owner=owner,
-                group=group,
-                modified=mtime,
-            ))
+            entries.append(
+                FileEntry(
+                    name=name,
+                    path=posixpath.join(safe_path, name),
+                    is_dir=is_dir,
+                    size=size,
+                    permissions=perms,
+                    owner=owner,
+                    group=group,
+                    modified=mtime,
+                )
+            )
         entries.sort(key=lambda e: (not e.is_dir, e.name.lower()))
         return entries
 
@@ -129,9 +129,7 @@ class SFTPClient:
         safe_path = validate_path(path)
         attrs = await self.sftp.stat(safe_path)
         is_dir = bool(attrs.type == asyncssh.FILEXFER_TYPE_DIRECTORY) if attrs.type else False
-        perms = (
-            stat.filemode(attrs.permissions) if attrs.permissions is not None else "----------"
-        )
+        perms = stat.filemode(attrs.permissions) if attrs.permissions is not None else "----------"
         return FileEntry(
             name=posixpath.basename(safe_path),
             path=safe_path,

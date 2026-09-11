@@ -9,9 +9,7 @@ import pytest
 from webgate.files.sftp_service import SFTPClient
 
 PASSWD = (
-    b"root:x:0:0:root:/root:/bin/bash\n"
-    b"alex:x:1000:1000:Alex:/home/alex:/bin/bash\n"
-    b"broken-line\n"
+    b"root:x:0:0:root:/root:/bin/bash\nalex:x:1000:1000:Alex:/home/alex:/bin/bash\nbroken-line\n"
 )
 GROUP = b"root:x:0:\nalex:x:1000:\n"
 

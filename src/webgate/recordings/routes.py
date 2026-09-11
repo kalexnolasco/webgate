@@ -14,9 +14,7 @@ from webgate.db.engine import get_session
 from webgate.recordings.models import Recording, RecordingOut
 
 
-async def _user_from_query_token(
-    token: str, session: AsyncSession
-) -> UserOut:
+async def _user_from_query_token(token: str, session: AsyncSession) -> UserOut:
     """Resolve a user from a JWT or API key passed via ?token= query. Used by
     the play/download endpoints that open in a new browser tab where we can't
     set an Authorization header."""
@@ -30,6 +28,7 @@ async def _user_from_query_token(
     if u is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     return UserOut.model_validate(u)
+
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
 
@@ -46,9 +45,7 @@ async def list_recordings(session: SessionDep, user: CurrentUserDep) -> list[Rec
     return list(result.scalars().all())
 
 
-async def _get_recording_for(
-    session: AsyncSession, recording_id: int, user: UserOut
-) -> Recording:
+async def _get_recording_for(session: AsyncSession, recording_id: int, user: UserOut) -> Recording:
     stmt = select(Recording).where(Recording.id == recording_id)
     if not user.is_admin:
         stmt = stmt.where(Recording.user_id == user.id)
@@ -68,7 +65,8 @@ async def download_recording(
     if not p.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording file missing")
     return FileResponse(
-        path=str(p), media_type="application/x-asciicast",
+        path=str(p),
+        media_type="application/x-asciicast",
         filename=f"webgate-{rec.id}-{rec.server_name}.cast",
     )
 
@@ -136,9 +134,7 @@ async def cast_raw(
 
 
 @router.delete("/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_recording(
-    recording_id: int, session: SessionDep, user: CurrentUserDep
-) -> None:
+async def delete_recording(recording_id: int, session: SessionDep, user: CurrentUserDep) -> None:
     rec = await _get_recording_for(session, recording_id, user)
     p = Path(rec.file_path)
     if p.exists():

@@ -141,9 +141,9 @@ def test_a_mismatch_explains_both_possibilities_and_the_way_out():
     text = str(exc)
     assert "prod-web-01" in text
     assert "machine-in-the-middle" in text  # names the danger
-    assert "rebuilt host" in text           # and the innocent explanation
-    assert "Nothing was sent" in text       # what did NOT happen
-    assert "clear the pinned key" in text   # how to proceed
+    assert "rebuilt host" in text  # and the innocent explanation
+    assert "Nothing was sent" in text  # what did NOT happen
+    assert "clear the pinned key" in text  # how to proceed
 
 
 def test_other_errors_pass_through_untouched():
@@ -168,9 +168,7 @@ async def test_only_an_admin_can_clear_a_pin(client, auth_headers):
         json={"username": "plain", "password": "plainpass123", "allowed_groups": []},
     )
     token = (
-        await client.post(
-            "/api/auth/login", json={"username": "plain", "password": "plainpass123"}
-        )
+        await client.post("/api/auth/login", json={"username": "plain", "password": "plainpass123"})
     ).json()["access_token"]
     resp = await client.delete(
         f"/api/servers/{sid}/host-key", headers={"Authorization": f"Bearer {token}"}

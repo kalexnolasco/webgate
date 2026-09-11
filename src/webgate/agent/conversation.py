@@ -135,10 +135,7 @@ def trim(
     while _size(out) > budget_tokens and len(out) > keep_from + KEEP_RECENT_MESSAGES:
         del out[keep_from]
         # An assistant turn with tool_calls is meaningless without its results.
-        while (
-            len(out) > keep_from + KEEP_RECENT_MESSAGES
-            and out[keep_from].get("role") == "tool"
-        ):
+        while len(out) > keep_from + KEEP_RECENT_MESSAGES and out[keep_from].get("role") == "tool":
             del out[keep_from]
     if _size(out) <= budget_tokens:
         return out

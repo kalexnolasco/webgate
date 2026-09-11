@@ -30,14 +30,16 @@ async def test_ws_terminal_auth_required(app, auth_token):
         TestClient(app) as client,
         client.websocket_connect(f"/api/ws/terminal/quick?token={auth_token}") as ws,
     ):
-        ws.send_json({
-            "host": "127.0.0.1",
-            "port": 99999,
-            "username": "test",
-            "password": "test",
-            "cols": 80,
-            "rows": 24,
-        })
+        ws.send_json(
+            {
+                "host": "127.0.0.1",
+                "port": 99999,
+                "username": "test",
+                "password": "test",
+                "cols": 80,
+                "rows": 24,
+            }
+        )
         data = ws.receive_json()
         assert data["type"] == "error"
         assert "SSH connection failed" in data["message"]
@@ -49,12 +51,14 @@ async def test_ws_terminal_missing_host(app, auth_token):
         TestClient(app) as client,
         client.websocket_connect(f"/api/ws/terminal/quick?token={auth_token}") as ws,
     ):
-        ws.send_json({
-            "host": "",
-            "port": 22,
-            "username": "",
-            "password": "test",
-        })
+        ws.send_json(
+            {
+                "host": "",
+                "port": 22,
+                "username": "",
+                "password": "test",
+            }
+        )
         data = ws.receive_json()
         assert data["type"] == "error"
         assert "required" in data["message"]

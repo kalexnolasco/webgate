@@ -51,8 +51,12 @@ async def handle_terminal_ws(
     """Open an SSH session as the owner. The session is registered with the
     shared-session manager so other users can join via a share token."""
     session = SSHSession(
-        host=host, port=port, username=username,
-        password=password, private_key=private_key, jump_kwargs=jump_kwargs,
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+        private_key=private_key,
+        jump_kwargs=jump_kwargs,
     )
     try:
         await session.connect(cols=cols, rows=rows)
@@ -99,12 +103,16 @@ async def handle_join_ws(ws: WebSocket, share_token: str, username: str, mode: s
     participant = Participant(ws=ws, username=username, mode=mode)
     sess.participants.append(participant)
     with contextlib.suppress(Exception):
-        await ws.send_text(json.dumps({
-            "type": "joined",
-            "server": sess.server_label,
-            "owner": sess.owner_username,
-            "mode": mode,
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "joined",
+                    "server": sess.server_label,
+                    "owner": sess.owner_username,
+                    "mode": mode,
+                }
+            )
+        )
     try:
         await _client_input_loop(ws, sess.ssh, sess, username)
     finally:
@@ -113,7 +121,10 @@ async def handle_join_ws(ws: WebSocket, share_token: str, username: str, mode: s
 
 
 async def _client_input_loop(
-    ws: WebSocket, ssh: SSHSession, sess: SharedSession, username: str,
+    ws: WebSocket,
+    ssh: SSHSession,
+    sess: SharedSession,
+    username: str,
 ) -> None:
     """Receives input + control messages from one client and dispatches to
     the SSH process via the shared session (RO clients can only resize)."""

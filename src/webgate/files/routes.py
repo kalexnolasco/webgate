@@ -83,7 +83,9 @@ async def _sftp(
     server_id: int, session: AsyncSession, user: UserOut
 ) -> AsyncGenerator[tuple[SFTPClient, list[str], bool]]:
     server = await get_server(
-        session, server_id, user.id,
+        session,
+        server_id,
+        user.id,
         is_admin=user.is_admin,
         allowed_groups=user.allowed_groups if not user.is_admin else None,
     )
@@ -124,7 +126,10 @@ async def _sftp(
 
 @router.get("/{server_id}/ls", response_model=DirectoryListing)
 async def list_dir(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
+    server_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    path: str = "/",
 ) -> DirectoryListing:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
@@ -137,7 +142,10 @@ async def list_dir(
 
 @router.get("/{server_id}/stat", response_model=FileEntry)
 async def file_stat(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
+    server_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    path: str = "/",
 ) -> FileEntry:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
@@ -149,7 +157,10 @@ async def file_stat(
 
 @router.get("/{server_id}/read")
 async def read_file(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
+    server_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    path: str = "/",
 ) -> dict[str, str]:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
@@ -174,7 +185,10 @@ async def _read_upload(f: UploadFile, budget: Budget) -> bytes:
 
 @router.get("/{server_id}/download")
 async def download_file(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
+    server_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    path: str = "/",
 ) -> Response:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
@@ -197,7 +211,10 @@ async def download_file(
 
 @router.get("/{server_id}/download-zip")
 async def download_zip(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
+    server_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    path: str = "/",
 ) -> Response:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, _read_only):
         try:
@@ -267,8 +284,11 @@ async def download_zip_selection(
 
 @router.post("/{server_id}/upload")
 async def upload_files(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep,
-    path: str = "/", files: list[UploadFile] = [],  # noqa: B006
+    server_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    path: str = "/",
+    files: list[UploadFile] = [],  # noqa: B006
 ) -> dict[str, object]:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
@@ -288,10 +308,15 @@ async def upload_files(
                 data = await _read_upload(f, budget)
                 await client.upload(dest, data)
                 uploaded.append(dest)
-            await fire_webhook("sftp_upload", {
-                "user": current_user.username, "server_id": server_id,
-                "paths": uploaded, "count": len(uploaded),
-            })
+            await fire_webhook(
+                "sftp_upload",
+                {
+                    "user": current_user.username,
+                    "server_id": server_id,
+                    "paths": uploaded,
+                    "count": len(uploaded),
+                },
+            )
             return {"uploaded": uploaded, "count": len(uploaded)}
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
@@ -299,7 +324,10 @@ async def upload_files(
 
 @router.put("/{server_id}/write")
 async def write_file(
-    server_id: int, body: FileWriteRequest, session: SessionDep, current_user: CurrentUserDep,
+    server_id: int,
+    body: FileWriteRequest,
+    session: SessionDep,
+    current_user: CurrentUserDep,
 ) -> dict[str, str]:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
@@ -313,7 +341,10 @@ async def write_file(
 
 @router.post("/{server_id}/mkdir")
 async def make_dir(
-    server_id: int, body: MkdirRequest, session: SessionDep, current_user: CurrentUserDep,
+    server_id: int,
+    body: MkdirRequest,
+    session: SessionDep,
+    current_user: CurrentUserDep,
 ) -> dict[str, str]:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
@@ -327,7 +358,10 @@ async def make_dir(
 
 @router.post("/{server_id}/rename")
 async def rename_item(
-    server_id: int, body: RenameRequest, session: SessionDep, current_user: CurrentUserDep,
+    server_id: int,
+    body: RenameRequest,
+    session: SessionDep,
+    current_user: CurrentUserDep,
 ) -> dict[str, str]:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
@@ -342,16 +376,24 @@ async def rename_item(
 
 @router.delete("/{server_id}/delete")
 async def delete_item(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep, path: str = "/",
+    server_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    path: str = "/",
 ) -> dict[str, str]:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:
             check_read_only(read_only)
             check_path_allowed(path, allowed_paths)
             await client.delete(path)
-            await fire_webhook("sftp_delete", {
-                "user": current_user.username, "server_id": server_id, "path": path,
-            })
+            await fire_webhook(
+                "sftp_delete",
+                {
+                    "user": current_user.username,
+                    "server_id": server_id,
+                    "path": path,
+                },
+            )
             return {"path": validate_path(path), "status": "deleted"}
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
@@ -359,7 +401,10 @@ async def delete_item(
 
 @router.post("/{server_id}/chmod")
 async def chmod_item(
-    server_id: int, body: ChmodRequest, session: SessionDep, current_user: CurrentUserDep,
+    server_id: int,
+    body: ChmodRequest,
+    session: SessionDep,
+    current_user: CurrentUserDep,
 ) -> dict[str, str]:
     async with _sftp(server_id, session, current_user) as (client, allowed_paths, read_only):
         try:

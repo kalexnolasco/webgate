@@ -343,8 +343,14 @@ async def restore_backup(
             brand_row = None
         if brand_row is not None:
             for field in (
-                "app_name", "tagline", "favicon_emoji", "colors",
-                "colors_dark", "logo", "login_image", "favicon",
+                "app_name",
+                "tagline",
+                "favicon_emoji",
+                "colors",
+                "colors_dark",
+                "logo",
+                "login_image",
+                "favicon",
             ):
                 setattr(existing, field, brand_row.get(field) or "")
 

@@ -83,9 +83,7 @@ def _visible(stmt, user_id: int, server_ids: list[int] | None):
         return stmt
     if not server_ids:
         return stmt.where(AgentFinding.user_id == user_id)
-    return stmt.where(
-        or_(AgentFinding.user_id == user_id, AgentFinding.server_id.in_(server_ids))
-    )
+    return stmt.where(or_(AgentFinding.user_id == user_id, AgentFinding.server_id.in_(server_ids)))
 
 
 async def search_keywords(
@@ -151,9 +149,7 @@ async def purge_older_than(session: AsyncSession, days: int) -> int:
     cutoff = datetime.now().timestamp() - days * 86400
     stmt = select(AgentFinding.id, AgentFinding.created_at)
     rows = (await session.execute(stmt)).all()
-    stale = [
-        row.id for row in rows if row.created_at and row.created_at.timestamp() < cutoff
-    ]
+    stale = [row.id for row in rows if row.created_at and row.created_at.timestamp() < cutoff]
     if stale:
         await session.execute(delete(AgentFinding).where(AgentFinding.id.in_(stale)))
         await session.commit()

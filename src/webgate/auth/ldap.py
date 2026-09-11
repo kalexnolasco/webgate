@@ -114,8 +114,11 @@ def _authenticate_sync(username: str, password: str) -> LdapResult | None:
     # Re-bind as the user with their password to verify credentials.
     try:
         user_conn = Connection(
-            _server(), user=user_dn, password=password,
-            authentication=SIMPLE, auto_bind=True,
+            _server(),
+            user=user_dn,
+            password=password,
+            authentication=SIMPLE,
+            auto_bind=True,
         )
     except LDAPException:
         return None

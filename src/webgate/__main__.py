@@ -50,9 +50,7 @@ def _is_loopback(host: str) -> bool:
         return False
 
 
-def check_secret_key(
-    secret: str, host: str, *, allow_insecure: bool = False
-) -> str | None:
+def check_secret_key(secret: str, host: str, *, allow_insecure: bool = False) -> str | None:
     """The reason to refuse to start, or None to go ahead.
 
     A default key on a loopback bind is someone trying webgate out, and warning is

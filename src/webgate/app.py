@@ -104,12 +104,13 @@ def create_app() -> FastAPI:
         # terminal feature -- but only the exact two routes, not any URL
         # that starts with /api/terminal/share/.
         import re as _re
+
         WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
         # (method, compiled regex of full path)
         DEMO_WRITE_ALLOWLIST: list[tuple[str, _re.Pattern[str]]] = [
-            ("POST",   _re.compile(r"^/api/auth/login$")),
-            ("POST",   _re.compile(r"^/api/auth/totp/verify$")),
-            ("POST",   _re.compile(r"^/api/terminal/share/[\w-]+$")),
+            ("POST", _re.compile(r"^/api/auth/login$")),
+            ("POST", _re.compile(r"^/api/auth/totp/verify$")),
+            ("POST", _re.compile(r"^/api/terminal/share/[\w-]+$")),
             ("DELETE", _re.compile(r"^/api/terminal/share/[\w-]+$")),
         ]
 
@@ -118,8 +119,7 @@ def create_app() -> FastAPI:
             path = request.url.path
             if request.method in WRITE_METHODS and path.startswith("/api/"):
                 allowed = any(
-                    m == request.method and rx.match(path)
-                    for m, rx in DEMO_WRITE_ALLOWLIST
+                    m == request.method and rx.match(path) for m, rx in DEMO_WRITE_ALLOWLIST
                 )
                 if not allowed:
                     return JSONResponse(

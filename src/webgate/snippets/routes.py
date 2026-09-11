@@ -23,9 +23,7 @@ async def list_snippets(session: SessionDep, user: CurrentUserDep) -> list[Snipp
 
 
 @router.post("", response_model=SnippetOut, status_code=status.HTTP_201_CREATED)
-async def create_snippet(
-    body: SnippetCreate, session: SessionDep, user: CurrentUserDep
-) -> Snippet:
+async def create_snippet(body: SnippetCreate, session: SessionDep, user: CurrentUserDep) -> Snippet:
     snippet = Snippet(
         name=body.name, command=body.command, description=body.description, user_id=user.id
     )

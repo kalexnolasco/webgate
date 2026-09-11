@@ -57,6 +57,8 @@ def _lease_ttl() -> int:
     admin can stretch the interval, the lease has to follow it.
     """
     return max(LEASE_TTL_FLOOR, int(_interval() * 1.5))
+
+
 LEASE_RENEW = 30  # seconds; heartbeat interval
 
 
@@ -235,7 +237,9 @@ class ServerMonitor:
             decrypt_value(server.encrypted_private_key) if server.encrypted_private_key else None
         )
         kwargs: dict[str, object] = {
-            "host": server.hostname, "port": server.port, "username": server.username,
+            "host": server.hostname,
+            "port": server.port,
+            "username": server.username,
             "known_hosts": known_hosts_for(getattr(server, "host_key", "") or ""),
         }
         now = datetime.now(UTC)

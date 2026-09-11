@@ -17,8 +17,14 @@ from webgate.servers.monitor import ServerMonitor
 
 def _server(**kw) -> Server:
     defaults = dict(
-        id=1, name="prod-web-01", hostname="192.0.2.1", port=22, username="root",
-        auth_method="password", encrypted_password="", encrypted_private_key="",
+        id=1,
+        name="prod-web-01",
+        hostname="192.0.2.1",
+        port=22,
+        username="root",
+        auth_method="password",
+        encrypted_password="",
+        encrypted_private_key="",
         host_key="",
     )
     return Server(**{**defaults, **kw})

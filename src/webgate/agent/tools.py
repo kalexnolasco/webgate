@@ -58,8 +58,7 @@ READ_ONLY_COMMANDS: dict[str, Command] = {
             name="load_and_processes",
             description="Load average and the top processes by CPU and memory.",
             template=(
-                "uptime; echo '---'; "
-                "ps -eo pid,user,pcpu,pmem,etime,cmd --sort=-pcpu | head -n 15"
+                "uptime; echo '---'; ps -eo pid,user,pcpu,pmem,etime,cmd --sort=-pcpu | head -n 15"
             ),
         ),
         Command(

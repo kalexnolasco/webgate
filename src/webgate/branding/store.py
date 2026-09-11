@@ -172,8 +172,16 @@ def _view(row: Branding | None) -> BrandingView:
         login_image=row.login_image or "",
         favicon=row.favicon or "",
         customised=any(
-            [row.app_name, row.tagline, row.favicon_emoji, colors, colors_dark,
-             row.logo, row.login_image, row.favicon]
+            [
+                row.app_name,
+                row.tagline,
+                row.favicon_emoji,
+                colors,
+                colors_dark,
+                row.logo,
+                row.login_image,
+                row.favicon,
+            ]
         ),
     )
 

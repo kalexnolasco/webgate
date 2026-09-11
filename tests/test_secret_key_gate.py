@@ -15,8 +15,8 @@ from webgate.__main__ import DEFAULT_SECRET, check_secret_key
 def test_the_default_key_on_a_reachable_address_stops_startup(host):
     refusal = check_secret_key(DEFAULT_SECRET, host)
     assert refusal is not None
-    assert "openssl rand -hex 32" in refusal          # the exact fix
-    assert "Backup" in refusal                        # and what it costs on an existing install
+    assert "openssl rand -hex 32" in refusal  # the exact fix
+    assert "Backup" in refusal  # and what it costs on an existing install
     assert "WEBGATE_ALLOW_INSECURE_SECRET" in refusal  # and the way past it
 
 

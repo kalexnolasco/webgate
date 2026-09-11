@@ -40,9 +40,7 @@ def test_unseal_wrong_passphrase_fails():
 async def _make_fleet(client: AsyncClient, headers: dict[str, str]) -> None:
     """A bastion plus a server that hops through it."""
     bastion = (await client.post("/api/servers", headers=headers, json=BASTION)).json()
-    await client.post(
-        "/api/servers", headers=headers, json={**WEB, "jump_via_id": bastion["id"]}
-    )
+    await client.post("/api/servers", headers=headers, json={**WEB, "jump_via_id": bastion["id"]})
 
 
 @pytest.mark.asyncio
@@ -94,9 +92,7 @@ async def test_backup_records_jump_host_by_name_not_id(client, auth_headers):
 async def test_restore_rejects_wrong_passphrase(client, auth_headers):
     await _make_fleet(client, auth_headers)
     data = (
-        await client.post(
-            "/api/backup/export", headers=auth_headers, json={"passphrase": "right"}
-        )
+        await client.post("/api/backup/export", headers=auth_headers, json={"passphrase": "right"})
     ).json()
 
     resp = await client.post(
@@ -112,9 +108,7 @@ async def test_restore_rejects_wrong_passphrase(client, auth_headers):
 async def test_restore_requires_passphrase_for_sealed_backup(client, auth_headers):
     await _make_fleet(client, auth_headers)
     data = (
-        await client.post(
-            "/api/backup/export", headers=auth_headers, json={"passphrase": "p"}
-        )
+        await client.post("/api/backup/export", headers=auth_headers, json={"passphrase": "p"})
     ).json()
 
     resp = await client.post(
@@ -156,9 +150,7 @@ async def test_backup_requires_admin(client, auth_headers):
         json={"username": "plain", "password": "plainpass123", "allowed_groups": []},
     )
     token = (
-        await client.post(
-            "/api/auth/login", json={"username": "plain", "password": "plainpass123"}
-        )
+        await client.post("/api/auth/login", json={"username": "plain", "password": "plainpass123"})
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -197,9 +189,7 @@ async def test_server_import_rebuilds_jump_host_when_ids_shift(client, auth_head
             )
 
     created = (
-        await client.post(
-            "/api/servers/import", headers=auth_headers, json={"servers": exported}
-        )
+        await client.post("/api/servers/import", headers=auth_headers, json={"servers": exported})
     ).json()
 
     listed = (await client.get("/api/servers", headers=auth_headers)).json()
@@ -226,9 +216,7 @@ async def test_server_import_drops_unresolvable_jump_host(client, auth_headers):
         }
     ]
     created = (
-        await client.post(
-            "/api/servers/import", headers=auth_headers, json={"servers": exported}
-        )
+        await client.post("/api/servers/import", headers=auth_headers, json={"servers": exported})
     ).json()
     assert created[0]["jump_via_id"] is None
 
@@ -246,9 +234,7 @@ async def test_server_import_accepts_jump_via_name(client, auth_headers):
         },
     ]
     created = (
-        await client.post(
-            "/api/servers/import", headers=auth_headers, json={"servers": exported}
-        )
+        await client.post("/api/servers/import", headers=auth_headers, json={"servers": exported})
     ).json()
     gw = next(s for s in created if s["name"] == "gw")
     app = next(s for s in created if s["name"] == "app")

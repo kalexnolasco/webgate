@@ -32,9 +32,25 @@ INJECTIONS = [
 def test_every_command_is_read_only():
     """A reviewer should be able to see this list is harmless at a glance."""
     forbidden = (
-        "rm ", "mv ", "cp ", "dd ", "chmod", "chown", "kill", "reboot", "shutdown",
-        "systemctl start", "systemctl stop", "systemctl restart", "apt", "yum", "dnf",
-        "curl", "wget", "> ", ">>",
+        "rm ",
+        "mv ",
+        "cp ",
+        "dd ",
+        "chmod",
+        "chown",
+        "kill",
+        "reboot",
+        "shutdown",
+        "systemctl start",
+        "systemctl stop",
+        "systemctl restart",
+        "apt",
+        "yum",
+        "dnf",
+        "curl",
+        "wget",
+        "> ",
+        ">>",
     )
     for command in READ_ONLY_COMMANDS.values():
         lowered = command.template.lower()

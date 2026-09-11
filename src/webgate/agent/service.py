@@ -204,9 +204,7 @@ async def run_turn(
 
                 try:
                     label = (
-                        build_command(name, args)
-                        if surface == "ssh"
-                        else sftp_describe(name, args)
+                        build_command(name, args) if surface == "ssh" else sftp_describe(name, args)
                     )
                 except (ToolInputError, SftpToolError) as exc:
                     steps.append(AgentStep(command=f"{name}(rejected)", error=str(exc)))
@@ -259,9 +257,7 @@ async def run_turn(
                         exit_status = 0
                     body, was_trimmed = _trim(raw.strip() or "(no output)")
                     truncated = truncated or was_trimmed
-                    steps.append(
-                        AgentStep(command=label, exit_status=exit_status, output=body)
-                    )
+                    steps.append(AgentStep(command=label, exit_status=exit_status, output=body))
                     payload = f"exit={exit_status}\n{body}" if surface == "ssh" else body
                     tool_cache.put(server.id, label, body)
                 except TimeoutError:

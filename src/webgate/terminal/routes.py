@@ -91,9 +91,16 @@ async def ws_terminal_quick(ws: WebSocket) -> None:
 
     payload_username = str(payload.get("username", "user")) if payload else "user"
     await handle_terminal_ws(
-        ws, host=host, port=port, username=username,
-        password=password, private_key=private_key, cols=cols, rows=rows,
-        owner_username=payload_username, server_label=f"{username}@{host}",
+        ws,
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+        private_key=private_key,
+        cols=cols,
+        rows=rows,
+        owner_username=payload_username,
+        server_label=f"{username}@{host}",
     )
 
 
@@ -119,7 +126,9 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
 
         user_out = UserOut.model_validate(user)
         server = await get_server(
-            session, server_id, user_id,
+            session,
+            server_id,
+            user_id,
             is_admin=user_out.is_admin,
             allowed_groups=user_out.allowed_groups if not user_out.is_admin else None,
         )
@@ -150,10 +159,16 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
         await log_action(
             user_out.id, user_out.username, "ssh_connect", f"{server.hostname}:{server.port}"
         )
-        await fire_webhook("ssh_connect", {
-            "user": user_out.username, "server_id": server.id, "server": server.name,
-            "host": f"{server.hostname}:{server.port}", "via_jump": server.jump_via_id is not None,
-        })
+        await fire_webhook(
+            "ssh_connect",
+            {
+                "user": user_out.username,
+                "server_id": server.id,
+                "server": server.name,
+                "host": f"{server.hostname}:{server.port}",
+                "via_jump": server.jump_via_id is not None,
+            },
+        )
 
     # Optional session recording (asciinema cast v2)
     recording_id: int | None = None
@@ -166,8 +181,10 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
         recorder = CastRecorder(cast_path, cols=cols, rows=rows)
         async with _session_factory() as db:
             rec = Recording(
-                server_id=server.id, server_name=server.name,
-                user_id=user_out.id, username=user_out.username,
+                server_id=server.id,
+                server_name=server.name,
+                user_id=user_out.id,
+                username=user_out.username,
                 file_path=str(cast_path),
             )
             db.add(rec)
@@ -181,6 +198,7 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
         duration = recorder.duration
         async with _session_factory() as db:
             from sqlalchemy import select as _select
+
             found = await db.execute(_select(Recording).where(Recording.id == recording_id))
             row = found.scalar_one_or_none()
             if row is not None:

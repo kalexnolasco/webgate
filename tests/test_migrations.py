@@ -147,7 +147,7 @@ async def test_upgrading_keeps_the_rows(sandbox):
     conn = sqlite3.connect(sandbox)
     conn.execute(
         "INSERT INTO servers (name, hostname, port, username, auth_method, "
-        "encrypted_password, encrypted_private_key, \"group\", tags, description, "
+        'encrypted_password, encrypted_private_key, "group", tags, description, '
         "ssh_enabled, sftp_enabled, sftp_allowed_paths, user_id) "
         "VALUES ('prod-web-01', '10.0.0.9', 22, 'root', 'password', '', '', "
         "'prod', '[]', '', 1, 1, '[]', 1)"

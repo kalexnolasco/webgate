@@ -19,9 +19,7 @@ async def _plain_user(client, auth_headers):
         json={"username": "plain", "password": "plainpass123", "allowed_groups": []},
     )
     token = (
-        await client.post(
-            "/api/auth/login", json={"username": "plain", "password": "plainpass123"}
-        )
+        await client.post("/api/auth/login", json={"username": "plain", "password": "plainpass123"})
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -158,9 +156,7 @@ async def test_only_an_admin_sees_or_changes_settings(client, auth_headers):
     assert (
         await client.put("/api/settings", headers=headers, json={"values": {}})
     ).status_code == 403
-    assert (
-        await client.post("/api/settings/reset", headers=headers, json={})
-    ).status_code == 403
+    assert (await client.post("/api/settings/reset", headers=headers, json={})).status_code == 403
 
 
 @pytest.mark.asyncio

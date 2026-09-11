@@ -139,9 +139,7 @@ async def create_server(session: AsyncSession, data: ServerCreate, user_id: int)
     return server
 
 
-async def update_server(
-    session: AsyncSession, server: Server, data: ServerUpdate
-) -> Server:
+async def update_server(session: AsyncSession, server: Server, data: ServerUpdate) -> Server:
     if data.name is not None:
         server.name = data.name
     if data.hostname is not None:
@@ -155,9 +153,7 @@ async def update_server(
     if data.password is not None:
         server.encrypted_password = encrypt_value(data.password) if data.password else ""
     if data.private_key is not None:
-        server.encrypted_private_key = (
-            encrypt_value(data.private_key) if data.private_key else ""
-        )
+        server.encrypted_private_key = encrypt_value(data.private_key) if data.private_key else ""
     if data.group is not None:
         server.group = data.group
     if data.tags is not None:
@@ -257,9 +253,7 @@ async def list_groups(
     return [row[0] for row in result.all()]
 
 
-async def resolve_jump_creds(
-    session: AsyncSession, server: Server
-) -> dict[str, object] | None:
+async def resolve_jump_creds(session: AsyncSession, server: Server) -> dict[str, object] | None:
     """If `server` has a jump_via_id, return connect kwargs for the bastion.
 
     Returns None when no jump host is configured. Cycles are silently broken

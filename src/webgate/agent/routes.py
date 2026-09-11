@@ -270,9 +270,7 @@ async def delete_finding(
 
 
 @router.post("/findings/purge")
-async def purge_findings(
-    session: SessionDep, current_user: CurrentUserDep
-) -> dict[str, int]:
+async def purge_findings(session: SessionDep, current_user: CurrentUserDep) -> dict[str, int]:
     """Apply the retention window now. Findings hold production command output."""
     _require_admin(current_user)
     config = await _active_config(session)
@@ -304,9 +302,7 @@ async def _resolve_server(session: AsyncSession, server_id: int, current_user: U
     if server.ssh_enabled is False and server.sftp_enabled is False:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                f"{server.name} has both SSH and SFTP disabled, so there is no way in."
-            ),
+            detail=(f"{server.name} has both SSH and SFTP disabled, so there is no way in."),
         )
     return server
 
@@ -349,9 +345,7 @@ async def diagnose(
 
     model = (body.model or config.model or "").strip()
     if not model:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Choose a model first."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose a model first.")
 
     history = await conversation.load(session, current_user.id, server.id)
     try:

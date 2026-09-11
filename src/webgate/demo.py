@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 DEMO_USERNAME = "demo"
 DEMO_PASSWORD = "demo"
 
+
 def _bastion() -> ServerCreate:
     return ServerCreate(
         name="bastion",
@@ -75,8 +76,8 @@ async def seed_demo(session: AsyncSession) -> None:
 
     # Seed a few example snippets so the toolbar isn't empty
     existing_snippets = (
-        await session.execute(select(Snippet).where(Snippet.user_id == user.id))
-    ).scalars().all()
+        (await session.execute(select(Snippet).where(Snippet.user_id == user.id))).scalars().all()
+    )
     if not existing_snippets:
         for name, cmd, desc in [
             ("ls -lah", "ls -lah", "List files (long, human sizes, hidden)"),

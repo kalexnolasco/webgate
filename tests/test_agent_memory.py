@@ -37,9 +37,7 @@ async def test_keyword_search_finds_by_answer(db_session):
 async def test_keyword_search_requires_every_word(db_session):
     await _finding(db_session, answer="The disk was full.")
     assert await memory.search_keywords(db_session, "disk full", user_id=1, server_ids=None)
-    assert not await memory.search_keywords(
-        db_session, "disk memory", user_id=1, server_ids=None
-    )
+    assert not await memory.search_keywords(db_session, "disk memory", user_id=1, server_ids=None)
 
 
 @pytest.mark.asyncio
@@ -52,9 +50,7 @@ async def test_keyword_search_is_case_insensitive(db_session):
 async def test_keyword_search_can_be_scoped_to_one_server(db_session):
     await _finding(db_session, server_id=1, answer="disk full here")
     await _finding(db_session, server_id=2, answer="disk full there")
-    hits = await memory.search_keywords(
-        db_session, "disk", user_id=1, server_ids=None, server_id=2
-    )
+    hits = await memory.search_keywords(db_session, "disk", user_id=1, server_ids=None, server_id=2)
     assert len(hits) == 1
     assert hits[0].server_id == 2
 

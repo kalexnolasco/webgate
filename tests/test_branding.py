@@ -22,9 +22,7 @@ async def _plain_user(client, auth_headers):
         json={"username": "plain", "password": "plainpass123", "allowed_groups": []},
     )
     token = (
-        await client.post(
-            "/api/auth/login", json={"username": "plain", "password": "plainpass123"}
-        )
+        await client.post("/api/auth/login", json={"username": "plain", "password": "plainpass123"})
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -41,9 +39,9 @@ def test_a_valid_hex_colour_is_accepted():
 @pytest.mark.parametrize(
     "payload",
     [
-        "red",                                   # a name, not a hex value
-        "#12345",                                # wrong length
-        "#1a73e8; background: url(evil)",        # CSS injection through a colour
+        "red",  # a name, not a hex value
+        "#12345",  # wrong length
+        "#1a73e8; background: url(evil)",  # CSS injection through a colour
         "javascript:alert(1)",
         "var(--accent)",
         "#1a73e8/*",
@@ -86,11 +84,11 @@ def test_an_svg_is_accepted():
 @pytest.mark.parametrize(
     "payload",
     [
-        "https://evil.example.com/logo.png",       # a remote URL, not an upload
+        "https://evil.example.com/logo.png",  # a remote URL, not an upload
         "data:text/html;base64," + base64.b64encode(b"<script>").decode(),
-        "data:image/png,notbase64",                # missing the base64 marker
+        "data:image/png,notbase64",  # missing the base64 marker
         "data:image/png;base64,!!!not base64!!!",
-        "data:image/png;base64,",                  # empty
+        "data:image/png;base64,",  # empty
         "javascript:alert(1)",
     ],
 )
@@ -190,9 +188,7 @@ async def test_branding_travels_in_a_backup(client, auth_headers):
         headers=auth_headers,
         json={"app_name": "Acme Gateway", "colors": {"accent": "#1a73e8"}},
     )
-    backup = (
-        await client.post("/api/backup/export", headers=auth_headers, json={})
-    ).json()
+    backup = (await client.post("/api/backup/export", headers=auth_headers, json={})).json()
     assert backup["payload"]["branding"]["app_name"] == "Acme Gateway"
 
     await client.delete("/api/branding", headers=auth_headers)

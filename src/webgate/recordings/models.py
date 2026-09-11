@@ -11,9 +11,7 @@ class Recording(Base):
     __tablename__ = "recordings"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    server_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("servers.id"), nullable=True
-    )
+    server_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("servers.id"), nullable=True)
     server_name: Mapped[str] = mapped_column(String(255), default="")
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
     username: Mapped[str] = mapped_column(String(255), default="")

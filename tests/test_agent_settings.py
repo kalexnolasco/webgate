@@ -135,9 +135,7 @@ async def test_settings_are_admin_only(client, auth_headers):
         await client.put("/api/agent/settings", headers=headers, json={"enabled": True})
     ).status_code == 403
     assert (
-        await client.post(
-            "/api/agent/settings/test", headers=headers, json={"provider": "ollama"}
-        )
+        await client.post("/api/agent/settings/test", headers=headers, json={"provider": "ollama"})
     ).status_code == 403
 
 

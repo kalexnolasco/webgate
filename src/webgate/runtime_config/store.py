@@ -93,6 +93,7 @@ def _encode(spec: Spec, value: Any) -> str:
 
 async def refresh(session: AsyncSession | None = None) -> dict[str, Any]:
     """Reload the snapshot from the database."""
+
     async def _load(s: AsyncSession) -> dict[str, Any]:
         rows = (await s.execute(select(Setting))).scalars().all()
         loaded: dict[str, Any] = {}
@@ -122,9 +123,7 @@ async def refresh(session: AsyncSession | None = None) -> dict[str, Any]:
 # --------------------------------------------------------------------- writing
 
 
-async def apply(
-    session: AsyncSession, changes: dict[str, Any], *, actor: str
-) -> list[str]:
+async def apply(session: AsyncSession, changes: dict[str, Any], *, actor: str) -> list[str]:
     """Validate and store a batch of changes. Returns the keys that actually changed.
 
     The whole batch is validated before anything is written, so a typo in one field

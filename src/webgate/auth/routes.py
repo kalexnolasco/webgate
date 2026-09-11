@@ -56,9 +56,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 AuthDep = Annotated[HTTPAuthorizationCredentials, Depends(security)]
 
 
-async def get_current_user(
-    request: Request, credentials: AuthDep, session: SessionDep
-) -> UserOut:
+async def get_current_user(request: Request, credentials: AuthDep, session: SessionDep) -> UserOut:
     """Resolve the user from JWT or API key and enforce account-level gates
     (pending 2FA, forced password change). Only a short allowlist of endpoints
     can be hit while a user is in one of those states."""
@@ -93,14 +91,12 @@ async def get_current_user(
     if payload.get("pending_2fa") and path != "/api/auth/login":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Pending 2FA: submit totp_code via /api/auth/login to obtain a "
-                "session token"
-            ),
+            detail=("Pending 2FA: submit totp_code via /api/auth/login to obtain a session token"),
         )
     # Forced password change: only /api/auth/me and /api/auth/change-password are allowed.
     if user.must_change_password and path not in {
-        "/api/auth/me", "/api/auth/change-password",
+        "/api/auth/me",
+        "/api/auth/change-password",
     }:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -134,13 +130,14 @@ async def login(request: Request, body: UserLogin, session: SessionDep) -> Login
             # payload. Receivers (Slack, Discord, custom handlers) often
             # render it verbatim, and we don't want payloads that contain
             # terminal escapes, HTML, or 10 MB strings.
-            safe_username = "".join(
-                c for c in (body.username or "") if c.isprintable()
-            )[:64]
-            await fire_webhook("user_login_failed", {
-                "username": safe_username,
-                "ip": request.client.host if request.client else "",
-            })
+            safe_username = "".join(c for c in (body.username or "") if c.isprintable())[:64]
+            await fire_webhook(
+                "user_login_failed",
+                {
+                    "username": safe_username,
+                    "ip": request.client.host if request.client else "",
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
             )
@@ -160,9 +157,7 @@ async def login(request: Request, body: UserLogin, session: SessionDep) -> Login
         # Unreachable: local_ok requires a row, and the LDAP path creates one. Stated
         # rather than assumed, so the invariant is enforced instead of being something
         # every line below quietly relies on -- and it fails closed if it ever breaks.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     # Check if 2FA is enabled
     if user.totp_enabled and user.totp_secret:
@@ -176,9 +171,7 @@ async def login(request: Request, body: UserLogin, session: SessionDep) -> Login
             return LoginOut(requires_2fa=True, temp_token=temp_token)
         # Verify the TOTP code
         if not verify_totp(user.totp_secret, body.totp_code):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid 2FA code"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid 2FA code")
     token = create_access_token({"sub": str(user.id), "username": user.username})
     await log_action(
         user.id,
@@ -186,11 +179,14 @@ async def login(request: Request, body: UserLogin, session: SessionDep) -> Login
         "login",
         ip_address=request.client.host if request.client else "",
     )
-    await fire_webhook("user_login", {
-        "username": user.username,
-        "user_id": user.id,
-        "ip": request.client.host if request.client else "",
-    })
+    await fire_webhook(
+        "user_login",
+        {
+            "username": user.username,
+            "user_id": user.id,
+            "ip": request.client.host if request.client else "",
+        },
+    )
     return LoginOut(access_token=token)
 
 
@@ -271,9 +267,7 @@ async def reset_user_password(
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_user(
-    user_id: int, session: SessionDep, current_user: CurrentUserDep
-) -> None:
+async def remove_user(user_id: int, session: SessionDep, current_user: CurrentUserDep) -> None:
     _require_admin(current_user)
     user = await get_user_by_id(session, user_id)
     if not user:
@@ -312,9 +306,7 @@ async def totp_verify(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if not user.totp_secret:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Run TOTP setup first"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Run TOTP setup first")
     if not verify_totp(user.totp_secret, body.code):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid TOTP code")
     user.totp_enabled = True
@@ -368,9 +360,7 @@ async def create_api_key_endpoint(
     body: ApiKeyCreate, session: SessionDep, current_user: CurrentUserDep
 ) -> ApiKeyCreated:
     if not body.name.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required")
     key_obj, plaintext_key = await create_api_key(session, current_user.id, body.name.strip())
     return ApiKeyCreated(
         id=key_obj.id,
@@ -381,9 +371,7 @@ async def create_api_key_endpoint(
 
 
 @router.delete("/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def revoke_api_key(
-    key_id: int, session: SessionDep, current_user: CurrentUserDep
-) -> None:
+async def revoke_api_key(key_id: int, session: SessionDep, current_user: CurrentUserDep) -> None:
     deleted = await delete_api_key(session, key_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")

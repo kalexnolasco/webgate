@@ -112,9 +112,11 @@ async def test_import_export(client: AsyncClient, auth_headers: dict[str, str]):
 @pytest.mark.asyncio
 async def test_non_admin_cannot_create(client: AsyncClient, auth_headers: dict[str, str]):
     # Create non-admin user
-    await client.post("/api/auth/users", headers=auth_headers, json={
-        "username": "viewer", "password": "viewer", "allowed_groups": ["prod"]
-    })
+    await client.post(
+        "/api/auth/users",
+        headers=auth_headers,
+        json={"username": "viewer", "password": "viewer", "allowed_groups": ["prod"]},
+    )
     login = await client.post("/api/auth/login", json={"username": "viewer", "password": "viewer"})
     viewer_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
@@ -135,9 +137,11 @@ async def test_non_admin_sees_only_allowed_groups(
     )
 
     # Create user with access to prod only
-    await client.post("/api/auth/users", headers=auth_headers, json={
-        "username": "dev2", "password": "dev2", "allowed_groups": ["prod"]
-    })
+    await client.post(
+        "/api/auth/users",
+        headers=auth_headers,
+        json={"username": "dev2", "password": "dev2", "allowed_groups": ["prod"]},
+    )
     login = await client.post("/api/auth/login", json={"username": "dev2", "password": "dev2"})
     dev_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 

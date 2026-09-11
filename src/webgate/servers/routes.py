@@ -61,10 +61,15 @@ async def create(
 ) -> ServerOut:
     _require_admin(current_user)
     server = await create_server(session, body, current_user.id)
-    await fire_webhook("server_added", {
-        "id": server.id, "name": server.name, "hostname": server.hostname,
-        "by": current_user.username,
-    })
+    await fire_webhook(
+        "server_added",
+        {
+            "id": server.id,
+            "name": server.name,
+            "hostname": server.hostname,
+            "by": current_user.username,
+        },
+    )
     return server_to_out(server)
 
 
@@ -190,9 +195,7 @@ async def single_status(server_id: int, current_user: CurrentUserDep) -> dict[st
 
 
 @router.get("/{server_id}", response_model=ServerOut)
-async def get_one(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep
-) -> ServerOut:
+async def get_one(server_id: int, session: SessionDep, current_user: CurrentUserDep) -> ServerOut:
     server = await get_server(session, server_id, current_user.id, **_user_kwargs(current_user))
     if not server:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
@@ -212,9 +215,7 @@ async def update(
 
 
 @router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete(
-    server_id: int, session: SessionDep, current_user: CurrentUserDep
-) -> None:
+async def delete(server_id: int, session: SessionDep, current_user: CurrentUserDep) -> None:
     _require_admin(current_user)
     server = await get_server(session, server_id, current_user.id, is_admin=True)
     if not server:

@@ -168,9 +168,7 @@ async def test_chat_endpoints_respect_the_server_opt_in(client, auth_headers):
     sid = srv.json()["id"]
     assert (await client.get(f"/api/agent/chat/{sid}", headers=auth_headers)).status_code == 403
 
-    await client.put(
-        f"/api/servers/{sid}", headers=auth_headers, json={"agent_enabled": True}
-    )
+    await client.put(f"/api/servers/{sid}", headers=auth_headers, json={"agent_enabled": True})
     resp = await client.get(f"/api/agent/chat/{sid}", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json() == {"server": "no-agent", "turns": [], "exchanges": 0}
@@ -184,8 +182,7 @@ def test_the_host_preamble_is_not_shown_as_the_users_words():
             {
                 "role": "user",
                 "content": (
-                    "Host: prod-web-01 (deploy@10.0.0.5:22)\n"
-                    "Description: none\n\nWhy is it slow?"
+                    "Host: prod-web-01 (deploy@10.0.0.5:22)\nDescription: none\n\nWhy is it slow?"
                 ),
             },
             {"role": "assistant", "content": "answer"},
