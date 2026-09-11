@@ -444,7 +444,8 @@ panel becomes read-only.
 
 | Variable | Default | Description | Why not in the panel |
 |---|---|---|---|
-| `WEBGATE_SECRET_KEY` | `change-me-in-production` | JWT signing + Fernet credential encryption (set this!) | It decrypts what is in the database, so it cannot live there |
+| `WEBGATE_SECRET_KEY` | *none — you must set it* | Signs session tokens and derives the Fernet key for stored credentials. **webgate refuses to start** with the shipped default on any address other than loopback | It decrypts what is in the database, so it cannot live there |
+| `WEBGATE_ALLOW_INSECURE_SECRET` | `false` | Start anyway with the default key. Only sensible where nothing else can reach the machine | It is the override itself |
 | `WEBGATE_DB_URL` | `sqlite+aiosqlite:///./webgate.db` | SQLAlchemy async URL. Use `postgresql+asyncpg://user:pass@host:5432/webgate` for Postgres | It is how the database is reached |
 | `WEBGATE_HOST` | `0.0.0.0` | Bind address | Read before the app can serve a request |
 | `WEBGATE_PORT` | `8443` | Bind port | Read before the app can serve a request |
@@ -699,9 +700,13 @@ uv run uvicorn webgate.app:create_app --factory --reload --host 0.0.0.0 --port 8
 uv run pytest tests/ -v
 uv run pytest tests/ -v --cov=webgate
 
-# lint + types
+# lint — clean, and expected to stay that way
 uv run ruff check src/ tests/
 uv run ruff format src/ tests/
+
+# types — pyright runs in strict mode and does NOT pass yet (~100 findings,
+# about 80 of them `reportUnknown*` where asyncssh and ldap3 ship no type
+# information). Treat a change to that count as the signal, not zero.
 uv run pyright src/
 
 # build wheel
@@ -729,6 +734,7 @@ docker compose -f compose.dev.yml up --build
 
 - **Host keys are verified** — trust on first use. The first connection to a server records the key it presents; every connection after that is checked against it *before authentication runs*, so a mismatch sends nothing. Accepting a changed key is a deliberate, audited admin action. This covers the terminal, SFTP, the connection pool, the status monitor, the agent and jump hosts
 - All SSH passwords and private keys are encrypted at rest with **Fernet** (key derived from `WEBGATE_SECRET_KEY`)
+- **The default secret key is refused.** That key signs every session token and derives the credential encryption key, and its default is published in this repository — a deployment that never changed it will hand a valid admin token to anyone who asks. webgate now stops at startup rather than serving under it, unless it is bound to loopback only
 - Passwords use **bcrypt**; sessions use **JWT** (HS256)
 - **2FA TOTP** available per user
 - **API keys** for non-interactive auth (`Authorization: Bearer wg_…`)

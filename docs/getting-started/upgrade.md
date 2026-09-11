@@ -70,6 +70,35 @@ is the expected outcome, not an error. Every instance ends up on the same schema
 Roll one worker at a time if you want zero downtime; mixed versions are fine during the
 rollout precisely because the schema is additive.
 
+## Upgrading to v2.2.0
+
+**If you never set `WEBGATE_SECRET_KEY`, webgate will now refuse to start.** That key
+signs every session token and derives the key that encrypts stored SSH credentials, and
+its default is published in this repository — anyone can mint an admin token for a
+deployment still using it.
+
+Setting a real key invalidates existing sessions and makes already-stored credentials
+unreadable, so migrate deliberately:
+
+1. **Before upgrading**, export a backup: **Admin → Backup & restore**, or
+   `POST /api/backup/export`. The bundle is passphrase-encrypted and independent of the
+   secret key, which is what makes this possible.
+2. Set the key and start:
+
+    ```bash
+    export WEBGATE_SECRET_KEY=$(openssl rand -hex 32)
+    docker compose up -d
+    ```
+
+3. Restore the backup. Servers, users and credentials come back, re-encrypted under the
+   new key.
+
+If you need to postpone, `WEBGATE_ALLOW_INSECURE_SECRET=true` starts anyway. It is an
+explicit choice rather than a silent default, which is the whole point.
+
+Binding to loopback only (`WEBGATE_HOST=127.0.0.1`) warns instead of refusing — trying
+webgate out on your own machine should not need a ceremony.
+
 ## Upgrading to v2.0.0
 
 Two changes are worth knowing about before you pull.

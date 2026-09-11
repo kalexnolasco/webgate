@@ -87,7 +87,7 @@ class ServerMonitor:
 
     async def start(self) -> None:
         if runtime.get("disable_monitor"):
-            logger.info("Monitor disabled by WEBGATE_DISABLE_MONITOR (instance %s)", self._instance_id)
+            logger.info("Monitor disabled (instance %s)", self._instance_id)
             return
         await self._ensure_lease_table()
         self._task = asyncio.create_task(self._loop())
@@ -131,16 +131,26 @@ class ServerMonitor:
         new_expiry = now + timedelta(seconds=_lease_ttl())
         async with engine.begin() as conn:
             try:
-                row = (await conn.execute(text("SELECT instance_id, expires_at FROM monitor_lease WHERE id = 1"))).fetchone()
+                lease = await conn.execute(
+                    text("SELECT instance_id, expires_at FROM monitor_lease WHERE id = 1")
+                )
+                row = lease.fetchone()
                 if row is None:
                     await conn.execute(
-                        text("INSERT INTO monitor_lease (id, instance_id, expires_at) VALUES (1, :iid, :exp)"),
+                        text(
+                            "INSERT INTO monitor_lease (id, instance_id, expires_at) "
+                            "VALUES (1, :iid, :exp)"
+                        ),
                         {"iid": self._instance_id, "exp": new_expiry},
                     )
                     return True
                 # Postgres returns datetime, SQLite may return a string.
                 expires_raw = row[1]
-                expires = expires_raw if isinstance(expires_raw, datetime) else datetime.fromisoformat(str(expires_raw))
+                expires = (
+                    expires_raw
+                    if isinstance(expires_raw, datetime)
+                    else datetime.fromisoformat(str(expires_raw))
+                )
                 if expires.tzinfo is not None:
                     expires = expires.astimezone(UTC).replace(tzinfo=None)
                 if row[0] == self._instance_id or expires < now:
@@ -188,7 +198,10 @@ class ServerMonitor:
                     if now - last_renew > LEASE_RENEW:
                         renewed = await self._try_claim()
                         if not renewed:
-                            logger.warning("Lost monitor lease (instance %s) -> stepping down", self._instance_id)
+                            logger.warning(
+                                "Lost monitor lease (instance %s) -> stepping down",
+                                self._instance_id,
+                            )
                             self._is_leader = False
                             await asyncio.sleep(LEASE_RENEW)
                             continue

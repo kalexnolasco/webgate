@@ -8,7 +8,6 @@ startup instead of being swallowed, and two HA workers racing to apply the same
 change.
 """
 
-import inspect
 import re
 import sqlite3
 from pathlib import Path
@@ -105,27 +104,22 @@ def test_no_column_is_migrated_twice():
 def test_every_model_table_is_registered_for_creation():
     """A model in a module nobody imports is a table that never gets created.
 
-    This reads the source of `_import_models` rather than `Base.metadata`, which any
-    other test module can populate by importing a model itself -- that would make the
-    guard pass or fail depending on test order.
+    This reads the declared list rather than `Base.metadata`, which any other test
+    module can populate by importing a model itself -- that would make the guard pass
+    or fail depending on test order.
     """
-    modules = sorted(
-        {
-            path.relative_to(SRC.parent).with_suffix("").as_posix().replace("/", ".")
-            for path in SRC.rglob("*.py")
-            if "__tablename__" in path.read_text("utf-8")
-        }
-    )
+    modules = {
+        path.relative_to(SRC.parent).with_suffix("").as_posix().replace("/", ".")
+        for path in SRC.rglob("*.py")
+        if "__tablename__" in path.read_text("utf-8")
+    }
     assert modules, "found no models at all; the search is wrong"
 
-    source = inspect.getsource(E._import_models)
-    for dotted in modules:
-        package, _, name = dotted.rpartition(".")
-        pattern = rf"from\s+{re.escape(package)}\s+import\s+[^\n]*\b{re.escape(name)}\b"
-        assert re.search(pattern, source), (
-            f"{dotted} declares a table but _import_models() does not import it, "
-            f"so create_all would never see it"
-        )
+    missing = modules - set(E.MODEL_MODULES)
+    assert not missing, (
+        f"{sorted(missing)} declare tables but are not in MODEL_MODULES, "
+        f"so create_all would never see them"
+    )
 
 
 # -------------------------------------------------------------------- upgrading

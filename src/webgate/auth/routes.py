@@ -8,8 +8,6 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
-limiter = Limiter(key_func=get_remote_address)
-
 from webgate.audit.models import AuditOut
 from webgate.audit.service import get_audit_log, log_action
 from webgate.auth.ldap import authenticate_ldap
@@ -48,6 +46,8 @@ from webgate.auth.service import (
 )
 from webgate.db.engine import get_session
 from webgate.webhooks.dispatcher import fire as fire_webhook
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 security = HTTPBearer()
@@ -90,12 +90,14 @@ async def get_current_user(
 
     path = request.url.path
     # Pre-2FA temp token: only /api/auth/login is allowed (for the code step).
-    if payload.get("pending_2fa"):
-        if path != "/api/auth/login":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Pending 2FA: submit totp_code via /api/auth/login to obtain a session token",
-            )
+    if payload.get("pending_2fa") and path != "/api/auth/login":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Pending 2FA: submit totp_code via /api/auth/login to obtain a "
+                "session token"
+            ),
+        )
     # Forced password change: only /api/auth/me and /api/auth/change-password are allowed.
     if user.must_change_password and path not in {
         "/api/auth/me", "/api/auth/change-password",
@@ -153,6 +155,15 @@ async def login(request: Request, body: UserLogin, session: SessionDep) -> Login
         user.allowed_groups = json.dumps(ldap_result.allowed_groups)
         await session.commit()
         await session.refresh(user)
+
+    if user is None:
+        # Unreachable: local_ok requires a row, and the LDAP path creates one. Stated
+        # rather than assumed, so the invariant is enforced instead of being something
+        # every line below quietly relies on -- and it fails closed if it ever breaks.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        )
+
     # Check if 2FA is enabled
     if user.totp_enabled and user.totp_secret:
         if not body.totp_code:
@@ -388,4 +399,6 @@ async def audit_log_endpoint(
     action: str | None = None,
 ) -> list[AuditOut]:
     _require_admin(current_user)
-    return await get_audit_log(session, limit=limit, offset=offset, username=username, action=action)
+    return await get_audit_log(
+        session, limit=limit, offset=offset, username=username, action=action
+    )

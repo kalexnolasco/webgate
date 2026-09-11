@@ -123,10 +123,16 @@ async def test_non_admin_cannot_create(client: AsyncClient, auth_headers: dict[s
 
 
 @pytest.mark.asyncio
-async def test_non_admin_sees_only_allowed_groups(client: AsyncClient, auth_headers: dict[str, str]):
+async def test_non_admin_sees_only_allowed_groups(
+    client: AsyncClient, auth_headers: dict[str, str]
+):
     # Create servers in two groups
     await client.post("/api/servers", headers=auth_headers, json={**SERVER_DATA, "group": "prod"})
-    await client.post("/api/servers", headers=auth_headers, json={**SERVER_DATA, "name": "stg", "group": "staging"})
+    await client.post(
+        "/api/servers",
+        headers=auth_headers,
+        json={**SERVER_DATA, "name": "stg", "group": "staging"},
+    )
 
     # Create user with access to prod only
     await client.post("/api/auth/users", headers=auth_headers, json={

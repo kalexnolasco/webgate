@@ -1,3 +1,4 @@
+import contextlib
 from pathlib import Path
 from typing import Annotated
 
@@ -88,10 +89,12 @@ async def play_recording(
 <html><head>
 <meta charset="utf-8">
 <meta name="referrer" content="no-referrer">
-<title>webgate replay #{rec.id} — {rec.server_name}</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.7.0/dist/bundle/asciinema-player.css" referrerpolicy="no-referrer">
+<title>webgate replay #{rec.id} &mdash; {rec.server_name}</title>
+<link rel="stylesheet" referrerpolicy="no-referrer"
+      href="https://cdn.jsdelivr.net/npm/asciinema-player@3.7.0/dist/bundle/asciinema-player.css">
 <style>
-  body {{ background:#1a1b26; color:#c0caf5; font-family:system-ui,sans-serif; margin:0; padding:20px; }}
+  body {{ background:#1a1b26; color:#c0caf5; margin:0; padding:20px;
+          font-family:system-ui,sans-serif; }}
   .meta {{ display:flex; gap:24px; font-size:13px; margin-bottom:16px; color:#9ba3c5; }}
   .meta b {{ color:#fff; }}
   #player {{ max-width:1100px; }}
@@ -105,7 +108,8 @@ async def play_recording(
   <span>💾 {rec.size_bytes:,} bytes</span>
 </div>
 <div id=\"player\"></div>
-<script src=\"https://cdn.jsdelivr.net/npm/asciinema-player@3.7.0/dist/bundle/asciinema-player.min.js\" referrerpolicy="no-referrer"></script>
+<script referrerpolicy="no-referrer"
+        src=\"https://cdn.jsdelivr.net/npm/asciinema-player@3.7.0/dist/bundle/asciinema-player.min.js\"></script>
 <script>
   AsciinemaPlayer.create('cast?token={token}', document.getElementById('player'),
     {{ idleTimeLimit: 2, theme: 'tango', fit: 'width' }});
@@ -138,9 +142,7 @@ async def delete_recording(
     rec = await _get_recording_for(session, recording_id, user)
     p = Path(rec.file_path)
     if p.exists():
-        try:
+        with contextlib.suppress(OSError):
             p.unlink()
-        except OSError:
-            pass
     await session.delete(rec)
     await session.commit()

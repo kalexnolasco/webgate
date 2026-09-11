@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
@@ -47,10 +48,8 @@ class SFTPPool:
     async def stop(self) -> None:
         if self._cleanup_task:
             self._cleanup_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
         for entry in self._pool.values():
             await self._close_entry(entry)
         self._pool.clear()
@@ -110,7 +109,9 @@ class SFTPPool:
             await client.connect()
             entry = _PoolEntry(conn=conn, client=client, in_use=1, jump_conn=jump_conn)
             self._pool[key] = entry
-            logger.info("SFTP pool: new connection to %s:%s (server_id=%s)", hostname, port, server_id)
+            logger.info(
+                "SFTP pool: new connection to %s:%s (server_id=%s)", hostname, port, server_id
+            )
             return client
 
     async def drop(self, server_id: int) -> None:
@@ -132,19 +133,13 @@ class SFTPPool:
             entry.last_used = time.monotonic()
 
     async def _close_entry(self, entry: _PoolEntry) -> None:
-        try:
+        with contextlib.suppress(Exception):
             await entry.client.close()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             entry.conn.close()
-        except Exception:
-            pass
         if entry.jump_conn is not None:
-            try:
+            with contextlib.suppress(Exception):
                 entry.jump_conn.close()
-            except Exception:
-                pass
 
     async def _cleanup_loop(self) -> None:
         while True:

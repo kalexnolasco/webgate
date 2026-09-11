@@ -1,5 +1,69 @@
 # Changelog
 
+## v2.2.0 (2026-09-11) — stability pass
+
+A release aimed at being deployable rather than at adding anything. One real bug, one
+security default closed, and the quality gates made honest.
+
+### Upgrading
+
+**If you never set `WEBGATE_SECRET_KEY`, webgate will now refuse to start.** Read
+[Upgrading](https://kalexnolasco.github.io/webgate/getting-started/upgrade/) before you
+pull: setting a real key makes already-stored credentials unreadable, so it needs a
+backup and restore, not just a restart. `WEBGATE_ALLOW_INSECURE_SECRET=true` postpones
+it; binding to loopback only warns instead of refusing.
+
+### Security
+
+- **The shipped default secret key is no longer accepted on a reachable address.** That
+  key signs every session token and derives the Fernet key protecting every stored SSH
+  password and private key — and it is published in this repository. A deployment that
+  never changed it hands a valid admin token to anyone who asks for one, and decrypting
+  its credential store needs no secret at all. Nothing checked. The failure was
+  invisible, because everything worked.
+
+  This is not hypothetical: during development, a token minted against one instance
+  authenticated against a completely different database on the same machine, because
+  both signed with the same published key and the user ids collided.
+
+  webgate now stops at startup and prints what to do. On a loopback-only bind it warns
+  instead, because trying it out on your own machine should not need a ceremony.
+
+### Fixed
+
+- **Webhook deliveries could vanish.** They were scheduled with
+  `asyncio.create_task` and the task was never referenced, so the event loop held only a
+  weak reference to it. A delivery could be garbage-collected mid-flight and disappear
+  with no error in any log — the worst shape a failure can take. In-flight deliveries are
+  now held until they finish.
+- **Command output that is not valid UTF-8 no longer breaks an agent investigation.**
+  asyncssh returns `str` or `bytes` depending on the connection's encoding; the two were
+  concatenated directly.
+
+### Quality
+
+- **`ruff check src/ tests/` is clean**, from 33 findings: a dangling task, five
+  `try/except/pass` blocks that should have been `contextlib.suppress`, seven imports
+  sitting below module-level code, a collapsible branch, and nineteen over-long lines.
+- **The login flow states its invariant instead of assuming it.** Ten separate places
+  read attributes off a user the type checker could not prove was non-`None`. It always
+  was; now it is checked, and it fails closed if that ever changes.
+- **Model registration is explicit.** `_import_models()` used eleven imports whose only
+  purpose was their side effect, which reads as dead code to every linter. It now walks a
+  named list, and the test that guards it checks that list.
+- **The README no longer documents a type-check gate that has never passed.** pyright
+  runs in strict mode with ~100 findings, about 80 of them `reportUnknown*` from
+  asyncssh and ldap3 shipping no type information. Said plainly, with the advice to watch
+  the count rather than expect zero.
+
+Every runtime-risk finding the type checker reported was checked against the running
+code rather than assumed: the QR-code call and the agent result assignment it flagged
+are stub errors, and are unchanged.
+
+264 tests.
+
+---
+
 ## v2.1.2 (2026-09-11) — the README stops describing an older product
 
 Documentation only. No code, schema or API changes.

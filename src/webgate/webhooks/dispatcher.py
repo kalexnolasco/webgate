@@ -23,6 +23,9 @@ from webgate.webhooks.models import Webhook
 
 logger = logging.getLogger(__name__)
 
+# Strong references to in-flight deliveries; see fire().
+_pending: set[asyncio.Task[None]] = set()
+
 _TIMEOUT = 5.0  # seconds
 
 
@@ -70,5 +73,9 @@ async def fire(event: str, data: dict[str, Any]) -> None:
             events = ["*"]
         if "*" not in events and event not in events:
             continue
-        # Detached background task; never block caller.
-        asyncio.create_task(_deliver(wh.id, wh.url, wh.secret, payload))
+        # Detached, but held: the event loop keeps only a weak reference to a
+        # task, so one that nothing else refers to can be garbage-collected
+        # mid-flight and the delivery disappears with no error anywhere.
+        task = asyncio.create_task(_deliver(wh.id, wh.url, wh.secret, payload))
+        _pending.add(task)
+        task.add_done_callback(_pending.discard)

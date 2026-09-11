@@ -107,6 +107,15 @@ def _trim(text: str) -> tuple[str, bool]:
     return f"{text[:half]}\n...[trimmed]...\n{text[-half:]}", True
 
 
+def _as_text(chunk: object) -> str:
+    """Command output as text, whatever asyncssh handed back."""
+    if chunk is None:
+        return ""
+    if isinstance(chunk, bytes):
+        return chunk.decode("utf-8", errors="replace")
+    return str(chunk)
+
+
 async def run_turn(
     session: AsyncSession,
     server: Server,
@@ -238,7 +247,10 @@ async def run_turn(
                         result = await asyncio.wait_for(
                             conn.run(label, check=False), timeout=config.command_timeout
                         )
-                        raw = (result.stdout or "") + (result.stderr or "")
+                        # asyncssh hands back str or bytes depending on the
+                        # connection's encoding, and a command that emits invalid
+                        # UTF-8 would otherwise blow up mid-investigation.
+                        raw = _as_text(result.stdout) + _as_text(result.stderr)
                         exit_status = result.exit_status
                     else:
                         raw = await asyncio.wait_for(

@@ -20,6 +20,7 @@ a corrupt one.
 
 from __future__ import annotations
 
+import importlib
 import logging
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
@@ -101,24 +102,32 @@ def migration_name(table: str, column: str) -> str:
     return f"{table}.{column}"
 
 
+# Every module that declares a table. Importing it is the point -- a model reaches
+# `Base.metadata` only when its module has been imported, so a table whose module
+# nothing imports at startup would be created by nobody and fail on its first query.
+MODEL_MODULES: tuple[str, ...] = (
+    "webgate.agent.conversation",
+    "webgate.agent.memory",
+    "webgate.agent.store",
+    "webgate.audit.models",
+    "webgate.auth.models",
+    "webgate.branding.store",
+    "webgate.recordings.models",
+    "webgate.runtime_config.store",
+    "webgate.servers.models",
+    "webgate.snippets.models",
+    "webgate.webhooks.models",
+)
+
+
 def _import_models() -> None:
     """Put every table in `Base.metadata` before create_all runs.
 
-    A table reaches the metadata only if its module has been imported. Today the
-    routers happen to import all of them, so a new model in a module nothing imports
-    at startup would be skipped silently and fail later on its first query. Importing
-    them here makes that impossible. The imports live inside the function because
-    those modules import `Base` from this one.
+    Imported by name rather than with import statements, because an import whose only
+    purpose is its side effect reads to every linter as dead code.
     """
-    from webgate.agent import conversation, memory, store  # noqa: F401
-    from webgate.audit import models as audit_models  # noqa: F401
-    from webgate.auth import models as auth_models  # noqa: F401
-    from webgate.branding import store as branding_store  # noqa: F401
-    from webgate.recordings import models as recording_models  # noqa: F401
-    from webgate.runtime_config import store as runtime_settings  # noqa: F401
-    from webgate.servers import models as server_models  # noqa: F401
-    from webgate.snippets import models as snippet_models  # noqa: F401
-    from webgate.webhooks import models as webhook_models  # noqa: F401
+    for module in MODEL_MODULES:
+        importlib.import_module(module)
 
 
 def _columns_of(sync_conn: Any, table: str) -> set[str] | None:

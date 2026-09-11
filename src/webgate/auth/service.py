@@ -102,7 +102,9 @@ async def seed_admin(session: AsyncSession) -> None:
     user = await create_user(session, "admin", "admin", is_admin=True)
     user.must_change_password = True
     await session.commit()
-    logger.info("Created default admin user (admin/admin) — password change required on first login")
+    logger.info(
+        "Created default admin user (admin/admin) — password change required on first login"
+    )
 
 
 async def list_users(session: AsyncSession) -> list[User]:

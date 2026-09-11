@@ -39,7 +39,9 @@ async def create_share_token(session_id: str, user: CurrentUserDep) -> dict[str,
     if sess is None or sess.closed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not active")
     if sess.owner_username != user.username:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the session owner can share")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only the session owner can share"
+        )
     token = shared_manager.mint_token(session_id)
     return {
         "token": token,
@@ -54,7 +56,9 @@ async def revoke_share_token(session_id: str, user: CurrentUserDep) -> None:
     if sess is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not active")
     if sess.owner_username != user.username:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the session owner can revoke")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only the session owner can revoke"
+        )
     shared_manager.revoke_token(session_id)
 
 
@@ -143,7 +147,9 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
             pass
 
         await update_last_connected(session, server)
-        await log_action(user_out.id, user_out.username, "ssh_connect", f"{server.hostname}:{server.port}")
+        await log_action(
+            user_out.id, user_out.username, "ssh_connect", f"{server.hostname}:{server.port}"
+        )
         await fire_webhook("ssh_connect", {
             "user": user_out.username, "server_id": server.id, "server": server.name,
             "host": f"{server.hostname}:{server.port}", "via_jump": server.jump_via_id is not None,
@@ -175,7 +181,8 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
         duration = recorder.duration
         async with _session_factory() as db:
             from sqlalchemy import select as _select
-            row = (await db.execute(_select(Recording).where(Recording.id == recording_id))).scalar_one_or_none()
+            found = await db.execute(_select(Recording).where(Recording.id == recording_id))
+            row = found.scalar_one_or_none()
             if row is not None:
                 row.ended_at = datetime.now(UTC)
                 row.size_bytes = size

@@ -70,6 +70,11 @@ Tracks the development plan for **webgate**. Items are organized by release.
 - [x] **Six documented settings that did nothing now work** — transfer size limits, idle SSH expiry, the three monitor knobs, and `first_run`
 - [x] **Transfer size limits** — chunked reads against a per-request budget, so one large file can no longer exhaust a worker
 
+### v2.2.0 — Stability pass (2026-09-11)
+- [x] **The shipped default `WEBGATE_SECRET_KEY` is refused** on any address other than loopback; it signs session tokens and derives the credential encryption key, and it is published in this repository
+- [x] **Webhook deliveries no longer vanish** — the tasks were unreferenced and could be garbage-collected mid-flight
+- [x] **`ruff check src/ tests/` clean**, and the README stops documenting a type-check gate that has never passed
+
 ---
 
 ## Planned
@@ -77,7 +82,6 @@ Tracks the development plan for **webgate**. Items are organized by release.
 ### v2.1.x — Next
 | Feature | Priority | Description |
 |---------|----------|-------------|
-| Refuse the default `SECRET_KEY` off localhost | High | With the shipped placeholder, a token minted against one deployment authenticates against another — the user ids usually collide |
 | Per-user concurrent-session limit | Medium | Nothing caps how many SSH sessions one account may hold open |
 | Host key fingerprint in the UI | Medium | The API exposes it and can clear it; the Site Manager does not show it yet |
 | Per-server recording opt-in | Medium | Toggle recording on a per-server basis instead of the current global flag |

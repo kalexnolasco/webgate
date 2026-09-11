@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     # Makes the admin settings panel read-only, for deployments whose configuration
     # is managed as code and should not drift from what the manifest says.
     config_locked: bool = False
+    # Start even with the shipped default secret_key on a non-loopback bind.
+    allow_insecure_secret: bool = False
     demo_mode: bool = False  # Read-only public demo: blocks writes, hides admin UI
 
     # --- Diagnostic agent (opt-in, off by default) ---
