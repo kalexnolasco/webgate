@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.1.1 (2026-09-11) — architecture documentation
+
+Documentation only. No code, schema or API changes; upgrading is optional.
+
+- **[Architecture](https://kalexnolasco.github.io/webgate/architecture/) is a page now**, with five diagrams: what talks to
+  what and in which direction, the module map, an SSH session *including the branch that
+  refuses*, the multi-instance topology, and how a setting resolves between the
+  environment and the admin panel. It also records the four constraints the rest of the
+  design follows from.
+- **The README's module tree was two releases stale.** It listed neither the agent,
+  backup, branding nor runtime settings modules, and none of `hostkeys.py`, `limits.py`
+  or the migration engine.
+- **The README's request-lifecycle diagram was wrong**, not merely incomplete: it showed
+  a connection path with no host key verification in it, which has not been true since
+  v2.0.0. Replaced with an accurate one that shows the trust boundary and the outbound-only
+  direction of travel.
+
+---
+
 ## v2.1.0 (2026-09-10) — admin settings panel
 
 ### Upgrading

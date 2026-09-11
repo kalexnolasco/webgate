@@ -55,6 +55,7 @@ nav:
     - Servers: api/servers.md
     - Terminal: api/terminal.md
     - Files: api/files.md
+  - Architecture: architecture.md
   - Changelog: changelog.md
 
 plugins:

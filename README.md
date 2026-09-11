@@ -224,55 +224,87 @@ Enable `WEBGATE_RECORD_SESSIONS=true` and every SSH session is captured to an as
 src/webgate/
 ├── __main__.py          uvicorn launcher
 ├── app.py               FastAPI factory, lifespan, middleware
-├── config.py            Pydantic Settings
-├── auth/                JWT + bcrypt, 2FA TOTP, API keys, LDAP, user mgmt
-├── audit/               Immutable action log
-├── servers/             Registry CRUD, jump-host resolution, Fernet crypto
-├── terminal/
-│   ├── ssh_session.py   asyncssh wrapper (with optional jump tunnel)
-│   ├── shared.py        SharedSession registry: 1 PTY ↔ N WebSockets
-│   ├── ws_handler.py    WS bridge: input multiplex / output broadcast
-│   └── routes.py        WS endpoints + share-token mint/revoke
-├── files/               SFTP service + connection pool (5 min TTL)
-├── snippets/            Per-user command library
-├── webhooks/            HMAC-signed event dispatcher
+├── config.py            boot settings (env only); the rest live in the admin panel
+├── agent/               per-server AI chat: provider, tools, SFTP-only tools, cache
+├── audit/               immutable action log
+├── auth/                JWT + bcrypt, 2FA TOTP, API keys, LDAP, user management
+├── backup/              full-state export/import, passphrase-encrypted
+├── branding/            white-label store: name, logo, colours, favicon
+├── db/                  async engine + additive, append-only migrations
+├── files/
+│   ├── sftp_service.py  SFTP operations, chunked reads, ZIP builders
+│   ├── pool.py          connection reuse, 300 s TTL
+│   ├── limits.py        per-request transfer budget
+│   └── routes.py        REST endpoints
 ├── recordings/          asciinema cast v2 writer + browser replay
-├── db/                  SQLAlchemy async engine + dialect-aware migrations
-└── static/index.html    Single-file frontend (Alpine.js + xterm.js + CodeMirror)
+├── runtime_config/
+│   ├── registry.py      every setting an admin may change, with its validation
+│   ├── store.py         key/value rows, encrypted secrets, in-process snapshot
+│   └── routes.py        /api/settings
+├── servers/
+│   ├── hostkeys.py      trust-on-first-use pinning and verification
+│   ├── monitor.py       leader-elected status sweep
+│   ├── crypto.py        Fernet credential encryption
+│   └── service.py       registry CRUD, jump-host resolution
+├── snippets/            per-user command library
+├── terminal/
+│   ├── ssh_session.py   asyncssh wrapper, optional jump tunnel
+│   ├── shared.py        SharedSession registry: 1 PTY ↔ N WebSockets, idle watchdog
+│   ├── ws_handler.py    input multiplex / output broadcast
+│   └── routes.py        WS endpoints + share-token mint/revoke
+├── webhooks/            HMAC-signed event dispatcher
+└── static/index.html    single-file frontend (Alpine.js + xterm.js + CodeMirror)
 ```
 
-### Request lifecycle
+### What talks to what
+
+Browsers speak HTTPS and WebSocket to one address. Everything behind it — SSH, SFTP, LDAP, the model provider — is reached from the gateway, **outbound**. That is the point: in most deployments the servers have no route to the internet and the people have no route to the servers.
 
 ```mermaid
 flowchart LR
-    Browser["Browser<br/>(Alpine + xterm.js + CodeMirror)"]
-    subgraph webgate ["webgate (FastAPI)"]
-        AUTH["JWT / API key / LDAP"]
-        REST["REST routes"]
-        WS["WebSocket handler"]
-        POOL["SFTP pool<br/>(5 min TTL)"]
-        SHARED["SharedSession<br/>registry"]
-        REC["CastRecorder"]
-        DB[("DB<br/>SQLite / PostgreSQL")]
-    end
-    SSH(["asyncssh"])
-    REMOTE["Remote server"]
+  subgraph people["People"]
+    B["Browser<br/>Alpine.js + xterm.js"]
+  end
 
-    Browser <-- "HTTPS / WSS" --> AUTH
-    AUTH --> REST
-    AUTH --> WS
-    REST --> POOL
-    REST --> DB
-    WS --> SHARED
-    SHARED -. write .-> REC
-    SHARED --> SSH
-    POOL --> SSH
-    SSH --> REMOTE
+  subgraph gw["Gateway — the only host with both routes"]
+    W["webgate<br/>FastAPI :8443"]
+    DB[("SQLite or PostgreSQL<br/>credentials encrypted<br/>with Fernet")]
+  end
 
-    style Browser fill:#e8f0fe,stroke:#4a90d9
-    style webgate fill:#f0f9e8,stroke:#5cb85c
-    style REMOTE fill:#fff3e0,stroke:#ff9800
+  subgraph fleet["Internal network — no inbound internet"]
+    BAS["Bastion"]
+    S1["prod-web-01 :22"]
+    S2["prod-db-primary :22"]
+    S3["SFTP-only host"]
+  end
+
+  subgraph ext["Outbound, optional"]
+    LD["LDAP / AD"]
+    AI["Ollama or OpenRouter"]
+    WH["Webhook receivers"]
+  end
+
+  B -->|"HTTPS + WebSocket"| W
+  W --- DB
+  W -->|"SSH / SFTP"| BAS
+  BAS -.->|"tunnel"| S1
+  BAS -.->|"tunnel"| S2
+  W -->|"SFTP only"| S3
+  W -->|"bind + search"| LD
+  W -->|"chat completions"| AI
+  W -->|"HMAC-signed POST"| WH
 ```
+
+Only the gateway needs a route to the model provider — inspected hosts never do, because the agent reaches them over SSH from here. Nothing is installed on the targets: a server only has to accept SSH, and some only accept SFTP.
+
+> 📐 **Full architecture, with five diagrams** — module map, the SSH session including the part that refuses, multi-instance topology, and how a setting resolves: **[docs/architecture.md](docs/architecture.md)** ([rendered](https://kalexnolasco.github.io/webgate/architecture/)).
+
+### Four constraints that decided the rest
+
+1. **The gateway is the credential store.** It is why host keys are verified before authentication, why the Fernet key stays in the environment, and why the agent's tools are read-only.
+2. **Workers are interchangeable.** Nothing durable lives in memory or on a worker's disk. What stays local — pooled connections, open PTYs — is reconstructible and expected to be lost.
+3. **Migrations are additive, append-only, idempotent.** No column is ever dropped or retyped, so an older release ignores what it does not know and a rollback is safe. A test enforces it.
+4. **The frontend has no build step.** One HTML file. There is no compiled asset that can drift from the source it came from.
 
 ### Jump host (bastion) chaining
 

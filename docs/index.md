@@ -15,6 +15,11 @@
 !!! info "Already running webgate?"
     `docker compose pull && docker compose up -d`. The schema migrates itself on boot and changes are additive, so a rollback works. See [Upgrading](getting-started/upgrade.md).
 
+!!! abstract "How it fits together"
+    [Architecture](architecture.md) — five diagrams: what talks to what, the module
+    map, an SSH session including the part that refuses, multi-instance topology, and
+    how a setting resolves.
+
 ## Why webgate?
 
 Managing remote servers means juggling SSH clients, SFTP tools, credentials and VPN configs across your team. In many real-world setups **direct SSH access to every server isn't possible** — only HTTP(S) reaches the gateway.
