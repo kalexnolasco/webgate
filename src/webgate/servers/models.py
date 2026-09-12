@@ -28,6 +28,7 @@ class Server(Base):
     # Opt-in per server: the diagnostic agent sends this host's command output
     # to the Anthropic API, so it is never on implicitly.
     agent_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    record_sessions: Mapped[bool] = mapped_column(Boolean, default=False)
     # OpenSSH public key line learned on first contact and checked from then on.
     host_key: Mapped[str] = mapped_column(Text, default="")
     jump_via_id: Mapped[int | None] = mapped_column(
@@ -54,6 +55,7 @@ class ServerCreate(BaseModel):
     sftp_allowed_paths: list[str] = []
     sftp_read_only: bool = False
     agent_enabled: bool = False
+    record_sessions: bool = False
     jump_via_id: int | None = None
 
 
@@ -73,6 +75,7 @@ class ServerUpdate(BaseModel):
     sftp_allowed_paths: list[str] | None = None
     sftp_read_only: bool | None = None
     agent_enabled: bool | None = None
+    record_sessions: bool | None = None
     jump_via_id: int | None = None
 
 
@@ -91,6 +94,7 @@ class ServerOut(BaseModel):
     sftp_allowed_paths: list[str]
     sftp_read_only: bool
     agent_enabled: bool = False
+    record_sessions: bool = False
     host_key_fingerprint: str = ""
     jump_via_id: int | None = None
     last_connected_at: datetime | None

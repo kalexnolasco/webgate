@@ -33,6 +33,10 @@ FROZEN_HISTORY: list[tuple[str, str]] = [
     ("agent_settings", "context_budget"),
     ("agent_settings", "cache_ttl"),
     ("agent_settings", "findings_retention_days"),
+    ("recordings", "data"),
+    ("servers", "record_sessions"),
+    ("snippets", "shared"),
+    ("snippets", "confirm"),
 ]
 
 

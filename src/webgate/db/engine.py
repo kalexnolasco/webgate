@@ -85,6 +85,10 @@ _MIGRATIONS: list[Migration] = [
     ("agent_settings", "context_budget", "INTEGER DEFAULT 24000", "INTEGER DEFAULT 24000"),
     ("agent_settings", "cache_ttl", "INTEGER DEFAULT 60", "INTEGER DEFAULT 60"),
     ("agent_settings", "findings_retention_days", "INTEGER DEFAULT 90", "INTEGER DEFAULT 90"),
+    ("recordings", "data", "BLOB", "BYTEA"),
+    ("servers", "record_sessions", "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
+    ("snippets", "shared", "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
+    ("snippets", "confirm", "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
 ]
 
 RECORD_TABLE = "schema_migrations"

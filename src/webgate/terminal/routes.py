@@ -173,12 +173,17 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
     # Optional session recording (asciinema cast v2)
     recording_id: int | None = None
     recorder: CastRecorder | None = None
-    if runtime.get("record_sessions"):
+    # Two switches, like the agent: the gateway allows it at all, and each server
+    # opts in. Recording a sandbox under the same policy as a production bastion is
+    # not a policy, and a recording captures everything typed, secrets included.
+    if runtime.get("record_sessions") and getattr(server, "record_sessions", False):
         ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         cast_path = (
             Path(settings.recordings_dir) / str(server.id) / f"{ts}-{user_out.username}.cast"
         )
-        recorder = CastRecorder(cast_path, cols=cols, rows=rows)
+        recorder = CastRecorder(
+            cast_path, cols=cols, rows=rows, max_bytes=int(runtime.get("recording_max_bytes"))
+        )
         async with _session_factory() as db:
             rec = Recording(
                 server_id=server.id,
@@ -196,6 +201,7 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
             return
         size = recorder.close()
         duration = recorder.duration
+        blob = recorder.take()  # moves the cast off this worker's disk
         async with _session_factory() as db:
             from sqlalchemy import select as _select
 
@@ -203,9 +209,13 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
             row = found.scalar_one_or_none()
             if row is not None:
                 row.ended_at = datetime.now(UTC)
+                row.duration_s = round(duration, 2)
                 row.size_bytes = size
-                row.duration_s = round(duration, 3)
-                await db.commit()
+                row.data = blob or None
+                if blob:
+                    # The path described a file that no longer exists.
+                    row.file_path = ""
+            await db.commit()
 
     await handle_terminal_ws(
         ws,

@@ -75,6 +75,11 @@ Tracks the development plan for **webgate**. Items are organized by release.
 - [x] **Webhook deliveries no longer vanish** — the tasks were unreferenced and could be garbage-collected mid-flight
 - [x] **`ruff check src/ tests/` clean**, and the README stops documenting a type-check gate that has never passed
 
+### v2.3.0 — Snippets and recordings (2026-09-12)
+- [x] **Session recordings survive HA** — the finished cast lives in the database instead of on one worker's disk, where roughly half of all replays were 404s
+- [x] **Recording is off by default and opted into per server**, with a size cap that says so inside the replay
+- [x] **Team-shared snippets**, `{parameters}` prompted before sending, and confirm-before-running for anything that changes a server
+
 ---
 
 ## Planned
@@ -84,7 +89,6 @@ Tracks the development plan for **webgate**. Items are organized by release.
 |---------|----------|-------------|
 | Per-user concurrent-session limit | Medium | Nothing caps how many SSH sessions one account may hold open |
 | Host key fingerprint in the UI | Medium | The API exposes it and can clear it; the Site Manager does not show it yet |
-| Per-server recording opt-in | Medium | Toggle recording on a per-server basis instead of the current global flag |
 | Internationalization (i18n) | Low | UI translations starting with English / Spanish |
 
 ### Later

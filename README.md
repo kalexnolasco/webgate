@@ -136,12 +136,12 @@ flowchart TB
 
 | Category | Capabilities |
 |---|---|
-| **Terminal** | xterm.js + asyncssh, multi-tab, resize, copy/paste, **auto-reconnect** with backoff on a dropped link, **shared sessions** with one-click URL, **command snippets** library |
+| **Terminal** | xterm.js + asyncssh, multi-tab, resize, copy/paste, **auto-reconnect** with backoff on a dropped link, **shared sessions** with one-click URL, **command snippets** — team-shared, with `{parameters}` and confirm-before-running |
 | **SFTP** | Full file ops + drag & drop upload, **sortable columns**, **multi-select** with batch ZIP download and delete, hidden-file toggle, in-browser editor (CodeMirror 6), PDF/image preview |
 | **Server Registry** | Groups, tags, password/key auth, encrypted at rest (Fernet), **verified host keys** (TOFU), **favourites and recents**, import/export JSON, **jump host / bastion** chaining |
 | **Access Control** | Admin/user roles, per-server SSH/SFTP toggles, SFTP path restrictions, read-only SFTP mode, group-based visibility |
 | **Auth** | JWT + bcrypt locally, **2FA TOTP**, **API keys** for automation, **LDAP / Active Directory** with group→role mapping |
-| **Compliance** | **Session recording** to asciinema cast files with browser replay, structured **audit log**, **webhooks** (HMAC-signed) on key events |
+| **Compliance** | **Session recording** to asciinema cast files with browser replay, off by default and opted into per server, structured **audit log**, **webhooks** (HMAC-signed) on key events |
 | **Migration** | **Full-state backup and restore** — servers with credentials, users, groups, webhooks and API keys in one passphrase-encrypted file, portable between instances |
 | **AI agent** | Per-server iterative chat over **Ollama** or **OpenRouter**, read-only inspection tools, **works on SFTP-only hosts**, cached results and searchable findings — configured in the admin panel, off until then |
 | **Branding** | White-label the deployment: app name, logo, sign-in image, browser icon, company colours with a palette picker and live preview, light and dark palettes — applied for every user |
@@ -429,7 +429,8 @@ panel change them would be a way to lock yourself out.
 | Maximum transfer size | `104857600` | Bytes, for uploads and downloads alike. `0` removes the limit, and with it the protection against one large file exhausting the gateway |
 | Disable status checks | `false` | Stop probing servers for their online/offline dot |
 | Check interval / timeout / parallel checks | `60` / `5` / `10` | How the status monitor sweeps the registry |
-| Record SSH sessions | `false` | Capture terminal sessions to asciinema cast files |
+| Allow session recording | `false` | Lets servers record SSH sessions to asciinema cast files. Each server opts in separately |
+| Maximum recording size | `26214400` | Bytes per session. A recording that reaches it stops and says so inside the replay |
 | LDAP (10 settings) | off | Directory URL, bind account, search bases and filters, group mapping, admin groups |
 
 Each one shows where its current value comes from — this panel, an environment
@@ -456,7 +457,7 @@ panel becomes read-only.
 | `WEBGATE_FIRST_RUN` | `true` | Create the default `admin`/`admin` account when no users exist. Set `false` when accounts come from LDAP or a restored backup | Decided before anyone can sign in |
 | `WEBGATE_CONFIG_LOCKED` | `false` | Make the settings panel read-only | It is the lock itself |
 | `WEBGATE_ALLOWED_ORIGINS` | `*` | CORS origins (comma-separated) | Middleware is built at startup |
-| `WEBGATE_RECORDINGS_DIR` | `./recordings` | Storage directory for `.cast` files | A volume mount, not a preference |
+| `WEBGATE_RECORDINGS_DIR` | `./recordings` | Scratch space while a session is live; the finished cast is stored in the database so any worker can serve it | A filesystem path, not a preference |
 | `WEBGATE_INSTANCE_ID` | auto | Unique per worker; a UUID is generated when empty | Identifies the process |
 
 Every panel setting also accepts its `WEBGATE_`-prefixed variable as the initial

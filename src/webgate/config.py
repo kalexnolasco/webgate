@@ -41,7 +41,8 @@ class Settings(BaseSettings):
     agent_proxy_url: str = ""
     agent_request_timeout: int = 120  # fail fast instead of hanging on a blackholed route
     record_sessions: bool = False  # Capture SSH sessions to asciinema cast files
-    recordings_dir: str = "./recordings"  # Where to store .cast files
+    recordings_dir: str = "./recordings"  # Scratch space while a session is live
+    recording_max_bytes: int = 25 * 1024 * 1024  # per session; 0 removes the cap
 
     # LDAP / Active Directory
     ldap_enabled: bool = False

@@ -55,6 +55,7 @@ def server_to_out(server: Server) -> ServerOut:
         sftp_allowed_paths=_paths_from_json(server.sftp_allowed_paths),
         sftp_read_only=server.sftp_read_only,
         agent_enabled=bool(getattr(server, "agent_enabled", False)),
+        record_sessions=bool(getattr(server, "record_sessions", False)),
         host_key_fingerprint=describe(getattr(server, "host_key", "") or ""),
         jump_via_id=server.jump_via_id,
         last_connected_at=server.last_connected_at,
@@ -130,6 +131,7 @@ async def create_server(session: AsyncSession, data: ServerCreate, user_id: int)
         sftp_allowed_paths=_tags_to_json(data.sftp_allowed_paths),
         sftp_read_only=data.sftp_read_only,
         agent_enabled=data.agent_enabled,
+        record_sessions=data.record_sessions,
         jump_via_id=data.jump_via_id,
         user_id=user_id,
     )
@@ -170,6 +172,8 @@ async def update_server(session: AsyncSession, server: Server, data: ServerUpdat
         server.sftp_read_only = data.sftp_read_only
     if data.agent_enabled is not None:
         server.agent_enabled = data.agent_enabled
+    if data.record_sessions is not None:
+        server.record_sessions = data.record_sessions
     if data.jump_via_id is not None:
         server.jump_via_id = data.jump_via_id or None  # 0 means "clear"
     await session.commit()

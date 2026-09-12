@@ -209,10 +209,26 @@ SPECS: tuple[Spec, ...] = (
     Spec(
         key="record_sessions",
         section="Recording",
-        label="Record SSH sessions",
-        help="Capture terminal sessions to asciinema cast files, replayable in the browser.",
+        label="Allow session recording",
+        help=(
+            "Lets servers record their SSH sessions to asciinema cast files, replayable "
+            "in the browser. Each server must also opt in separately, so a sandbox and a "
+            "production bastion are not held to the same policy by accident."
+        ),
         kind="bool",
         warning="Recordings capture everything typed and printed, including anything secret.",
+    ),
+    Spec(
+        key="recording_max_bytes",
+        section="Recording",
+        label="Maximum recording size",
+        help=(
+            "Bytes per session. A recording that reaches it stops and says so inside the "
+            "replay, rather than ending as though the session crashed. 0 removes the cap."
+        ),
+        kind="int",
+        minimum=0,
+        maximum=1024 * 1024 * 1024,
     ),
     # ---------------------------------------------------------------------- LDAP
     Spec(

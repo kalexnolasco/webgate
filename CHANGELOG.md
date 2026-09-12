@@ -1,5 +1,64 @@
 # Changelog
 
+## v2.3.0 (2026-09-12) — snippets that are worth clicking, recordings that survive
+
+### Upgrading
+
+Stop, pull, start. Two columns are added; nothing changes behaviour on its own.
+
+One thing to know: **session recording is now opt-in per server.** If you had
+`WEBGATE_RECORD_SESSIONS=true`, recording continues to be *allowed* but no server
+records until you enable it on that server (**edit the server → Record SSH sessions**).
+That is deliberate — a sandbox and a production bastion were being held to the same
+policy by accident.
+
+### Fixed
+
+- **Session recordings were broken in the deployment this project documents.** Each
+  worker wrote casts to its own container filesystem while the database stored an
+  absolute path, and any worker could be asked to replay one. Behind the two workers of
+  `compose.ha.yml` — which shares a volume for PostgreSQL and nothing else — roughly
+  **half of all replays returned 404**, and replacing a container took the evidence with
+  it. The module had no tests at all, which is how it shipped.
+
+  A finished cast is now stored, gzipped, in the database. The live session still writes
+  locally, because the PTY genuinely is on that worker; only the finished artefact needs
+  to travel. Recordings made before this release still play if their file is still
+  there, and say clearly why they cannot when it is not.
+
+  Backups carry recordings from now on, since the backup already covers the database.
+
+### Session recording
+
+- **Off by default, and opted into per server**, the same shape the AI agent already
+  uses: the gateway allows it, each server chooses. Recordings capture everything typed
+  and printed, secrets included, so "everywhere or nowhere" was the wrong granularity.
+- **A size cap per session** (25 MB by default, in the admin panel). A recording that
+  reaches it stops and writes that into the cast itself — a replay that simply ends
+  looks like a crash, which is worse than a truncated one that says so.
+- **Fourteen tests**, where there were none.
+
+### Command snippets
+
+Saved commands existed: a button in the terminal toolbar that sends a command and
+Enter. Three things it could not do, each of which mattered.
+
+- **Shared with the team.** A snippet belonged to one user, so a team's standard checks
+  were something every member retyped from memory. An admin can publish one to
+  everyone; shared snippets are marked and listed first, and only an admin can edit or
+  remove them.
+- **Parameters.** `{lines}`, `{file}`, `{pattern}` anywhere in the command are asked for
+  before anything is sent. The same placeholder twice is asked once, cancelling any
+  prompt sends nothing, and `awk '{print $1}'` is left alone.
+- **Asking first.** A snippet marked *confirm* shows the command and the server before
+  running, and carries a `!` in the toolbar. A snippet runs the instant it is clicked
+  and there is no undo on `systemctl restart nginx`.
+- Snippets can now be **edited**; previously the only options were create and delete.
+
+298 tests.
+
+---
+
 ## v2.2.0 (2026-09-11) — stability pass
 
 A release aimed at being deployable rather than at adding anything. One real bug, one

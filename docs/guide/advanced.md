@@ -21,13 +21,43 @@ The jump host must be registered in the server registry first so it has credenti
 
 ## Command snippets
 
-Each user has a personal library of named shell commands. They appear as buttons in the terminal toolbar — click to send `command + Enter` to the active session.
+Named shell commands as buttons in the terminal toolbar. Click one and it is sent to
+the active session, followed by Enter.
 
-- **Create**: click the `+` button in the toolbar → enter name, command, optional description
-- **Use**: click the named button → sent to the active terminal
-- **Delete**: right-click a button → confirm
+- **Create**: the `+` button in the toolbar
+- **Use**: click the button
+- **Delete**: right-click → confirm (only on snippets that are yours)
 
-Snippets are stored in the `snippets` table scoped by user, so they're private.
+### Shared with the team
+
+An admin can publish a snippet to everyone. Shared ones are marked with a dot and
+listed first, because they are the agreed set; a personal snippet with the same name
+then reads as the variation it is. Everyone can run them; only an admin can edit or
+remove them.
+
+Without this, a team's standard checks were something each person retyped from memory.
+
+### Parameters
+
+Write `{name}` anywhere in the command and you are asked for it before anything is
+sent:
+
+```
+tail -n {lines} {file}
+grep {pattern} /var/log/syslog
+```
+
+The same placeholder used twice is asked once. Cancelling any prompt cancels the whole
+thing — a half-substituted command is never sent. `awk '{print $1}'` is left alone:
+a placeholder has to start with a letter.
+
+### Asking first
+
+Mark a snippet **confirm** and it shows what will run, on which server, before sending.
+Marked snippets carry a `!` in the toolbar.
+
+A snippet runs the instant it is clicked and there is no undo, so anything that
+changes a server — `systemctl restart`, a deploy, a truncate — should be marked.
 
 ## Shared terminal sessions
 

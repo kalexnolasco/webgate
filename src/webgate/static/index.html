@@ -355,6 +355,8 @@
         .fz-fixed summary { cursor: pointer; font-size: 12px; color: var(--text-muted); }
         .fz-fixed-row { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
         .fz-fixed-row code { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+        .fz-snip-shared { border-color: var(--accent-dim); }
+        .fz-snip-shared::before { content: "\2022"; color: var(--accent); margin-right: 4px; }
         .fz-modal-footer { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; background: var(--modal-bg); }
         .fz-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .fz-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -841,7 +843,7 @@ window._showToastImpl = function(message, type) {
                     <div style="padding:4px 8px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;gap:4px;align-items:center;flex-wrap:wrap">
                         <span style="font-size:11px;color:var(--text-muted);font-weight:600;margin-right:4px">Snippets:</span>
                         <template x-for="s in snippets" :key="s.id">
-                            <button @click="runSnippet(tab, s)" @contextmenu.prevent="confirmDeleteSnippet(s)" class="fz-btn" style="font-size:11px;padding:2px 8px" :title="(s.description || s.command) + ' (right-click to delete)'" x-text="s.name"></button>
+                            <button @click="runSnippet(tab, s)" @contextmenu.prevent="s.owned && confirmDeleteSnippet(s)" class="fz-btn fz-snip" :class="s.shared ? 'fz-snip-shared' : ''" style="font-size:11px;padding:2px 8px" :title="(s.description || s.command) + (s.shared ? ' — shared with everyone' : '') + (s.confirm ? ' — asks before running' : '') + (s.owned ? ' (right-click to delete)' : '')"><span x-show="s.confirm" aria-hidden="true" style="opacity:.7">! </span><span x-text="s.name"></span></button>
                         </template>
                         <button @click="promptNewSnippet()" class="fz-btn" style="font-size:11px;padding:2px 8px" title="Create new snippet">+</button>
                         <span style="flex:1"></span>
@@ -1708,7 +1710,9 @@ window._showToastImpl = function(message, type) {
                         <input type="checkbox" x-model="serverForm.sftp_read_only" style="width:auto;accent-color:var(--warning)"> SFTP Read-Only (browse &amp; download only)
                     </label>
                     <label x-show="agentAvailable" style="display:flex;align-items:center;gap:8px;margin-top:12px">
-                        <input type="checkbox" x-model="serverForm.agent_enabled" style="width:auto;accent-color:var(--info)"> Allow the diagnostic agent
+                        <input type="checkbox" x-model="serverForm.agent_enabled" style="width:auto;accent-color:var(--info)"> Allow the diagnostic agent</label>
+                                    <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+                                        <input type="checkbox" x-model="serverForm.record_sessions" style="width:auto;accent-color:var(--info)"> Record SSH sessions
                     </label>
                     <div x-show="!agentAvailable" class="hint" style="margin-top:12px">
                         The AI agent is not set up on this gateway.
@@ -2984,6 +2988,51 @@ function app() {
             try { await this.apiCall(`/api/snippets/${s.id}`, { method: 'DELETE' }); await this.loadSnippets(); this.showToast('Snippet deleted'); }
             catch (e) { this.showToast(e.message, 'error'); }
         },
+        // `{name}` placeholders, the same convention the LDAP filters use.
+        snippetParams(command) {
+            const found = [...(command || '').matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g)].map(m => m[1]);
+            return [...new Set(found)];
+        },
+        runSnippet(tab, s) {
+            if (!tab._ws || tab._ws.readyState !== WebSocket.OPEN) { this.showToast('Terminal not connected', 'error'); return; }
+
+            // Fill in the parameters before anything is sent, so a cancelled prompt
+            // cancels the whole thing rather than sending a half-built command.
+            let command = s.command;
+            for (const name of this.snippetParams(command)) {
+                const value = prompt(`${s.name} — ${name}:`, '');
+                if (value === null) return;
+                command = command.split(`{${name}}`).join(value);
+            }
+
+            // A snippet runs the moment it is clicked and there is no undo, so the
+            // ones that change something ask first — showing what will actually run.
+            if (s.confirm && !confirm(`Run on ${tab.title || 'this server'}?\n\n${command}`)) return;
+
+            tab._ws.send(command + '\r');
+            this.log('cmd', `Sent snippet "${s.name}"`);
+        },
+        async promptNewSnippet() {
+            const name = prompt('Snippet name:'); if (!name) return;
+            const command = prompt('Command (sent to the terminal, then Enter).\nUse {name} for a value you want to be asked for:');
+            if (!command) return;
+            const params = this.snippetParams(command);
+            const confirmFirst = confirm('Ask for confirmation before running this one?\n\nOK = ask first (for anything that changes the server)\nCancel = run straight away');
+            let shared = false;
+            if (this.currentUser?.is_admin) {
+                shared = confirm('Publish it to everyone?\n\nOK = shared with all users\nCancel = only yours');
+            }
+            try {
+                await this.apiCall('/api/snippets', { method: 'POST', body: JSON.stringify({ name, command, description: '', shared, confirm: confirmFirst }) });
+                await this.loadSnippets();
+                this.showToast(params.length ? `Snippet created — asks for ${params.join(', ')}` : 'Snippet created');
+            } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async confirmDeleteSnippet(s) {
+            if (!confirm(`Delete snippet "${s.name}"?`)) return;
+            try { await this.apiCall(`/api/snippets/${s.id}`, { method: 'DELETE' }); await this.loadSnippets(); this.showToast('Snippet deleted'); }
+            catch (e) { this.showToast(e.message, 'error'); }
+        },
         runSnippet(tab, s) {
             if (!tab._ws || tab._ws.readyState !== WebSocket.OPEN) { this.showToast('Terminal not connected', 'error'); return; }
             tab._ws.send(s.command + '\r');
@@ -3008,14 +3057,14 @@ function app() {
         },
         async loadStatuses() { try { this.serverStatuses = await this.apiCall('/api/servers/status'); } catch {} },
         async loadGroups() { try { this.groups = await this.apiCall('/api/servers/groups'); } catch {} },
-        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '', ssh_enabled: true, sftp_enabled: true, sftp_read_only: false, agent_enabled: false, sftp_allowed_paths_str: '', jump_via_id: null }; },
+        resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '', ssh_enabled: true, sftp_enabled: true, sftp_read_only: false, agent_enabled: false, record_sessions: false, sftp_allowed_paths_str: '', jump_via_id: null }; },
         loadKeyFile(event) {
             const file = event.target.files?.[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = (e) => { this.serverForm.private_key = e.target.result; this.serverForm.keyFileName = file.name; };
             reader.readAsText(file); event.target.value = '';
         },
-        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description, ssh_enabled: srv.ssh_enabled !== false, sftp_enabled: srv.sftp_enabled !== false, sftp_read_only: srv.sftp_read_only || false, agent_enabled: srv.agent_enabled || false, sftp_allowed_paths_str: (srv.sftp_allowed_paths || []).join('\n'), jump_via_id: srv.jump_via_id || null }; this.showServerModal = true; },
+        editServer(srv) { this.editingServerId = srv.id; this.serverForm = { name: srv.name, hostname: srv.hostname, port: srv.port, username: srv.username, auth_method: srv.auth_method, password: '', private_key: '', keyFileName: '', group: srv.group, tagsStr: (srv.tags || []).join(', '), description: srv.description, ssh_enabled: srv.ssh_enabled !== false, sftp_enabled: srv.sftp_enabled !== false, sftp_read_only: srv.sftp_read_only || false, agent_enabled: srv.agent_enabled || false, record_sessions: srv.record_sessions || false, sftp_allowed_paths_str: (srv.sftp_allowed_paths || []).join('\n'), jump_via_id: srv.jump_via_id || null }; this.showServerModal = true; },
         async saveServer() {
             const tags = this.serverForm.tagsStr.split(',').map(t => t.trim()).filter(Boolean);
             const sftp_allowed_paths = (this.serverForm.sftp_allowed_paths_str || '').split('\n').map(p => p.trim()).filter(Boolean);

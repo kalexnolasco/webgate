@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from webgate.auth.routes import get_current_user
 from webgate.auth.service import authenticate_api_key, decode_access_token, get_user_by_id
 from webgate.db.engine import get_session
 from webgate.recordings.models import Recording, RecordingOut
+from webgate.recordings.recorder import unpack
 
 
 async def _user_from_query_token(token: str, session: AsyncSession) -> UserOut:
@@ -55,19 +56,43 @@ async def _get_recording_for(session: AsyncSession, recording_id: int, user: Use
     return rec
 
 
+def _cast_bytes(rec: Recording) -> bytes:
+    """The cast, wherever this recording keeps it.
+
+    Recordings made from v2.3.0 live in the database, so any worker can serve them.
+    Older ones are a path on whichever worker happened to record the session -- which
+    is exactly the bug: behind a load balancer, roughly half the replays landed on the
+    worker that did not have the file.
+    """
+    if rec.data:
+        return unpack(rec.data)
+    if rec.file_path:
+        path = Path(rec.file_path)
+        if path.exists():
+            return path.read_bytes()
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=(
+            "This recording was stored on a single worker's disk and is not "
+            "reachable from here. Recordings made from v2.3.0 onwards are not."
+        ),
+    )
+
+
 @router.get("/{recording_id}/download")
 async def download_recording(
     recording_id: int, session: SessionDep, token: Annotated[str, Query()]
-) -> FileResponse:
+) -> Response:
     user = await _user_from_query_token(token, session)
     rec = await _get_recording_for(session, recording_id, user)
-    p = Path(rec.file_path)
-    if not p.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording file missing")
-    return FileResponse(
-        path=str(p),
+    return Response(
+        content=_cast_bytes(rec),
         media_type="application/x-asciicast",
-        filename=f"webgate-{rec.id}-{rec.server_name}.cast",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="webgate-{rec.id}-{rec.server_name}.cast"'
+            )
+        },
     )
 
 
@@ -122,15 +147,12 @@ async def play_recording(
 @router.get("/{recording_id}/cast")
 async def cast_raw(
     recording_id: int, session: SessionDep, token: Annotated[str, Query()]
-) -> FileResponse:
+) -> Response:
     """Same as /download but returns the raw cast (no Content-Disposition) so
     the embedded player can fetch it via XHR."""
     user = await _user_from_query_token(token, session)
     rec = await _get_recording_for(session, recording_id, user)
-    p = Path(rec.file_path)
-    if not p.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording file missing")
-    return FileResponse(path=str(p), media_type="application/x-asciicast")
+    return Response(content=_cast_bytes(rec), media_type="application/x-asciicast")
 
 
 @router.delete("/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
