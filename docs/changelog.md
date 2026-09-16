@@ -1,5 +1,53 @@
 # Changelog
 
+## v2.4.0 (2026-09-16) — the audit log records what happened
+
+Reported by a user: someone deleted a file and the log did not say which one.
+
+The truth was worse. **`files/routes.py` contained no audit call at all** — not for
+delete, not for upload, rename, write, mkdir, chmod or download. No SFTP operation was
+recorded in any form. Two of them fired a webhook, which is why anything was seen at
+all. A log that says something happened without saying what is the same as no log.
+
+Registry and account changes had the same hole: of everything an admin can do, only
+clearing a host key pin and signing in were ever written down. Creating a server,
+deleting one along with its stored credentials, creating an account, moving somebody
+between groups, resetting a password — none of it left a trace.
+
+### Now recorded
+
+Every entry names the account, the action, what it touched, the time and the originating
+IP.
+
+- **Every SFTP operation**, with the server and the full path. A rename records both
+  names, a chmod records the mode, a ZIP download records what went into it. Taking a
+  copy of a file now leaves the same trace as deleting it.
+- **Registry changes** — created, updated, deleted. An update records **which fields**
+  changed and never their values, because one of them is a password. Deleting a server
+  says that its stored credentials went with it.
+- **Account changes** — created, deleted, groups changed (before and after), password
+  reset. These are changes to who can reach the fleet.
+
+Directory listings and file previews are deliberately left out: they are high volume and
+low signal, and burying a delete under ten thousand `ls` entries makes the log worse.
+
+### Finding an entry
+
+Filtering was exact-match on username or action, which is no use to someone holding a
+filename and no idea what happened to it.
+
+- **Search matches the detail**, as well as the user and the action, case-insensitively.
+  Type `nginx.conf` and see everything that touched it.
+- **Filter by action** from a list of the kinds actually present, rather than guessing a
+  name.
+- **Filter by date**, and see how many entries matched.
+- `GET /api/auth/audit` takes `search`, `since` and `until`; `GET /api/auth/audit/actions`
+  lists the kinds.
+
+311 tests.
+
+---
+
 ## v2.3.0 (2026-09-12) — snippets that are worth clicking, recordings that survive
 
 ### Upgrading

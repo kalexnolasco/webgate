@@ -357,6 +357,9 @@
         .fz-fixed-row code { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
         .fz-snip-shared { border-color: var(--accent-dim); }
         .fz-snip-shared::before { content: "\2022"; color: var(--accent); margin-right: 4px; }
+        .fz-audit-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+        .fz-audit-filters input, .fz-audit-filters select { margin: 0; }
+        .fz-audit-empty { padding: 28px 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
         .fz-modal-footer { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; background: var(--modal-bg); }
         .fz-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .fz-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -1815,7 +1818,19 @@ window._showToastImpl = function(message, type) {
 <!-- ======== AUDIT LOG MODAL ======== -->
 <div x-show="showAuditModal" class="fz-modal-bg" @click.self="showAuditModal=false">
     <div class="fz-modal" style="width:720px" @click.stop>
-        <div class="fz-modal-title">Audit Log</div>
+        <div class="fz-modal-title">Audit log</div>
+        <div class="fz-audit-filters">
+            <input type="search" x-model="auditQuery" @input.debounce.300ms="loadAudit()"
+                   placeholder="Search a filename, a server, a user…" aria-label="Search the audit log"
+                   style="flex:1;min-width:180px">
+            <select x-model="auditAction" @change="loadAudit()" aria-label="Filter by action" style="width:auto">
+                <option value="">All actions</option>
+                <template x-for="a in auditActions" :key="a"><option :value="a" x-text="a"></option></template>
+            </select>
+            <input type="date" x-model="auditSince" @change="loadAudit()" aria-label="From date" style="width:auto">
+            <button @click="auditQuery=''; auditAction=''; auditSince=''; loadAudit()"
+                    class="fz-btn fz-btn-ghost fz-btn-sm">Clear</button>
+        </div>
         <div class="fz-modal-body" style="padding:0;max-height:60vh;overflow-y:auto">
             <table style="width:100%;font-size:12px;border-collapse:collapse">
                 <thead style="position:sticky;top:0;background:var(--btn-bg)">
@@ -1833,14 +1848,20 @@ window._showToastImpl = function(message, type) {
                             <td style="padding:6px 8px;color:var(--text-secondary);font-size:11px;white-space:nowrap" x-text="new Date(e.created_at).toLocaleString()"></td>
                             <td style="padding:6px 8px;color:var(--text-primary);font-weight:500" x-text="e.username"></td>
                             <td style="padding:6px 8px"><span style="font-size:11px;padding:2px 6px;border-radius:10px;background:var(--btn-bg);color:var(--text-secondary);border:1px solid var(--border);font-family:var(--mono)" x-text="e.action"></span></td>
-                            <td style="padding:6px 8px;color:var(--text-secondary);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" x-text="e.detail"></td>
+                            <td style="padding:6px 8px;color:var(--text-secondary);font-size:11px;max-width:340px" style="word-break:break-all" x-text="e.detail"></td>
                             <td style="padding:6px 8px;color:var(--text-muted);font-size:11px;font-family:var(--mono)" x-text="e.ip_address"></td>
                         </tr>
                     </template>
                 </tbody>
             </table>
+            <p x-show="auditEntries.length === 0" class="fz-audit-empty">
+                <span x-show="auditQuery || auditAction || auditSince">Nothing matches that filter.</span>
+                <span x-show="!auditQuery && !auditAction && !auditSince">Nothing recorded yet.</span>
+            </p>
         </div>
         <div class="fz-modal-footer">
+            <span style="margin-right:auto;font-size:11px;color:var(--text-muted)"
+                  x-text="auditEntries.length + (auditEntries.length === 200 ? '+ entries (narrow the filter to see older ones)' : ' entries')"></span>
             <button @click="showAuditModal=false" class="fz-btn">Close</button>
         </div>
     </div>
@@ -2121,7 +2142,8 @@ function app() {
         showUsersModal: false, showGroupsModal: false,
         managedUsers: [], newUser: { username: '', password: '', groupsStr: '' },
         editingUserObj: null, editingGroupsStr: '',
-        showAuditModal: false, auditEntries: [],
+        showAuditModal: false, auditEntries: [], auditActions: [],
+        auditQuery: '', auditAction: '', auditSince: '',
         showApiKeysModal: false, apiKeys: [], newApiKeyName: '', createdApiKey: null,
         showWebhooksModal: false, webhooks: [], newWebhook: { name: '', url: '', events: '*', secret: '' },
         showRecordingsModal: false, recordings: [],
@@ -3649,8 +3671,22 @@ function app() {
 
         // Admin: audit log
         async openAuditLog() {
-            try { this.auditEntries = await this.apiCall('/api/auth/audit?limit=200'); } catch (e) { this.showToast(e.message, 'error'); return; }
+            this.auditQuery = ''; this.auditAction = ''; this.auditSince = '';
+            try {
+                this.auditActions = await this.apiCall('/api/auth/audit/actions');
+                await this.loadAudit();
+            } catch (e) { this.showToast(e.message, 'error'); return; }
             this.showAuditModal = true;
+        },
+        async loadAudit() {
+            // The question an operator arrives with is a filename, so the search runs
+            // over the detail as well as the user and the action.
+            const q = new URLSearchParams({ limit: '200' });
+            if (this.auditQuery) q.set('search', this.auditQuery);
+            if (this.auditAction) q.set('action', this.auditAction);
+            if (this.auditSince) q.set('since', this.auditSince + 'T00:00:00');
+            try { this.auditEntries = await this.apiCall('/api/auth/audit?' + q); }
+            catch (e) { this.showToast(e.message, 'error'); }
         },
 
         // Admin: user management

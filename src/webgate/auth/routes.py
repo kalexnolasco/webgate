@@ -1,5 +1,6 @@
 import json
 import secrets
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -9,7 +10,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webgate.audit.models import AuditOut
-from webgate.audit.service import get_audit_log, log_action
+from webgate.audit.service import audit_actions, get_audit_log, log_action
 from webgate.auth.ldap import authenticate_ldap
 from webgate.auth.models import (
     ApiKeyCreate,
@@ -190,6 +191,22 @@ async def login(request: Request, body: UserLogin, session: SessionDep) -> Login
     return LoginOut(access_token=token)
 
 
+async def _record(request: Request, actor: UserOut, action: str, detail: str) -> None:
+    """Who changed whose access, and from where.
+
+    Only sign-ins were recorded. Creating an account, moving someone between groups,
+    resetting a password or clearing a 2FA secret are all changes to who can reach the
+    fleet, and none of them left a trace.
+    """
+    await log_action(
+        actor.id,
+        actor.username,
+        action,
+        detail=detail,
+        ip_address=request.client.host if request.client else "",
+    )
+
+
 @router.get("/me", response_model=UserOut)
 async def me(current_user: CurrentUserDep) -> UserOut:
     return current_user
@@ -226,7 +243,7 @@ async def get_users(session: SessionDep, current_user: CurrentUserDep) -> list[U
 
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def create_new_user(
-    body: UserManage, session: SessionDep, current_user: CurrentUserDep
+    body: UserManage, request: Request, session: SessionDep, current_user: CurrentUserDep
 ) -> UserOut:
     _require_admin(current_user)
     existing = await get_user_by_username(session, body.username)
@@ -237,12 +254,22 @@ async def create_new_user(
     user = await create_user(
         session, body.username, body.password, allowed_groups=body.allowed_groups
     )
+    await _record(
+        request,
+        current_user,
+        "user_created",
+        f"{user.username}; groups: {', '.join(body.allowed_groups) or 'none'}",
+    )
     return UserOut.model_validate(user)
 
 
 @router.put("/users/{user_id}/groups", response_model=UserOut)
 async def set_user_groups(
-    user_id: int, body: UserUpdateGroups, session: SessionDep, current_user: CurrentUserDep
+    user_id: int,
+    body: UserUpdateGroups,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep,
 ) -> UserOut:
     _require_admin(current_user)
     user = await get_user_by_id(session, user_id)
@@ -250,31 +277,43 @@ async def set_user_groups(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if user.is_admin:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify admin")
+    was = ", ".join(json.loads(user.allowed_groups or "[]")) or "none"
+    now = ", ".join(body.allowed_groups) or "none"
     updated = await update_user_groups(session, user, body.allowed_groups)
+    await _record(request, current_user, "user_groups_changed", f"{user.username}: {was} -> {now}")
     return UserOut.model_validate(updated)
 
 
 @router.put("/users/{user_id}/password", response_model=UserOut)
 async def reset_user_password(
-    user_id: int, body: UserLogin, session: SessionDep, current_user: CurrentUserDep
+    user_id: int,
+    body: UserLogin,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep,
 ) -> UserOut:
     _require_admin(current_user)
     user = await get_user_by_id(session, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     updated = await update_user_password(session, user, body.password)
+    await _record(request, current_user, "user_password_reset", user.username)
     return UserOut.model_validate(updated)
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_user(user_id: int, session: SessionDep, current_user: CurrentUserDep) -> None:
+async def remove_user(
+    user_id: int, request: Request, session: SessionDep, current_user: CurrentUserDep
+) -> None:
     _require_admin(current_user)
     user = await get_user_by_id(session, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if user.is_admin:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete admin")
+    name = user.username
     await delete_user(session, user)
+    await _record(request, current_user, "user_deleted", name)
 
 
 @router.post("/totp/setup", response_model=TotpSetupOut)
@@ -385,8 +424,25 @@ async def audit_log_endpoint(
     offset: int = 0,
     username: str | None = None,
     action: str | None = None,
+    search: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> list[AuditOut]:
     _require_admin(current_user)
     return await get_audit_log(
-        session, limit=limit, offset=offset, username=username, action=action
+        session,
+        limit=limit,
+        offset=offset,
+        username=username,
+        action=action,
+        search=search,
+        since=since,
+        until=until,
     )
+
+
+@router.get("/audit/actions", response_model=list[str])
+async def audit_actions_endpoint(session: SessionDep, current_user: CurrentUserDep) -> list[str]:
+    """The action kinds actually present, so the filter is a list rather than guesswork."""
+    _require_admin(current_user)
+    return await audit_actions(session)

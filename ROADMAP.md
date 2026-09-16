@@ -80,6 +80,11 @@ Tracks the development plan for **webgate**. Items are organized by release.
 - [x] **Recording is off by default and opted into per server**, with a size cap that says so inside the replay
 - [x] **Team-shared snippets**, `{parameters}` prompted before sending, and confirm-before-running for anything that changes a server
 
+### v2.4.0 — The audit log records what happened (2026-09-16)
+- [x] **Every SFTP operation is audited** with the server and the full path — there was no audit call anywhere in the file module, so a deleted file left no name behind
+- [x] **Registry and account changes are audited** — only sign-ins and clearing a host key pin had been
+- [x] **The log is searchable by filename**, filterable by action and by date
+
 ---
 
 ## Planned

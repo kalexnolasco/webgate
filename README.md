@@ -127,7 +127,7 @@ flowchart TB
 | **Restricted client networks** | Only the gateway is HTTP-reachable; webgate proxies SSH/SFTP from there |
 | **On-call / incident response** | Open a browser anywhere, no laptop with keys needed; share the live session for pair-debugging |
 | **Team onboarding** | Admin creates a user, assigns groups; new engineer has access in seconds |
-| **Audit & compliance** | Centralized access point, structured audit log, optional asciinema session recording |
+| **Audit & compliance** | Centralized access point, an audit log that names every file touched and every access change, optional asciinema session recording |
 | **Multi-client / agency** | One webgate per client, isolated server registries; run lots of them cheaply |
 
 ---
@@ -141,7 +141,7 @@ flowchart TB
 | **Server Registry** | Groups, tags, password/key auth, encrypted at rest (Fernet), **verified host keys** (TOFU), **favourites and recents**, import/export JSON, **jump host / bastion** chaining |
 | **Access Control** | Admin/user roles, per-server SSH/SFTP toggles, SFTP path restrictions, read-only SFTP mode, group-based visibility |
 | **Auth** | JWT + bcrypt locally, **2FA TOTP**, **API keys** for automation, **LDAP / Active Directory** with group→role mapping |
-| **Compliance** | **Session recording** to asciinema cast files with browser replay, off by default and opted into per server, structured **audit log**, **webhooks** (HMAC-signed) on key events |
+| **Compliance** | **Session recording** to asciinema cast files with browser replay, off by default and opted into per server, **audit log** covering every SFTP operation, registry and account change, searchable by filename, **webhooks** (HMAC-signed) on key events |
 | **Migration** | **Full-state backup and restore** — servers with credentials, users, groups, webhooks and API keys in one passphrase-encrypted file, portable between instances |
 | **AI agent** | Per-server iterative chat over **Ollama** or **OpenRouter**, read-only inspection tools, **works on SFTP-only hosts**, cached results and searchable findings — configured in the admin panel, off until then |
 | **Branding** | White-label the deployment: app name, logo, sign-in image, browser icon, company colours with a palette picker and live preview, light and dark palettes — applied for every user |

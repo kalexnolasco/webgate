@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webgate.audit.service import log_action
@@ -55,12 +55,26 @@ async def list_all(
     )
 
 
+async def _record(request: Request, user: UserOut, action: str, detail: str) -> None:
+    """Registry changes move credentials around; only clearing a pin was recorded."""
+    await log_action(
+        user.id,
+        user.username,
+        action,
+        detail=detail,
+        ip_address=request.client.host if request.client else "",
+    )
+
+
 @router.post("", response_model=ServerOut, status_code=status.HTTP_201_CREATED)
 async def create(
-    body: ServerCreate, session: SessionDep, current_user: CurrentUserDep
+    body: ServerCreate, request: Request, session: SessionDep, current_user: CurrentUserDep
 ) -> ServerOut:
     _require_admin(current_user)
     server = await create_server(session, body, current_user.id)
+    await _record(
+        request, current_user, "server_created", f"{server.name} ({server.hostname}:{server.port})"
+    )
     await fire_webhook(
         "server_added",
         {
@@ -204,24 +218,43 @@ async def get_one(server_id: int, session: SessionDep, current_user: CurrentUser
 
 @router.put("/{server_id}", response_model=ServerOut)
 async def update(
-    server_id: int, body: ServerUpdate, session: SessionDep, current_user: CurrentUserDep
+    server_id: int,
+    body: ServerUpdate,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep,
 ) -> ServerOut:
     _require_admin(current_user)
     server = await get_server(session, server_id, current_user.id, is_admin=True)
     if not server:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
+    before = f"{server.name} ({server.hostname}:{server.port})"
     updated = await update_server(session, server, body)
+    after = f"{updated.name} ({updated.hostname}:{updated.port})"
+    # Name the fields, never the values: a server update carries credentials.
+    changed = sorted(k for k, v in body.model_dump(exclude_unset=True).items() if v is not None)
+    detail = before if before == after else f"{before} -> {after}"
+    fields = ", ".join(changed) or "nothing"
+    await _record(request, current_user, "server_updated", f"{detail}; changed: {fields}")
     return server_to_out(updated)
 
 
 @router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete(server_id: int, session: SessionDep, current_user: CurrentUserDep) -> None:
+async def delete(
+    server_id: int, request: Request, session: SessionDep, current_user: CurrentUserDep
+) -> None:
     _require_admin(current_user)
     server = await get_server(session, server_id, current_user.id, is_admin=True)
     if not server:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
     server_info = {"id": server.id, "name": server.name, "hostname": server.hostname}
     await delete_server(session, server)
+    await _record(
+        request,
+        current_user,
+        "server_deleted",
+        f"{server_info['name']} ({server_info['hostname']}) and its stored credentials",
+    )
     await fire_webhook("server_deleted", {**server_info, "by": current_user.username})
 
 
