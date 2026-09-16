@@ -42,8 +42,8 @@ flowchart LR
     BOB -->|sees| S3
 
     style ADMIN fill:#5cb85c,stroke:#449d44,color:#fff
-    style ALICE fill:#e8f0fe,stroke:#4a90d9
-    style BOB fill:#fff3e0,stroke:#ff9800
+    style ALICE fill:#2a6cb5,stroke:#4a90d9,color:#fff
+    style BOB fill:#b25e00,stroke:#ff9800,color:#fff
 ```
 
 ## Editing Groups

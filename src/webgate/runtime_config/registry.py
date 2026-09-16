@@ -155,6 +155,23 @@ SPECS: tuple[Spec, ...] = (
         maximum=86400,
     ),
     Spec(
+        key="max_sessions_per_user",
+        section="Security",
+        label="Concurrent SSH sessions per user",
+        help=(
+            "How many terminals one account may hold open on a single worker. 0 means "
+            "no limit. Counted per worker, so a gateway behind a load balancer allows "
+            "this many on each."
+        ),
+        kind="int",
+        minimum=0,
+        maximum=200,
+        warning=(
+            "0 means nothing stops a looping browser tab from opening SSH sessions "
+            "until the worker runs out."
+        ),
+    ),
+    Spec(
         key="max_upload_size",
         section="Security",
         label="Maximum transfer size",

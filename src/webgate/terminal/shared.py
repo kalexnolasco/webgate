@@ -114,6 +114,16 @@ class SharedSessionManager:
             self._by_token.pop(sess.share_token, None)
         return sess
 
+    def count_for(self, username: str) -> int:
+        """Live sessions this account owns on this worker.
+
+        Per worker, not per fleet: sessions are held in memory beside the PTY they
+        belong to, and the failure this guards against -- one account exhausting a
+        worker -- is per worker too. With N workers a cap of M allows up to N*M in
+        total, which the setting's help text says out loud.
+        """
+        return sum(1 for s in self._by_id.values() if s.owner_username == username and not s.closed)
+
     def get_by_id(self, session_id: str) -> SharedSession | None:
         return self._by_id.get(session_id)
 

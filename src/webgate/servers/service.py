@@ -8,7 +8,7 @@ import asyncssh
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from webgate.servers.crypto import decrypt_value, encrypt_value
+from webgate.servers.crypto import CredentialUnreadable, decrypt_value, encrypt_value
 from webgate.servers.hostkeys import describe, known_hosts_for, remember, translate
 from webgate.servers.models import Server, ServerCreate, ServerOut, ServerUpdate
 
@@ -189,10 +189,19 @@ async def delete_server(session: AsyncSession, server: Server) -> None:
 async def test_server_connectivity(
     server: Server, session: AsyncSession | None = None
 ) -> tuple[bool, str]:
-    password = decrypt_value(server.encrypted_password) if server.encrypted_password else None
-    private_key_str = (
-        decrypt_value(server.encrypted_private_key) if server.encrypted_private_key else None
-    )
+    try:
+        password = (
+            decrypt_value(server.encrypted_password, server.name)
+            if server.encrypted_password
+            else None
+        )
+        private_key_str = (
+            decrypt_value(server.encrypted_private_key, server.name)
+            if server.encrypted_private_key
+            else None
+        )
+    except CredentialUnreadable as exc:
+        return False, str(exc)
 
     kwargs: dict[str, object] = {
         "host": server.hostname,
@@ -289,8 +298,13 @@ async def resolve_jump_creds(session: AsyncSession, server: Server) -> dict[str,
 
 
 def get_server_credentials(server: Server) -> tuple[str | None, str | None]:
-    password = decrypt_value(server.encrypted_password) if server.encrypted_password else None
+    """Raises CredentialUnreadable when the secret key no longer matches the rows."""
+    password = (
+        decrypt_value(server.encrypted_password, server.name) if server.encrypted_password else None
+    )
     private_key = (
-        decrypt_value(server.encrypted_private_key) if server.encrypted_private_key else None
+        decrypt_value(server.encrypted_private_key, server.name)
+        if server.encrypted_private_key
+        else None
     )
     return password, private_key

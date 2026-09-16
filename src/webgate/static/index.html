@@ -309,7 +309,9 @@
         .cm-editor .cm-scroller { overflow: auto; }
 
         /* Demo banner */
-        .fz-demo-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 200; background: var(--bg-secondary); border-bottom: 1px solid var(--border); color: var(--text-secondary); text-align: center; font-size: 12px; padding: 6px 12px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+        .fz-demo-banner { flex: none; z-index: 200; background: var(--bg-secondary); border-bottom: 1px solid var(--border); color: var(--text-secondary); text-align: center; font-size: 12px; padding: 6px 12px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+        .fz-root { height: 100vh; display: flex; flex-direction: column; }
+        .fz-app-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; }
         .fz-demo-banner strong { color: var(--text-primary); font-weight: 600; }
         .fz-demo-banner code { background: var(--btn-bg); border: 1px solid var(--border); padding: 1px 5px; border-radius: var(--radius-sm); font-family: var(--mono); font-size: 11px; color: var(--text-primary); }
         .fz-demo-banner a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
@@ -360,6 +362,12 @@
         .fz-audit-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); }
         .fz-audit-filters input, .fz-audit-filters select { margin: 0; }
         .fz-audit-empty { padding: 28px 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
+        .fz-srv-badge.pinned { color: var(--accent); }
+        .fz-hostkey { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+        .fz-hostkey-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+        .fz-hostkey-head svg { color: var(--accent); }
+        .fz-hostkey-head button { margin-left: auto; }
+        .fz-hostkey-fp { display: block; font-family: var(--mono); font-size: 11px; word-break: break-all; padding: 7px 9px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; }
         .fz-modal-footer { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; background: var(--modal-bg); }
         .fz-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .fz-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -488,7 +496,7 @@ window._showToastImpl = function(message, type) {
 <g id="i-play"><path d="M7 4.5 19 12 7 19.5V4.5Z"/></g>
 <g id="i-save"><path d="M5 3h11l4 4v14H5V3Z"/><path d="M8.5 3v6h7V3M8.5 21v-7h7v7"/></g>
 </defs></svg>
-<div x-data="app()" x-cloak @keydown.window="handleKeyboard($event)">
+<div x-data="app()" x-cloak class="fz-root" @keydown.window="handleKeyboard($event)">
 
 <!-- Demo banner (shown when WEBGATE_DEMO_MODE=true) -->
 <div x-show="demoMode" class="fz-demo-banner">
@@ -539,7 +547,7 @@ window._showToastImpl = function(message, type) {
 </div>
 
 <!-- ======================== MAIN APP ======================== -->
-<div :style="token ? 'height:100vh;display:flex;flex-direction:column' : 'display:none'">
+<div class="fz-app-shell" :style="token ? '' : 'display:none'">
 
     <!-- ---- App bar ---- -->
     <header class="fz-appbar">
@@ -744,6 +752,10 @@ window._showToastImpl = function(message, type) {
                                             <svg class="fz-icon fz-icon-sm" viewBox="0 0 24 24"><use href="#i-jump"/></svg>
                                         </span>
                                         <span x-show="srv.sftp_enabled && srv.sftp_read_only" class="fz-srv-badge ro" title="SFTP is read-only">RO</span>
+                                        <span x-show="srv.host_key_fingerprint" class="fz-srv-badge pinned"
+                                              :title="'Host key pinned: ' + srv.host_key_fingerprint">
+                                            <svg class="fz-icon fz-icon-sm" viewBox="0 0 24 24"><use href="#i-shield"/></svg>
+                                        </span>
                                     </div>
                                     <div class="fz-srv-actions">
                                         <button @click.stop="openServerTerminal(srv)" class="fz-btn fz-btn-primary" :disabled="srv.ssh_enabled===false" :title="srv.ssh_enabled===false ? 'SSH is disabled for this server' : 'Open SSH terminal'">SSH</button>
@@ -1713,10 +1725,31 @@ window._showToastImpl = function(message, type) {
                         <input type="checkbox" x-model="serverForm.sftp_read_only" style="width:auto;accent-color:var(--warning)"> SFTP Read-Only (browse &amp; download only)
                     </label>
                     <label x-show="agentAvailable" style="display:flex;align-items:center;gap:8px;margin-top:12px">
-                        <input type="checkbox" x-model="serverForm.agent_enabled" style="width:auto;accent-color:var(--info)"> Allow the diagnostic agent</label>
-                                    <label style="display:flex;align-items:center;gap:8px;font-size:13px">
-                                        <input type="checkbox" x-model="serverForm.record_sessions" style="width:auto;accent-color:var(--info)"> Record SSH sessions
+                        <input type="checkbox" x-model="serverForm.agent_enabled" style="width:auto;accent-color:var(--info)"> Allow the diagnostic agent
                     </label>
+                    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px">
+                        <input type="checkbox" x-model="serverForm.record_sessions" style="width:auto;accent-color:var(--info)"> Record SSH sessions
+                    </label>
+
+                    <div x-show="editingServerId" class="fz-hostkey">
+                        <div class="fz-hostkey-head">
+                            <svg class="fz-icon fz-icon-sm" viewBox="0 0 24 24"><use href="#i-shield"/></svg>
+                            <span>Host key</span>
+                            <button x-show="hostKeyOf(editingServerId) && currentUser?.is_admin" type="button"
+                                    @click="clearHostKey(editingServerId)"
+                                    class="fz-btn fz-btn-ghost fz-btn-sm">Clear pinned key</button>
+                        </div>
+                        <code x-show="hostKeyOf(editingServerId)" x-text="hostKeyOf(editingServerId)" class="fz-hostkey-fp"></code>
+                        <div class="hint" x-show="hostKeyOf(editingServerId)">
+                            Recorded the first time this server was reached. A connection is refused if the
+                            key changes, so clear it only when you know why it changed &mdash; a rebuild, a
+                            rotation &mdash; and confirm the new one out of band.
+                        </div>
+                        <div class="hint" x-show="!hostKeyOf(editingServerId)">
+                            Nothing pinned yet. The next connection records the key this server presents,
+                            and every connection after that is checked against it.
+                        </div>
+                    </div>
                     <div x-show="!agentAvailable" class="hint" style="margin-top:12px">
                         The AI agent is not set up on this gateway.
                         <a href="#" @click.prevent="showServerModal=false;openAgentSettings()" style="color:var(--accent)">Configure it in Admin &rarr; AI agent</a>
@@ -3079,6 +3112,29 @@ function app() {
         },
         async loadStatuses() { try { this.serverStatuses = await this.apiCall('/api/servers/status'); } catch {} },
         async loadGroups() { try { this.groups = await this.apiCall('/api/servers/groups'); } catch {} },
+        hostKeyOf(serverId) {
+            return (this.servers.find(s => s.id === serverId) || {}).host_key_fingerprint || '';
+        },
+        async clearHostKey(serverId) {
+            const srv = this.servers.find(s => s.id === serverId);
+            if (!srv) return;
+            // Spelled out, because accepting a new key is the one moment the protection
+            // is deliberately stood down.
+            const ok = confirm(
+                `Forget the pinned host key for ${srv.name}?\n\n` +
+                `${srv.host_key_fingerprint}\n\n` +
+                `The next connection will record whatever key the server presents and trust it. ` +
+                `Do this only if you know why the key changed and have confirmed the new one ` +
+                `some other way.`
+            );
+            if (!ok) return;
+            try {
+                const res = await this.apiCall(`/api/servers/${serverId}/host-key`, { method: 'DELETE' });
+                await this.loadServers();
+                this.showToast(`Forgot ${res.cleared || 'the pinned key'}`, 'success');
+                this.log('status', `Cleared the host key for ${srv.name}`);
+            } catch (e) { this.showToast(e.message || 'Could not clear the key', 'error'); }
+        },
         resetServerForm() { this.editingServerId = null; this.serverForm = { name: '', hostname: '', port: 22, username: '', auth_method: 'password', password: '', private_key: '', keyFileName: '', group: '', tagsStr: '', description: '', ssh_enabled: true, sftp_enabled: true, sftp_read_only: false, agent_enabled: false, record_sessions: false, sftp_allowed_paths_str: '', jump_via_id: null }; },
         loadKeyFile(event) {
             const file = event.target.files?.[0]; if (!file) return;

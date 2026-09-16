@@ -16,6 +16,7 @@ from webgate.db.engine import async_session_factory as _session_factory
 from webgate.recordings.models import Recording
 from webgate.recordings.recorder import CastRecorder
 from webgate.runtime_config import store as runtime
+from webgate.servers.crypto import CredentialUnreadable
 from webgate.servers.service import (
     get_server,
     get_server_credentials,
@@ -140,7 +141,14 @@ async def ws_terminal_server(ws: WebSocket, server_id: int) -> None:
             await ws.close(code=4003, reason="SSH is disabled for this server")
             return
 
-        password, private_key = get_server_credentials(server)
+        try:
+            password, private_key = get_server_credentials(server)
+        except CredentialUnreadable as exc:
+            # Raising here fails the WebSocket upgrade itself, so the browser sees a
+            # bare 500 with nothing to act on.
+            await ws.send_json({"type": "error", "message": str(exc)})
+            await ws.close(code=1011)
+            return
         jump_kwargs = await resolve_jump_creds(session, server)
 
         await ws.accept()

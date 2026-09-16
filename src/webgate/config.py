@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     disable_monitor: bool = False  # Skip leader election; never run server monitor
     log_level: str = "info"
     session_timeout: int = 3600
+    max_sessions_per_user: int = 0  # 0 = no cap
     max_upload_size: int = 104857600  # 100MB
     first_run: bool = True
 

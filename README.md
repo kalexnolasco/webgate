@@ -77,9 +77,9 @@ flowchart TB
     GW -. "SSH :22" .-> APP2
     GW -. "SSH :22" .-> WORKER
     GW -. "SSH :22" .-> REDIS
-    style internet fill:#e8f0fe,stroke:#4a90d9
-    style firewall fill:#fff3e0,stroke:#ff9800
-    style internal fill:#f0f9e8,stroke:#5cb85c
+    style internet fill:none,stroke:#4a90d9,stroke-width:2px
+    style firewall fill:none,stroke:#ff9800,stroke-width:2px
+    style internal fill:none,stroke:#5cb85c,stroke-width:2px
     style GW fill:#ffcc02,stroke:#e6a800,color:#333
     style YOU fill:#4a90d9,stroke:#2a6cb5,color:#fff
 ```
@@ -111,9 +111,9 @@ flowchart TB
     WG -- "SSH/SFTP" --> APP1
     WG -- "SSH/SFTP" --> WORKER
     WG -- "SSH/SFTP" --> REDIS
-    style internet fill:#e8f0fe,stroke:#4a90d9
-    style firewall fill:#fff3e0,stroke:#ff9800
-    style internal fill:#f0f9e8,stroke:#5cb85c
+    style internet fill:none,stroke:#4a90d9,stroke-width:2px
+    style firewall fill:none,stroke:#ff9800,stroke-width:2px
+    style internal fill:none,stroke:#5cb85c,stroke-width:2px
     style WG fill:#5cb85c,stroke:#449d44,color:#fff
     style ENG1 fill:#4a90d9,stroke:#2a6cb5,color:#fff
     style ENG2 fill:#4a90d9,stroke:#2a6cb5,color:#fff
@@ -306,7 +306,7 @@ flowchart LR
     style B fill:#4a90d9,stroke:#2a6cb5,color:#fff
     style WG fill:#5cb85c,stroke:#449d44,color:#fff
     style BAST fill:#ffcc02,stroke:#e6a800,color:#333
-    style INT fill:#fff3e0,stroke:#ff9800
+    style INT fill:#b25e00,stroke:#ff9800,color:#fff
 ```
 
 ### Shared terminal session
@@ -358,7 +358,7 @@ flowchart LR
         L1["alice ∈ cn=devs"]
         L2["alice ∈ cn=admins"]
     end
-    subgraph "Group mapping<br/>(Admin → Settings → LDAP)"
+    subgraph MAP["Group mapping<br/>Admin &rarr; Settings &rarr; LDAP"]
         M["{<br/>  &quot;devs&quot;: &quot;production&quot;,<br/>  &quot;sre&quot;: &quot;all&quot;<br/>}"]
     end
     subgraph User
@@ -601,9 +601,9 @@ flowchart LR
     W3 -. watches .-> LEASE
     style LB fill:#ffcc02,stroke:#e6a800,color:#333
     style W1 fill:#5cb85c,stroke:#449d44,color:#fff
-    style W2 fill:#e8f0fe,stroke:#4a90d9
-    style W3 fill:#e8f0fe,stroke:#4a90d9
-    style PG fill:#fff3e0,stroke:#ff9800
+    style W2 fill:#2a6cb5,stroke:#4a90d9,color:#fff
+    style W3 fill:#2a6cb5,stroke:#4a90d9,color:#fff
+    style PG fill:#b25e00,stroke:#ff9800,color:#fff
 ```
 
 Reference stack:

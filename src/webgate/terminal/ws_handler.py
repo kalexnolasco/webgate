@@ -10,6 +10,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from webgate.auth.service import authenticate_api_key, decode_access_token
 from webgate.db.engine import async_session_factory
 from webgate.recordings.recorder import CastRecorder
+from webgate.runtime_config import store as runtime
 from webgate.terminal.shared import Participant, SharedSession, manager
 from webgate.terminal.ssh_session import SSHSession
 
@@ -50,6 +51,26 @@ async def handle_terminal_ws(
 ) -> None:
     """Open an SSH session as the owner. The session is registered with the
     shared-session manager so other users can join via a share token."""
+    # Checked here rather than at each entry point: both the registry and quick-connect
+    # routes come through this function, and it is the last moment before an SSH
+    # connection we would only refuse.
+    cap = int(runtime.get("max_sessions_per_user"))
+    if cap and manager.count_for(owner_username) >= cap:
+        logger.info("Refused a session for %s: at the limit of %d", owner_username, cap)
+        with contextlib.suppress(Exception):
+            await ws.send_json(
+                {
+                    "type": "error",
+                    "message": (
+                        f"You already have {cap} terminal"
+                        f"{'s' if cap != 1 else ''} open on this gateway. "
+                        f"Close one before opening another."
+                    ),
+                }
+            )
+        await ws.close(code=4008, reason="Session limit reached")
+        return
+
     session = SSHSession(
         host=host,
         port=port,

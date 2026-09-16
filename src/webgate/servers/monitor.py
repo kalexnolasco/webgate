@@ -26,7 +26,7 @@ from sqlalchemy import select, text
 from webgate.config import settings
 from webgate.db.engine import async_session_factory, engine
 from webgate.runtime_config import store as runtime
-from webgate.servers.crypto import decrypt_value
+from webgate.servers.crypto import CredentialUnreadable, decrypt_value
 from webgate.servers.hostkeys import known_hosts_for
 from webgate.servers.models import Server
 
@@ -232,17 +232,28 @@ class ServerMonitor:
         await asyncio.gather(*[_check_one(s) for s in servers])
 
     async def _check_server(self, server: Server) -> ServerStatus:
-        password = decrypt_value(server.encrypted_password) if server.encrypted_password else None
-        private_key_str = (
-            decrypt_value(server.encrypted_private_key) if server.encrypted_private_key else None
-        )
+        now = datetime.now(UTC)
+        try:
+            password = (
+                decrypt_value(server.encrypted_password, server.name)
+                if server.encrypted_password
+                else None
+            )
+            private_key_str = (
+                decrypt_value(server.encrypted_private_key, server.name)
+                if server.encrypted_private_key
+                else None
+            )
+        except CredentialUnreadable as exc:
+            # Reported against this server, not raised: the sweep has other hosts to
+            # check, and the operator needs to know which one is unreadable.
+            return ServerStatus(online=False, last_checked=now, error=str(exc))
         kwargs: dict[str, object] = {
             "host": server.hostname,
             "port": server.port,
             "username": server.username,
             "known_hosts": known_hosts_for(getattr(server, "host_key", "") or ""),
         }
-        now = datetime.now(UTC)
         start = time.monotonic()
         try:
             # Parsing the key belongs inside the try. An unreadable key row raised out

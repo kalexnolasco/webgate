@@ -38,11 +38,13 @@ def _open_sftp(page: Any, name: str = LAB_SERVER, path: str | None = None) -> No
     fixture files live elsewhere, so the test navigates rather than assuming.
     """
     _card(page, name).get_by_role("button", name="SFTP").click()
-    page.wait_for_selector(".fz-filelist", timeout=30_000)
+    # The table element appears as soon as the tab renders, while the listing for `/`
+    # is still in flight. Navigating before it lands gets clobbered when it does, so
+    # wait for rows, not for the container.
+    page.wait_for_selector(".fz-filelist tbody tr >> nth=3", timeout=30_000)
     if path:
         page.fill(".path-input", path)
         page.press(".path-input", "Enter")
-        # Wait for a row that is actually visible: the first one is the hidden `..`.
         page.wait_for_selector(f".fz-filelist >> text={LAB_FILE}", timeout=20_000)
 
 

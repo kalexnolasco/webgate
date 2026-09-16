@@ -1,5 +1,50 @@
 # Changelog
 
+## v2.6.0 (2026-09-16) — rotating the secret key no longer breaks everything
+
+### Fixed
+
+- **A changed `WEBGATE_SECRET_KEY` made webgate fall over instead of explaining
+  itself.** v2.2.0 refuses the shipped default, which asks every existing install to
+  set a real one; doing that leaves rows encrypted under the old key. `decrypt_value`
+  raised a bare Fernet error from twelve call sites and none of them caught it. The
+  status monitor died on its first sweep and froze every server's dot; opening a
+  terminal failed the WebSocket **upgrade**, so the browser got a 500 with nothing in
+  it. Found on the public demo, by walking into it.
+
+  An unreadable credential is now its own error, naming the server, why it happened
+  and what to do. The monitor marks that one server offline and carries on, the
+  terminal answers with an error frame, SFTP returns 502, and a connection test
+  reports it.
+
+- **The demo banner covered the top of the interface.** It was `position: fixed` with
+  nothing making room for it, so the app bar sat underneath. It is in flow now, which
+  also holds when it wraps to two lines on a narrow screen. Only visible with
+  `WEBGATE_DEMO_MODE=true`, which is why no test caught it.
+
+- **Diagrams that did not show.** Nine style directives set a pale fill and left the
+  label to the theme, so on GitHub's dark background they were light text on a light
+  box. All 21 diagrams in the repository now render, and every label is readable on
+  both grounds — checked with the Mermaid version GitHub actually uses, in a browser,
+  one diagram per page.
+
+### Added
+
+- **The pinned host key is visible.** The fingerprint has been in the API since
+  v2.0.0 and nothing showed it. Servers carry a shield when a key is pinned, the edit
+  form shows the fingerprint, and an admin can clear it there — with the consequence
+  spelled out, since accepting a new key is the one moment the protection is stood
+  down.
+- **A cap on concurrent SSH sessions per account** (**Admin → Settings → Security**,
+  0 for none). There was nothing stopping a looping tab from opening sessions until
+  the worker ran out. Checked before the SSH connection is made, and counted per
+  worker — which the setting says, because a gateway behind a load balancer allows
+  that many on each.
+
+333 tests.
+
+---
+
 ## v2.5.0 (2026-09-16) — browser tests
 
 The audit gap in v2.4.0 was reported by a person using the interface, and no test in

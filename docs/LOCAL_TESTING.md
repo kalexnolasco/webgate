@@ -55,7 +55,7 @@ flowchart LR
     B -- SSH tunnel --> I
     style WG fill:#5cb85c,stroke:#449d44,color:#fff
     style B fill:#ffcc02,stroke:#e6a800,color:#333
-    style I fill:#fff3e0,stroke:#ff9800
+    style I fill:#b25e00,stroke:#ff9800,color:#fff
 ```
 
 `webgate` and `ssh-internal` share **no network**, so reaching `ssh-internal` is only possible via the bastion.

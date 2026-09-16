@@ -90,6 +90,12 @@ Tracks the development plan for **webgate**. Items are organized by release.
 - [x] **The documentation screenshots are taken by those tests**, so they cannot drift from the shipped interface
 - [x] **CI runs them on every push**, and uploads what they captured
 
+### v2.6.0 — Key rotation, host key UI, session cap (2026-09-16)
+- [x] **A changed secret key is handled** — it used to kill the monitor and fail the terminal's WebSocket upgrade with a bare 500
+- [x] **The pinned host key fingerprint is visible and clearable** from the Site Manager
+- [x] **A per-account cap on concurrent SSH sessions**
+- [x] **The demo banner no longer covers the interface**, and every diagram in the repository renders legibly on both GitHub grounds
+
 ---
 
 ## Planned
@@ -97,8 +103,6 @@ Tracks the development plan for **webgate**. Items are organized by release.
 ### v2.1.x — Next
 | Feature | Priority | Description |
 |---------|----------|-------------|
-| Per-user concurrent-session limit | Medium | Nothing caps how many SSH sessions one account may hold open |
-| Host key fingerprint in the UI | Medium | The API exposes it and can clear it; the Site Manager does not show it yet |
 | Internationalization (i18n) | Low | UI translations starting with English / Spanish |
 
 ### Later

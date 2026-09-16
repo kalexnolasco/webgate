@@ -29,6 +29,7 @@ from webgate.files.models import (
 )
 from webgate.files.pool import sftp_pool
 from webgate.files.sftp_service import SFTPClient, validate_path
+from webgate.servers.crypto import CredentialUnreadable
 from webgate.servers.hostkeys import remember, translate
 from webgate.servers.models import Server
 from webgate.servers.service import get_server, get_server_credentials, resolve_jump_creds
@@ -111,7 +112,10 @@ async def _sftp(
         )
     allowed_paths = _get_allowed_paths(server)
     read_only = server.sftp_read_only
-    password, private_key = get_server_credentials(server)
+    try:
+        password, private_key = get_server_credentials(server)
+    except CredentialUnreadable as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     jump_kwargs = await resolve_jump_creds(session, server)
     try:
         client = await sftp_pool.acquire(
