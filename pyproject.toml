@@ -1,6 +1,6 @@
 [project]
 name = "webgate"
-version = "2.4.0"
+version = "2.5.0"
 description = "Self-hosted web application for remote server management via SSH terminal and SFTP file browser"
 readme = "README.md"
 license = "MIT"
@@ -79,6 +79,13 @@ include = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# The browser tests start a real server and a real SSH host, so they are opt-in:
+#   uv run pytest tests/e2e -m e2e
+addopts = "-m 'not e2e'"
+markers = [
+    "e2e: drives a real browser against a running webgate (needs playwright)",
+    "docs: writes the screenshots used in the documentation",
+]
 
 [dependency-groups]
 dev = [
@@ -91,4 +98,5 @@ dev = [
     "mkdocs-material>=9.7.6",
     "mkdocstrings>=1.0.3",
     "mkdocstrings-python>=2.0.3",
+    "playwright>=1.49.0",
 ]

@@ -165,8 +165,9 @@ flowchart TB
 
 ## Screenshots
 
-Taken from v2.1.1. The terminal and file browser are real sessions against a live SSH
-host reached through a bastion.
+Taken by the browser tests (`tests/e2e`) against a real webgate and a real SSH host, so
+they show the build those tests just drove and cannot drift into an interface that no
+longer exists.
 
 ### Site Manager, terminal, SFTP, command palette
 
@@ -700,6 +701,11 @@ uv run uvicorn webgate.app:create_app --factory --reload --host 0.0.0.0 --port 8
 # tests
 uv run pytest tests/ -v
 uv run pytest tests/ -v --cov=webgate
+
+# browser tests: a real browser against a real webgate and a real SSH host.
+# Opt-in, because they start both. They also take the screenshots in the docs.
+uv run playwright install chromium
+uv run pytest tests/e2e -m e2e
 
 # lint — clean, and expected to stay that way
 uv run ruff check src/ tests/

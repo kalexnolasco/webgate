@@ -1,5 +1,50 @@
 # Changelog
 
+## v2.5.0 (2026-09-16) — browser tests
+
+The audit gap in v2.4.0 was reported by a person using the interface, and no test in
+this repository could have found it: the suite exercised the API, and the API was never
+the part that was wrong. There are now tests that drive the actual browser.
+
+### End-to-end suite
+
+`tests/e2e` starts a real webgate against a throwaway database, a real SSH/SFTP host,
+and a real Chromium, then uses the interface the way a person does. The one that
+matters selects a file in the browser, clicks **Delete**, checks the file is gone from
+the host, opens the audit panel, searches for its name and asserts the entry names the
+file, the server and the account.
+
+- Opt-in — they start two servers, so `pytest tests/` still runs only the unit suite.
+  `pytest tests/e2e -m e2e` runs these.
+- The SSH lab that made this possible moved out of a scratch directory and into
+  `tests/e2e/sshlab.py`, so the suite is self-contained and runs in CI.
+- A page that throws while a test clicks around fails that test, even if every
+  assertion passed. The frontend has no build step and no type checker behind it.
+- **The screenshots in the documentation are taken by these tests**, from the build
+  they just drove. They can no longer drift into showing an interface that does not
+  exist — which is exactly what had happened by v2.1.2, when every shot was from v0.3.
+
+### Found while writing them
+
+- **Signing in nine times in a row trips webgate's own rate limit**, ten attempts a
+  minute from one address, and the suite then fails on the login screen with nothing to
+  say about the feature under test. The tests sign in once and reuse the session, which
+  is also what a person does.
+- Two of the first failures were the tests, not the app, and worth recording because
+  the same shape will catch the next person: `.fz-modal` matches every modal, since they
+  all sit in the DOM and only hide with `x-show`; and the first row of a file listing is
+  the `..` entry, which is never visible at the root.
+
+### CI
+
+A fourth job installs Chromium and runs the browser suite on every push, and uploads
+the screenshots it took. A Dockerfile only breaks when someone builds it; an interface
+only breaks when someone uses it.
+
+320 tests: 311 unit, 9 browser.
+
+---
+
 ## v2.4.0 (2026-09-16) — the audit log records what happened
 
 Reported by a user: someone deleted a file and the log did not say which one.

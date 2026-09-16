@@ -68,6 +68,8 @@ time and the originating IP.
 | `user_created`, `user_deleted`, `user_groups_changed`, `user_password_reset` | Who changed whose access, and the groups before and after |
 | `settings_update`, `settings_reset`, `branding_update`, `host_key_cleared`, `backup_export`, `backup_restore`, `agent_command` | The keys or the subject, not the secrets |
 
+![The audit log](../screenshots/v2/audit.png)
+
 ### Finding an entry
 
 The question an operator arrives with is usually a filename, not an action kind, so the

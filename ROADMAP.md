@@ -85,6 +85,11 @@ Tracks the development plan for **webgate**. Items are organized by release.
 - [x] **Registry and account changes are audited** — only sign-ins and clearing a host key pin had been
 - [x] **The log is searchable by filename**, filterable by action and by date
 
+### v2.5.0 — Browser tests (2026-09-16)
+- [x] **End-to-end suite** driving a real Chromium against a real webgate and a real SSH host, including the reported audit bug end to end
+- [x] **The documentation screenshots are taken by those tests**, so they cannot drift from the shipped interface
+- [x] **CI runs them on every push**, and uploads what they captured
+
 ---
 
 ## Planned

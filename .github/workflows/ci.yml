@@ -94,6 +94,35 @@ jobs:
           done
           echo "FAILED: never became healthy"; docker logs wg; docker rm -f wg; exit 1
 
+  e2e:
+    # Drives a real browser against a real webgate and a real SSH host. The unit
+    # suite can prove an endpoint writes an audit entry; only this proves that
+    # clicking Delete puts the file's name in the audit panel.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --all-extras --dev
+
+      - name: Install the browser
+        run: uv run playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: uv run pytest tests/e2e -m e2e -q
+
+      - name: The screenshots the tests took
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: docs/screenshots/v2/
+          if-no-files-found: ignore
+
   docs:
     runs-on: ubuntu-latest
     steps:
