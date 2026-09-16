@@ -4,8 +4,10 @@ name: Deploy demo
 # it spent months serving a version several releases behind the repository.
 
 on:
-  release:
-    types: [published]
+  # Called by release.yml rather than triggered by the release it creates: GitHub
+  # does not start workflows from events raised with GITHUB_TOKEN, so a
+  # `release: published` trigger here never fires and the demo silently stays behind.
+  workflow_call:
   workflow_dispatch:
 
 permissions:

@@ -121,3 +121,8 @@ jobs:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: v${{ needs.verify.outputs.version }}
           body_path: notes.md
+
+  demo:
+    needs: github_release
+    uses: ./.github/workflows/demo.yml
+    secrets: inherit
