@@ -28,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0   # the guard below compares against every tag
 
       - id: v
         name: The tag, VERSION and pyproject must agree
@@ -44,7 +45,11 @@ jobs:
 
           # Republishing an older tag is something RELEASING.md tells you to do, and it
           # must not drag `latest`, the GitHub release badge or the demo back with it.
-          git fetch --tags --quiet
+          #
+          # This only protects a *dispatched* re-run. A tag push runs the workflow file
+          # from the tagged commit, so an old tag brings its own old workflow with it --
+          # tag an old commit and this guard is simply not there. RELEASING.md says so.
+          git fetch --tags --force --quiet
           newest="$(git tag -l 'v*' | sed 's/^v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
           image="kalexnolasco/webgate"
           if [ "$version" = "$newest" ]; then

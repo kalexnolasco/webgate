@@ -95,11 +95,20 @@ without cutting a new version: **Actions → Release → Run workflow**, and giv
 existing tag. PyPI will refuse a version it already has, which is correct; the other
 steps are idempotent.
 
-Republishing an **older** tag is safe too. The workflow compares it against the newest
-tag in the repository, and when it is not the newest it publishes the version image
-only — `latest`, the GitHub release badge and the demo are all left where they are.
-Without that, re-running an old release would quietly hand every `docker pull` an
-older webgate.
+Re-running an **older** tag from **Actions → Release → Run workflow** is safe: the
+workflow compares it against the newest tag and, when it is not the newest, publishes
+the version image only — `latest`, the GitHub release badge and the demo stay where
+they are.
+
+!!! danger "Pushing a tag that points at an old commit is not safe"
+    A tag push runs the workflow file **from the tagged commit**. Tag an old commit and
+    it brings its own old workflow along, guard and all, so it will happily move
+    `latest` backwards — which is exactly what happened when `v2.3.0` was tagged after
+    the fact and every `docker pull` briefly got a four-release-old webgate.
+
+    To publish a version that was missed, dispatch the workflow with that tag instead
+    of pushing the tag, or push the tag and then dispatch the newest one afterwards to
+    put `latest` back.
 
 ## What is checked, and what is not
 
