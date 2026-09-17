@@ -186,3 +186,94 @@ def test_capture_the_documentation_screenshots(page: Any, shot: Any, lab: dict[s
     page.wait_for_selector(".fz-filelist tbody tr >> nth=5", timeout=20_000)
     page.wait_for_timeout(800)
     shot("sftp")
+
+
+# --------------------------------------------------------------- keyboard focus
+
+
+def _type_into_terminal(page: Any, marker: str) -> None:
+    """Type at the page, never at the terminal.
+
+    `page.keyboard` goes to whatever holds the focus, which is the whole point: if
+    nothing focused the terminal, these keystrokes land on <body> and vanish. The
+    command is built so its output differs from its own echo -- `FOCUS%s` on screen
+    is the shell repeating what was typed, `FOCUSx` is the shell having run it.
+    """
+    page.keyboard.type(f"printf 'FOCUS%s\\n' {marker}\n")
+
+
+def _terminal_text(page: Any) -> str:
+    return str(page.locator(".xterm-rows").last.inner_text())
+
+
+def _wait_for_shell(page: Any) -> None:
+    page.wait_for_selector(".xterm-rows", timeout=30_000)
+    page.wait_for_timeout(3000)
+
+
+def test_a_terminal_takes_typing_without_being_clicked_first(
+    page: Any, lab: dict[str, Any]
+) -> None:
+    """The reported bug.
+
+    The session connected, the remote prompt was painted, and every keystroke went
+    nowhere: xterm reads from a hidden textarea and nothing in the frontend ever
+    called focus(), so the terminal was deaf until the user clicked into it.
+    """
+    _open_ssh(page)
+    _wait_for_shell(page)
+    _type_into_terminal(page, "a")
+    page.wait_for_timeout(2000)
+    assert "FOCUSa" in _terminal_text(page), "the terminal never received the keystrokes"
+
+
+def test_coming_back_to_a_terminal_tab_takes_typing_again(page: Any, lab: dict[str, Any]) -> None:
+    """Leaving for the Site Manager and returning used to need another click."""
+    _open_ssh(page)
+    _wait_for_shell(page)
+    page.get_by_role("tab", name="Site Manager").click()
+    page.wait_for_selector(".fz-serverlist", timeout=15_000)
+    page.locator(".fz-tab", has_text=LAB_SERVER).first.click()
+    page.wait_for_timeout(1000)
+    _type_into_terminal(page, "b")
+    page.wait_for_timeout(2000)
+    assert "FOCUSb" in _terminal_text(page), "the terminal was deaf after switching back"
+
+
+def test_a_split_tab_takes_typing_too(page: Any, lab: dict[str, Any]) -> None:
+    """A split carries a terminal in a differently-named container; it was missed
+    by every focus and re-fit path the tab strip had."""
+    _card(page, LAB_SERVER).get_by_role("button", name="Split").click()
+    _wait_for_shell(page)
+    _type_into_terminal(page, "c")
+    page.wait_for_timeout(2000)
+    assert "FOCUSc" in _terminal_text(page), "the split's terminal never got the focus"
+
+
+def test_a_reconnect_does_not_pull_the_caret_out_of_quick_connect(
+    page: Any, lab: dict[str, Any]
+) -> None:
+    """Focus the user did not ask for must not take the keyboard away from them.
+
+    The socket is dropped from the page, so the terminal really does reconnect and
+    really does run the focus path -- while the caret is in a field being typed in.
+    """
+    _open_ssh(page)
+    _wait_for_shell(page)
+    page.get_by_title("Quick connect (Ctrl+K)").click()
+    page.click("#qc-host")
+    page.type("#qc-host", "somewhere.internal")
+
+    page.evaluate(
+        "() => { const a = Alpine.$data(document.querySelector('[x-data]'));"
+        " a.tabs.find(t => t.id === a.activeTabId)._ws.close(); }"
+    )
+    page.wait_for_function(
+        "() => document.querySelector('.xterm-rows')?.innerText.includes('Reconnected')",
+        timeout=30_000,
+    )
+    page.wait_for_timeout(500)
+
+    assert page.evaluate("() => document.activeElement.id") == "qc-host"
+    page.keyboard.type("!")
+    assert page.input_value("#qc-host") == "somewhere.internal!"

@@ -2900,6 +2900,13 @@ function app() {
             if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'P' || event.key === 'p')) {
                 event.preventDefault(); this.openPalette(); return;
             }
+            // Now that terminals actually hold the focus, `inInput` is true inside one
+            // -- which is right for Ctrl+N/P/K, all readline bindings the shell owns.
+            // Ctrl+1 means nothing to a shell, so it still reaches the app from there.
+            if (inInput && event.target.classList?.contains('xterm-helper-textarea')
+                && (event.ctrlKey || event.metaKey) && event.key === '1') {
+                event.preventDefault(); this.view = 'dashboard'; return;
+            }
             if (inInput) return;
             if (event.ctrlKey || event.metaKey) {
                 switch(event.key) {
@@ -3102,6 +3109,9 @@ function app() {
 
             tab._ws.send(command + '\r');
             this.log('cmd', `Sent snippet "${s.name}"`);
+            // The click left the focus on the snippet button; give it back so the
+            // next thing typed goes to the shell that just ran the command.
+            this._focusTerminal(tab);
         },
         async promptNewSnippet() {
             const name = prompt('Snippet name:'); if (!name) return;
@@ -3228,7 +3238,16 @@ function app() {
             this.$nextTick(() => this._saveTabs());
             return this.tabs[this.tabs.length - 1];
         },
-        switchTab(id) { this.activeTabId = id; this.view = 'active'; const tab = this.tabs.find(t => t.id === id); if (tab?.type === 'terminal' && tab._fitAddon) { this.$nextTick(() => tab._fitAddon.fit()); } },
+        switchTab(id) {
+            this.activeTabId = id; this.view = 'active';
+            const tab = this.tabs.find(t => t.id === id);
+            // The pane was display:none until now, so xterm has to re-measure before
+            // the caret lands on it -- and a split tab carries a terminal too, which
+            // is why this is not just `=== 'terminal'`.
+            if (tab?.type === 'terminal' || tab?.type === 'split') {
+                this.$nextTick(() => { tab._fitAddon?.fit(); this._focusTerminal(tab); });
+            }
+        },
         closeTab(id) {
             const tab = this.tabs.find(t => t.id === id);
             if (tab) { this._destroyTab(tab); this.log('status', `Closed: ${tab.title}`); }
@@ -3238,6 +3257,9 @@ function app() {
                 else { this.activeTabId = null; this.view = 'dashboard'; }
             }
             this._saveTabs();
+            // Closing a tab drops you onto another one, which should be ready to type
+            // into like any other way of getting there.
+            this._focusTerminal(this.tabs.find(t => t.id === this.activeTabId));
         },
         _destroyTab(tab) {
             tab._closing = true; clearTimeout(tab._retryTimer); clearInterval(tab._retryTick);
@@ -3261,6 +3283,31 @@ function app() {
         },
 
         // Terminal
+
+        // xterm reads keystrokes from a hidden textarea, so a terminal that does not
+        // hold the browser focus silently swallows everything typed at it -- the
+        // session looks alive, the prompt is right there, and nothing happens. Every
+        // path that puts a terminal in front of the user has to hand it the focus.
+        //
+        // `polite` is for focus the user did not ask for: a session coming back after
+        // a drop must not pull the caret out of whatever they started typing into
+        // meanwhile.
+        _focusTerminal(tab, polite = false) {
+            if (!tab?._term || tab.id !== this.activeTabId || this.view !== 'active') return;
+            if (tab.type !== 'terminal' && tab.type !== 'split') return;
+            if (polite) {
+                const el = document.activeElement;
+                const tag = el?.tagName;
+                const busy = el && el !== document.body && !tab._term.element?.contains(el)
+                    && (el.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+                if (busy) return;
+                // A dialog on top owns the keyboard even when nothing inside it is
+                // focused; getClientRects() is empty for the x-show'd ones.
+                if ([...document.querySelectorAll('.fz-modal-bg')].some(m => m.getClientRects().length)) return;
+            }
+            this.$nextTick(() => { try { tab._term.focus(); } catch {} });
+        },
+
         openServerTerminal(srv) {
             this._touchRecent(srv);
             this.log('cmd', `Connecting to ${srv.hostname}:${srv.port}...`);
@@ -3290,6 +3337,9 @@ function app() {
             tab._connState = 'connecting';
             requestAnimationFrame(() => {
                 fitAddon.fit();
+                // After the fit, never before: focusing a terminal that has not been
+                // sized yet puts the caret where the cell is about to stop being.
+                this._focusTerminal(tab);
                 term.onData(data => { if (tab._ws?.readyState === WebSocket.OPEN) tab._ws.send(data); });
                 term.onResize(({ cols, rows }) => { if (tab._ws?.readyState === WebSocket.OPEN) tab._ws.send(JSON.stringify({ type: 'resize', cols, rows })); });
                 const ro = new ResizeObserver(() => fitAddon.fit()); ro.observe(container);
@@ -3321,6 +3371,7 @@ function app() {
                 if (tab._retries > 0) {
                     term.write('\r\n\x1b[32m--- Reconnected ---\x1b[0m\r\n');
                     this.log('status', `Reconnected: ${tab.title}`);
+                    this._focusTerminal(tab, true);
                 } else {
                     this.log('status', `Connected: ${tab.title}`);
                 }
