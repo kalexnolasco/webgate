@@ -176,8 +176,12 @@ def _seed(base: str, lab: dict[str, Any]) -> None:
 @pytest.fixture(scope="session")
 def browser() -> Iterator[Any]:
     playwright = pytest.importorskip("playwright.sync_api", reason="playwright is not installed")
+    # WEBGATE_E2E_HEADED=1 opens a real window. Headless Chromium draws overlay
+    # scrollbars, which take no layout space, so anything that measures one has to
+    # be run this way to see anything at all.
+    headless = os.environ.get("WEBGATE_E2E_HEADED", "") not in ("1", "true", "yes")
     with playwright.sync_playwright() as p:
-        instance = p.chromium.launch()
+        instance = p.chromium.launch(headless=headless)
         yield instance
         instance.close()
 

@@ -120,7 +120,10 @@
         .fz-log-row time { color: var(--text-muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
         /* Tab strip — underlines, not floating pills */
-        .fz-tabs { background: var(--bg-secondary); border-bottom: 1px solid var(--border); display: flex; align-items: stretch; overflow-x: auto; min-height: 34px; padding: 0 4px; scrollbar-width: none; }
+        .fz-tabs { background: var(--bg-secondary); border-bottom: 1px solid var(--border); display: flex; align-items: stretch; overflow-x: auto; min-height: 34px; padding: 0 4px; }
+        /* Hidden on purpose: the strip scrolls, but a bar under the tabs is noise.
+           `scrollbar-width: none` for it lives with the rest, in the @supports block
+           further down -- see the note there for why the two cannot both be set. */
         .fz-tabs::-webkit-scrollbar { height: 0; }
         .fz-tab { font-size: 13px; padding: 0 12px; height: 34px; cursor: pointer; display: flex; align-items: center; gap: 7px; white-space: nowrap; background: transparent; color: var(--text-secondary); font-weight: 500; border-bottom: 2px solid transparent; transition: color .15s, background .15s, border-color .15s; }
         .fz-tab:hover { background: var(--hover-bg); color: var(--text-primary); }
@@ -420,7 +423,22 @@
         .fz-flex-row[style*="display: none"] { display: none !important; }
 
         /* Browser surfaces: scrollbars, selection, caret */
-        * { scrollbar-color: var(--border) transparent; }
+
+        /* Two ways to style a scrollbar, and they must not be used together. Since
+           Chromium 121, an element with `scrollbar-color` or `scrollbar-width` has
+           its ::-webkit-scrollbar rules ignored entirely -- so setting both on `*`
+           silently handed the whole application the 15px native bar with arrow
+           buttons, including down the side of a terminal with nothing to scroll.
+           Measured in Chromium 153: 15px with both, 10px with either one alone.
+
+           So the standard properties are kept for the engines with no pseudo-elements,
+           which today means Firefox. `thin` there is 6px against a platform bar of 12
+           on GTK and more on Windows: not the 10px exactly -- Firefox gives no way to
+           say 10 -- but discreet in the same way, and the same on every platform. */
+        @supports not selector(::-webkit-scrollbar) {
+            * { scrollbar-color: var(--border) transparent; scrollbar-width: thin; }
+            .fz-tabs { scrollbar-width: none; }
+        }
         ::-webkit-scrollbar { width: 10px; height: 10px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; border: 2px solid var(--bg-primary); }
