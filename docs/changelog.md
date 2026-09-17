@@ -1,5 +1,77 @@
 # Changelog
 
+## v2.8.1 (2026-09-17) — the terminal fits the window it is in
+
+One reported defect, and the two it was hiding behind it.
+
+### The page itself grew a scrollbar
+
+With a short browser window and a session open, the whole document scrolled: a
+scrollbar down the full height of the window, not the terminal's own.
+
+Alpine shows an element by calling `el.style.removeProperty('display')` — including a
+`display` written by hand in the markup. The terminal panel declared its there, so
+the first time it was shown it became a block. Its xterm host stopped being a flex
+item, `flex: 1` and `min-height: 0` stopped meaning anything, and the terminal took
+the height of its contents rather than the space available.
+
+Measured at 1400×420 with a session open:
+
+| | before | after |
+|---|---|---|
+| panel `display` | `block` | `flex` |
+| xterm host height | 408px, in 271px of room | fits |
+| below the fold | 92px | 0 |
+| page scrollbar | 10px | none |
+| terminal rows | 24, whatever the window did | as many as fit |
+
+The project already had `.fz-flex-col` and `.fz-flex-row` for exactly this, guard and
+`!important` included, under the comment *"Force flex display even when Alpine x-show
+toggles display"*. Seven places had never been converted — the terminal and split
+panels, and five cosmetic ones that now use a `.fz-flex` which forces only the
+display and leaves their own alignment alone.
+
+### A failed resize took the session with it
+
+Fixing the layout meant the terminal resized for the first time, which meant a
+`resize` frame reached the gateway for the first time. That path had never run.
+
+`await ssh.resize(...)` sat inside a `try` that caught only `JSONDecodeError`,
+`KeyError` and `ValueError`. Anything else — a closed channel, a transport error —
+escaped to the `except Exception` around the whole input loop, which **ended it**. One
+failed resize dropped the connection with nothing logged to say why.
+
+Two more faults in the same loop, both demonstrated against the previous release:
+
+- A resize of **0×0**, which is what a hidden or not-yet-laid-out pane measures, went
+  straight to the pty. There is no terminal with no rows.
+- A **malformed resize frame** fell through and was written to the SSH channel, so a
+  control message was typed into somebody's shell as keystrokes.
+
+Resize failures are now logged and survived. On the browser side, a pane measuring
+zero is no longer fitted, and a terminal with no rows is not reported at all.
+
+### The test lab killed the shell on the first resize
+
+Not shipped code, but worth recording, because it is what made the layout fix look
+like three regressions.
+
+asyncssh delivers a window-change by raising `TerminalSizeChanged` out of
+`stdin.read()`. The lab did not catch it, so its read task died, and the cleanup
+killed the shell and ended the session — after which webgate closed the socket and
+the browser reconnected, in a loop. A real sshd applies the new size to the pty and
+carries on. So does the lab now.
+
+### Tests
+
+375 → 390. Nine unit tests on the resize path, three browser tests: the page must not
+scroll at 250px, 392px and 700px of window height, the terminal must re-fit to each,
+and the session must survive being resized and still answer a command afterwards.
+
+### Upgrading
+
+Nothing to do beyond the upgrade itself: no schema change, no settings change.
+
 ## v2.8.0 (2026-09-17) — the editor knows what it is looking at
 
 ### Syntax highlighting, by file type
