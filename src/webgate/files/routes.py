@@ -17,10 +17,11 @@ from webgate.audit.service import log_action
 from webgate.auth.models import UserOut
 from webgate.auth.routes import get_current_user
 from webgate.db.engine import get_session
-from webgate.files.limits import Budget
+from webgate.files.limits import Budget, human
 from webgate.files.limits import budget as transfer_budget
 from webgate.files.models import (
     ChmodRequest,
+    CopyToServerRequest,
     DirectoryListing,
     FileEntry,
     FileWriteRequest,
@@ -276,6 +277,88 @@ async def download_zip(
             )
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/{server_id}/copy-to")
+async def copy_to_server(
+    server_id: int,
+    request: Request,
+    body: CopyToServerRequest,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> dict[str, object]:
+    """Copy one file from this server to another, through the gateway.
+
+    Both ends already go through `_sftp`, so both ends are checked the way every
+    other operation is: the user must be allowed to see each server, the path must be
+    inside what each server permits, the destination must not be read-only, and the
+    size answers to the same transfer limit. Two audit entries, one per side, because
+    an incident on either host should find this in its own log.
+
+    Until now the only way to do this was to download the file to your own machine
+    and upload it again -- which is slower, and puts production data on a laptop.
+    """
+    async with (
+        _sftp(server_id, session, current_user) as source,
+        _sftp(body.target_server_id, session, current_user) as target,
+    ):
+        try:
+            src_path = validate_path(body.source_path)
+            check_path_allowed(src_path, source.allowed_paths)
+            check_read_only(target.read_only)
+
+            entry = await source.client.stat(src_path)
+            if entry.is_dir:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"{entry.name} is a directory. Copy files, or download the "
+                        f"directory as a ZIP and upload it."
+                    ),
+                )
+
+            # A destination that names a directory takes the file into it, which
+            # is what `scp host:/f other:/dir/` does and what people expect.
+            dest = validate_path(body.target_path)
+            if body.target_path.endswith("/") or await _is_dir(target.client, dest):
+                dest = posixpath.join(dest, posixpath.basename(src_path))
+            check_path_allowed(dest, target.allowed_paths)
+
+            budget = transfer_budget()
+            budget.check(entry.size, entry.name or src_path)
+            data = await source.client.read_bytes(src_path, budget)
+            await target.client.upload(dest, data)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+        await _audit(
+            request,
+            current_user,
+            source,
+            "sftp_copy_out",
+            f"{src_path} ({human(len(data))}) to {target.server_name}:{dest}",
+        )
+        await _audit(
+            request,
+            current_user,
+            target,
+            "sftp_copy_in",
+            f"{dest} ({human(len(data))}) from {source.server_name}:{src_path}",
+        )
+        return {
+            "path": dest,
+            "bytes": len(data),
+            "server": target.server_name,
+            "status": "copied",
+        }
+
+
+async def _is_dir(client: SFTPClient, path: str) -> bool:
+    """Whether a path exists and is a directory. A path that is not there is not."""
+    try:
+        return (await client.stat(path)).is_dir
+    except Exception:
+        return False
 
 
 class ZipSelection(BaseModel):

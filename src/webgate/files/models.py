@@ -34,3 +34,11 @@ class RenameRequest(BaseModel):
 class ChmodRequest(BaseModel):
     path: str
     mode: str
+
+
+class CopyToServerRequest(BaseModel):
+    """Move a file between two hosts without it going via somebody's laptop."""
+
+    source_path: str
+    target_server_id: int
+    target_path: str
