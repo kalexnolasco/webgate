@@ -256,6 +256,11 @@ async def delete(
         f"{server_info['name']} ({server_info['hostname']}) and its stored credentials",
     )
     await fire_webhook("server_deleted", {**server_info, "by": current_user.username})
+    # A server id can be reused; leaving its up/down history behind would make the
+    # next server to take it look like it had just changed state.
+    from webgate.servers.monitor import server_monitor
+
+    server_monitor.forget(server_id)
 
 
 @router.post("/{server_id}/test")

@@ -29,6 +29,7 @@ from webgate.runtime_config import store as runtime
 from webgate.servers.crypto import CredentialUnreadable, decrypt_value
 from webgate.servers.hostkeys import known_hosts_for
 from webgate.servers.models import Server
+from webgate.webhooks.dispatcher import fire as fire_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,10 @@ def _lease_ttl() -> int:
 LEASE_RENEW = 30  # seconds; heartbeat interval
 
 
+def _alert_after() -> int:
+    return max(1, int(runtime.get("monitor_alert_after")))
+
+
 @dataclass
 class ServerStatus:
     online: bool
@@ -75,6 +80,11 @@ class ServerMonitor:
 
     def __init__(self) -> None:
         self._statuses: dict[int, ServerStatus] = {}
+        # What each server was last *reported* as, and how many sweeps in a row it
+        # has failed. Both only ever touched by the leader, which is the only
+        # instance that sweeps -- so followers cannot double-announce an outage.
+        self._announced: dict[int, bool] = {}
+        self._failures: dict[int, int] = {}
         self._task: asyncio.Task[None] | None = None
         self._instance_id: str = settings.instance_id or str(uuid.uuid4())
         self._is_leader: bool = False
@@ -228,8 +238,59 @@ class ServerMonitor:
             async with semaphore:
                 status = await self._check_server(server)
                 self._statuses[server.id] = status
+                await self._announce(server, status)
 
         await asyncio.gather(*[_check_one(s) for s in servers])
+
+    async def _announce(self, server: Server, status: ServerStatus) -> None:
+        """Fire a webhook when a server changes state, and only then.
+
+        The monitor has always known when a host went down and has only ever painted
+        a dot with it. Somebody has to be looking at the dot.
+
+        Coming back is announced on the first successful check: a recovery is good
+        news and nobody minds hearing it early. Going down waits for
+        `monitor_alert_after` consecutive failures, because one lost packet is not an
+        outage and alerting on it is how people learn to ignore the alerts.
+        """
+        if status.online:
+            self._failures[server.id] = 0
+        else:
+            self._failures[server.id] = self._failures.get(server.id, 0) + 1
+            if self._failures[server.id] < _alert_after():
+                return
+
+        was = self._announced.get(server.id)
+        if was is status.online:
+            return
+        # The first sweep after a restart establishes the baseline. Announcing every
+        # host as "up" on every deploy is noise, so only a *change* is news -- but a
+        # host that is already down when we start is news, because nobody was told.
+        first_look = was is None
+        self._announced[server.id] = status.online
+        if first_look and status.online:
+            return
+
+        await fire_webhook(
+            "server_online" if status.online else "server_offline",
+            {
+                "server": server.name,
+                "hostname": server.hostname,
+                "port": server.port,
+                "online": status.online,
+                "latency_ms": status.latency_ms,
+                "error": status.error,
+                "failed_checks": self._failures.get(server.id, 0),
+                "checked_at": status.last_checked.isoformat(),
+            },
+        )
+        logger.info("%s is %s", server.name, "back online" if status.online else "unreachable")
+
+    def forget(self, server_id: int) -> None:
+        """Drop a deleted server, so a re-added one starts from a clean baseline."""
+        self._statuses.pop(server_id, None)
+        self._announced.pop(server_id, None)
+        self._failures.pop(server_id, None)
 
     async def _check_server(self, server: Server) -> ServerStatus:
         now = datetime.now(UTC)

@@ -238,6 +238,18 @@ SPECS: tuple[Spec, ...] = (
         minimum=1,
         maximum=200,
     ),
+    Spec(
+        key="monitor_alert_after",
+        section="Monitoring",
+        label="Failures before alerting",
+        help=(
+            "Consecutive failed checks before a server is reported down over a "
+            "webhook. 1 alerts on the first blip; the default waits for a second."
+        ),
+        kind="int",
+        minimum=1,
+        maximum=10,
+    ),
     # ----------------------------------------------------------------- recording
     Spec(
         key="record_sessions",

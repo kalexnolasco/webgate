@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     monitor_interval: int = 60  # seconds between connectivity checks
     monitor_timeout: int = 5  # SSH connect timeout for checks
     monitor_concurrency: int = 10  # max parallel checks
+    # Consecutive failed sweeps before a server is called down. One blip on the
+    # network is not an outage, and paging somebody for it teaches them to ignore it.
+    monitor_alert_after: int = 2
 
     @property
     def static_dir(self) -> Path:
