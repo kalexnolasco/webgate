@@ -1,5 +1,93 @@
 # Changelog
 
+## v2.9.0 (2026-09-17) — told, not watched
+
+Four gaps, all of the same shape: webgate already knew the thing, and the only place
+it ever said so was the screen of whoever happened to be looking.
+
+### The monitor tells you when a server goes down
+
+It has probed every server on a timer since v0.3 and has only ever painted a dot with
+what it found. Webhooks existed too — firing on file operations, server registration
+and sign-ins. The two halves were never connected.
+
+Two new events, **`server_offline`** and **`server_online`**, carrying the server, its
+hostname, the error, and how many checks had failed.
+
+What matters is that a *change* is announced, once:
+
+- `server_offline` waits for **Admin → Settings → Monitoring → Failures before
+  alerting** consecutive failures (two by default). One lost packet is not an outage,
+  and alerting on it is how people learn to ignore alerts.
+- `server_online` fires on the first check that succeeds. Waiting to be sure a host is
+  *back* helps nobody.
+- A host that stays down is reported once, not on every sweep.
+- A restart does not announce the whole fleet as up — but a host that is already down
+  when the gateway starts **is** reported, because nobody was told yet.
+- A flap that never reaches the threshold says nothing at all.
+- Only the instance holding the monitor lease sweeps, so a multi-instance deployment
+  sends one alert rather than one per worker.
+
+### Prometheus metrics
+
+`GET /metrics`, admin-only and authenticated like everything else — the exposition
+names every server in the registry, so an API key is the right credential for a
+scraper: revocable, and it shows up in the audit log.
+
+| Metric | |
+|---|---|
+| `webgate_info{version,instance}` | Always 1; the labels are the point |
+| `webgate_monitor_leader` | 1 on the instance running the monitor |
+| `webgate_terminal_sessions` | Live SSH sessions **on this instance** |
+| `webgate_servers_total`, `webgate_users_total` | Registry and account counts |
+| `webgate_server_up{server}` | 1 if the last check reached it |
+| `webgate_server_latency_seconds{server}` | The last successful connection |
+| `webgate_servers_online`, `webgate_servers_offline` | Fleet totals |
+
+Two things that would otherwise make a dashboard that lies, and are held by tests:
+session counts are **per instance**, and the fleet gauges come from **one** instance —
+a follower omits the `webgate_server_*` series rather than reporting zeroes, which
+would read as a fleet-wide outage.
+
+### Copy a file between two servers
+
+The gateway is connected to both hosts and holds the credentials for both. Until now
+the only way to move a file across was to download it to your own machine and upload
+it again: slower, and it put production data on a laptop.
+
+```
+POST /api/files/{server_id}/copy-to
+{ "source_path": "/etc/nginx/nginx.conf", "target_server_id": 4, "target_path": "/etc/nginx/" }
+```
+
+Both ends are checked the way every other file operation is — visibility, allowed
+paths, read-only, and the same transfer limit. A destination naming a directory keeps
+the filename, the way `scp` does. Two audit entries, `sftp_copy_out` and
+`sftp_copy_in`, each naming the other end, so an incident on either host finds it in
+its own log.
+
+### Search the terminal scrollback
+
+**`Ctrl+Shift+F`.** xterm ships a search addon and it had never been loaded, so the
+only way through a day of output was to scroll. Enter and Shift+Enter walk the
+matches, Esc closes it and hands the keyboard back to the shell, and a search that
+matches nothing says so instead of doing nothing.
+
+Not `Ctrl+F`: that is readline's *forward-char*, and a terminal that swallows it is a
+terminal that fights you — the same reasoning that already put the command palette on
+`Ctrl+Shift+P`.
+
+### Tests
+
+390 → 415. Twenty-one unit tests (ten on the alerting rules, eleven on the
+exposition) and eight browser tests, four of them against a **second** real SSH host
+added to the lab, because nothing else proves a file arrived on the other one.
+
+### Upgrading
+
+Nothing to do beyond the upgrade itself: no schema change. One new setting appears
+under **Monitoring** with a default that suits most fleets.
+
 ## v2.8.1 (2026-09-17) — the terminal fits the window it is in
 
 One reported defect, and the two it was hiding behind it.
