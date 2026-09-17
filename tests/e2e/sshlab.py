@@ -94,7 +94,19 @@ async def _run_shell(process: object, banner: str) -> None:
 
         async def to_shell() -> None:
             while True:
-                data = await proc_any.stdin.read(4096)  # type: ignore[attr-defined]
+                try:
+                    data = await proc_any.stdin.read(4096)  # type: ignore[attr-defined]
+                except asyncssh.TerminalSizeChanged as change:
+                    # asyncssh delivers a window-change by raising it out of the read.
+                    # A real sshd resizes the pty and carries on reading; letting it
+                    # end this loop killed the shell on the client's first resize --
+                    # which nothing noticed for as long as the terminal never resized.
+                    fcntl.ioctl(
+                        master,
+                        termios.TIOCSWINSZ,
+                        struct.pack("HHHH", change.height, change.width, 0, 0),
+                    )
+                    continue
                 if not data:
                     break
                 writer.write(data if isinstance(data, bytes) else data.encode())
