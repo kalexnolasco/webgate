@@ -25,6 +25,7 @@ from webgate.demo import seed_demo
 from webgate.files.limits import TooLarge
 from webgate.files.pool import sftp_pool
 from webgate.files.routes import router as files_router
+from webgate.files.sftp_service import NotEditable
 from webgate.recordings.routes import router as recordings_router
 from webgate.runtime_config import store as runtime_settings
 from webgate.runtime_config.routes import router as settings_router
@@ -68,6 +69,12 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=413, content={"detail": str(exc)})
 
     app.add_exception_handler(TooLarge, _too_large)
+
+    async def _not_editable(_request: Request, exc: Exception) -> JSONResponse:
+        # 415: the file is fine, it is the text editor that cannot represent it.
+        return JSONResponse(status_code=415, content={"detail": str(exc)})
+
+    app.add_exception_handler(NotEditable, _not_editable)
 
     origins = [o.strip() for o in settings.allowed_origins.split(",")]
     app.add_middleware(

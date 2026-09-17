@@ -17,6 +17,11 @@ from webgate.servers.hostkeys import known_hosts_for
 logger = logging.getLogger(__name__)
 
 READ_CHUNK = 256 * 1024  # bytes pulled per round trip when a budget applies
+BINARY_SNIFF = 8192  # bytes examined before calling a file binary
+
+
+class NotEditable(Exception):
+    """A file the text editor must not open, because saving it would corrupt it."""
 
 
 _ID_FILE_LIMIT = 512 * 1024  # generous for /etc/passwd on a large directory host
@@ -145,10 +150,34 @@ class SFTPClient:
             ),
         )
 
-    async def read_text(self, path: str) -> str:
+    async def read_text(self, path: str, budget: Budget | None = None) -> str:
+        """A file's text, or a refusal -- never a lossy approximation of it.
+
+        This used to decode with `errors="replace"`, which meant an executable or an
+        archive opened in the editor as a wall of U+FFFD with a **Save** button next
+        to it. Saving wrote those replacement characters back, so opening the wrong
+        file and pressing one button destroyed it. Nothing warned anybody.
+
+        Refusing is the only safe answer: the file is still there to download, and
+        the editor is no longer a way to lose it.
+        """
         safe_path = validate_path(path)
-        data = await self.read_bytes(safe_path)
-        return data.decode("utf-8", errors="replace")
+        data = await self.read_bytes(safe_path, budget)
+        name = posixpath.basename(safe_path) or safe_path
+        # A NUL byte in the first few KB is how `file`, git and grep all call it, and
+        # it is right far more often than any heuristic that tries to be cleverer.
+        if b"\0" in data[:BINARY_SNIFF]:
+            raise NotEditable(
+                f"{name} is a binary file. Download it instead -- opening it here "
+                f"and saving would rewrite it as text and destroy it."
+            )
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise NotEditable(
+                f"{name} is not valid UTF-8, so it cannot be edited here without "
+                f"changing bytes that are not yours to change. Download it instead."
+            ) from exc
 
     async def write_text(self, path: str, content: str) -> None:
         safe_path = validate_path(path)

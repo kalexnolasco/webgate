@@ -204,7 +204,9 @@ async def read_file(
         client, allowed_paths, _read_only = sftp.client, sftp.allowed_paths, sftp.read_only
         try:
             check_path_allowed(path, allowed_paths)
-            content = await client.read_text(path)
+            # The one read path that had no budget, so the editor was the way around
+            # the transfer limit: a 2 GB log opened here still asked for 2 GB.
+            content = await client.read_text(path, transfer_budget())
             return {"path": validate_path(path), "content": content}
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e

@@ -54,6 +54,10 @@ def lab(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
     (files / "nginx.conf").write_text("worker_processes auto;\n")
     (files / "app.log").write_text("started\n")
     (files / "old-backup.tar.gz").write_text("not really a tarball\n")
+    # One file per way the editor can work out what it is looking at.
+    (files / "deploy.py").write_text("import sys\n\n\ndef main() -> int:\n    return 0\n")
+    (files / "healthcheck").write_text("#!/bin/bash\nset -euo pipefail\necho ok\n")
+    (files / "service.db").write_bytes(b"SQLite format 3\x00" + bytes(64))
 
     port = _free_port()
     proc = subprocess.Popen(

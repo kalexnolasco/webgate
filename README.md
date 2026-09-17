@@ -137,7 +137,7 @@ flowchart TB
 | Category | Capabilities |
 |---|---|
 | **Terminal** | xterm.js + asyncssh, multi-tab, resize, copy/paste, **auto-reconnect** with backoff on a dropped link, **shared sessions** with one-click URL, **command snippets** — team-shared, with `{parameters}` and confirm-before-running |
-| **SFTP** | Full file ops + drag & drop upload, **sortable columns**, **multi-select** with batch ZIP download and delete, hidden-file toggle, in-browser editor (CodeMirror 6), PDF/image preview |
+| **SFTP** | Full file ops + drag & drop upload, **sortable columns**, **multi-select** with batch ZIP download and delete, hidden-file toggle, in-browser editor (CodeMirror 6) with **syntax highlighting for ~90 languages**, PDF/image preview |
 | **Server Registry** | Groups, tags, password/key auth, encrypted at rest (Fernet), **verified host keys** (TOFU), **favourites and recents**, import/export JSON, **jump host / bastion** chaining |
 | **Access Control** | Admin/user roles, per-server SSH/SFTP toggles, SFTP path restrictions, read-only SFTP mode, group-based visibility |
 | **Auth** | **Single sign-on (OpenID Connect)** — Entra ID, Okta, Google Workspace, Keycloak — with group→role mapping, plus JWT + bcrypt locally, **2FA TOTP**, **API keys** for automation, **LDAP / Active Directory** |

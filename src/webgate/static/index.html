@@ -10,9 +10,25 @@
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script type="module">
-        import {EditorView, basicSetup} from 'https://esm.sh/codemirror@6.0.1';
-        import {oneDark} from 'https://esm.sh/@codemirror/theme-one-dark@6.1.2';
-        window.CM = { EditorView, basicSetup, oneDark };
+        // `?deps=` here is load-bearing, not decoration. Left alone, each package
+        // resolves `@codemirror/state@^6.0.0` for itself, the page ends up holding two
+        // copies of it, and every extension built from the second is rejected by the
+        // editor built on the first -- "Unrecognized extension value", with nothing
+        // saying which import caused it. Pinning *state* gives them all one instance.
+        //
+        // Only state. Pinning @codemirror/view as well breaks the siblings that want
+        // a newer one, and `^6.0.0` for language is deliberately the same specifier
+        // esm.sh uses internally, so it resolves to the module everything else has.
+        import {EditorView, basicSetup} from 'https://esm.sh/codemirror@6.0.1?deps=@codemirror/state@6.4.1';
+        import {Compartment} from 'https://esm.sh/@codemirror/state@6.4.1';
+        import {LanguageDescription} from 'https://esm.sh/@codemirror/language@^6.0.0?deps=@codemirror/state@6.4.1';
+        import {oneDark} from 'https://esm.sh/@codemirror/theme-one-dark@6.1.2?deps=@codemirror/state@6.4.1';
+        // A manifest, not the grammars themselves: each entry carries a load() that
+        // imports only that language, the first time a file asks for it. So this
+        // costs one small file, and a gateway whose users never open a .rs never
+        // fetches the Rust parser at all.
+        import {languages} from 'https://esm.sh/@codemirror/language-data@6.5.1?deps=@codemirror/state@6.4.1';
+        window.CM = { EditorView, basicSetup, oneDark, Compartment, languages, LanguageDescription };
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -169,6 +185,10 @@
 
         /* Editor bar */
         .fz-editor-bar { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .fz-lang { font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1px 6px; margin-left: 8px; white-space: nowrap; }
+        .fz-editor-notice { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px 24px; text-align: center; background: var(--bg-tertiary); }
+        .fz-editor-notice .fz-icon { width: 28px; height: 28px; color: var(--warning); }
+        .fz-editor-notice p { margin: 0; max-width: 46ch; font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
 
         /* Server list in sidebar */
         .fz-sidebar { display: flex; flex-direction: column; min-height: 0; overflow: hidden; flex-shrink: 0; }
@@ -1048,15 +1068,24 @@ window._showToastImpl = function(message, type) {
                         <div class="fz-editor-bar" style="flex-shrink:0">
                             <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">
                                 <span x-show="tab._previewType">Preview: </span>
-                                <span x-show="!tab._previewType">Editing: </span>
+                                <span x-show="!tab._previewType && !tab._editorNotice">Editing: </span>
+                                <span x-show="tab._editorNotice">Cannot edit: </span>
                                 <strong x-text="tab.editingFile?.name"></strong>
+                                <span x-show="tab._editorLang" class="fz-lang" x-text="tab._editorLang"></span>
                             </span>
                             <div style="display:flex;gap:4px;flex-shrink:0">
-                                <button x-show="!tab._previewType && !tab.sftpReadOnly" @click="saveFile(tab)" class="fz-btn fz-btn-success" style="font-size:11px">Save</button>
+                                <button x-show="!tab._previewType && !tab._editorNotice && !tab.sftpReadOnly" @click="saveFile(tab)" class="fz-btn fz-btn-success" style="font-size:11px">Save</button>
+                                <button x-show="tab._editorNotice" @click="downloadFile(tab, tab.editingFile)" class="fz-btn fz-btn-primary" style="font-size:11px">Download</button>
                                 <button @click="closeEditor(tab)" class="fz-btn" style="font-size:11px">Close</button>
                             </div>
                         </div>
-                        <div :id="'editor-'+tab.id" style="flex:1;min-height:0;overflow:hidden"></div>
+                        <!-- A refusal belongs where the file would have been, not in a
+                             toast that is gone before it has been read. -->
+                        <div x-show="tab._editorNotice" class="fz-editor-notice">
+                            <svg class="fz-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg>
+                            <p x-text="tab._editorNotice"></p>
+                        </div>
+                        <div x-show="!tab._editorNotice" :id="'editor-'+tab.id" style="flex:1;min-height:0;overflow:hidden"></div>
                     </div>
                 </div>
             </div>
@@ -2155,6 +2184,38 @@ const BASE = location.pathname.replace(/\/(index\.html)?$/, '');
 
 const TERM_MAX_RETRIES = 6;
 
+// The editor keeps the whole document in the DOM. Past a few megabytes that is the
+// browser's problem, not the gateway's, so this ceiling is the client's own and is
+// deliberately well under the transfer limit an admin sets.
+const EDITOR_MAX_BYTES = 8 * 1024 * 1024;
+
+// Extensions @codemirror/language-data does not carry, but a server is full of.
+const EDITOR_EXT_ALIASES = {
+    conf: 'Properties', cnf: 'Properties', cfg: 'Properties', env: 'Properties',
+    repo: 'Properties', list: 'Properties',
+    service: 'Properties', timer: 'Properties', socket: 'Properties',
+    mount: 'Properties', target: 'Properties', netdev: 'Properties',
+    bash: 'Shell', zsh: 'Shell', ksh: 'Shell', bashrc: 'Shell', profile: 'Shell',
+};
+
+// Suffixes that say how a file is produced rather than what it is.
+const EDITOR_TEMPLATE_SUFFIXES = [
+    'j2', 'jinja', 'jinja2', 'tmpl', 'tpl', 'template', 'erb',
+    'dist', 'sample', 'example', 'default', 'orig', 'bak', 'new', 'rpmnew',
+];
+
+// For the scripts on a server that have no extension at all.
+const EDITOR_SHEBANGS = [
+    [/\bpython[\d.]*\b/, 'Python'],
+    [/\b(bash|sh|zsh|ksh|dash|ash)\b/, 'Shell'],
+    [/\bnode\b/, 'JavaScript'],
+    [/\bperl\b/, 'Perl'],
+    [/\bruby\b/, 'Ruby'],
+    [/\bphp\b/, 'PHP'],
+    [/\blua\b/, 'Lua'],
+    [/\bRscript\b/, 'R'],
+];
+
 // Terminal palettes, derived from the app's own tokens (DESIGN.md).
 const TERM_THEME_DARK = {
     background: '#0c0e0b', foreground: '#eceee6',
@@ -2874,6 +2935,14 @@ function app() {
             const palette = this.theme === 'light' ? TERM_THEME_LIGHT : TERM_THEME_DARK;
             for (const tab of this.tabs) {
                 if (tab._term) { try { tab._term.options.theme = palette; } catch {} }
+                // The editor used to be oneDark whatever the app was wearing.
+                if (tab._editorView && tab._editorTheme) {
+                    try {
+                        tab._editorView.dispatch({
+                            effects: tab._editorTheme.reconfigure(this._editorThemeExt()),
+                        });
+                    } catch {}
+                }
             }
         },
 
@@ -3486,7 +3555,7 @@ function app() {
             this._touchRecent(srv);
             this.log('cmd', `Opening SFTP to ${srv.hostname}...`);
             const tab = this._createTab('files', `${srv.name}`, {
-                serverId: srv.id, currentPath: '/', entries: [], loading: false, dragOver: false, editingFile: null, _editorView: null, fileFilter: '', sftpReadOnly: srv.sftp_read_only || false,
+                serverId: srv.id, currentPath: '/', entries: [], loading: false, dragOver: false, editingFile: null, _editorView: null, _editorLang: '', _editorNotice: '', fileFilter: '', sftpReadOnly: srv.sftp_read_only || false,
                 ...this._savedSort(), selected: [], lastIndex: null
             });
             this.loadDirectory(tab, '/');
@@ -3745,6 +3814,8 @@ function app() {
             return null;
         },
         async editFile(tab, f) {
+            // Whatever is opened next replaces any refusal still on screen.
+            tab._editorNotice = ''; tab._editorLang = '';
             const previewType = this._isPreviewable(f.name);
             if (previewType) {
                 this.log('cmd', `Loading preview: "${f.name}"...`);
@@ -3771,21 +3842,37 @@ function app() {
                 } catch (e) { this.showToast(e.message, 'error'); }
                 return;
             }
+            // CodeMirror holds the whole document in the DOM, so a file the gateway
+            // would happily serve can still lock up the browser. This ceiling is
+            // about the editor, not about the transfer limit the backend enforces.
+            if (f.size > EDITOR_MAX_BYTES) {
+                this._editorRefusal(tab, f,
+                    `${f.name} is ${this._humanSize(f.size)}, too large to open in the editor. ` +
+                    `Download it, or use the terminal for a file this size.`);
+                return;
+            }
             this.log('cmd', `Opening "${f.name}" for editing...`);
             try {
                 const data = await this.apiCall(`/api/files/${tab.serverId}/read?path=${encodeURIComponent(f.path)}`);
                 tab._previewType = null;
+                tab._editorNotice = '';
                 tab.editingFile = f;
+                // Resolved before the view is built: swapping a language in afterwards
+                // makes the file visibly repaint, and the load is usually cached.
+                const lang = await this._languageFor(f.name, data.content);
+                tab._editorLang = lang?.name || '';
                 this.$nextTick(() => {
                     const container = document.getElementById('editor-' + tab.id);
                     if (!container) return; container.innerHTML = '';
                     if (window.CM) {
                         if (tab._editorView) tab._editorView.destroy();
+                        tab._editorTheme = new window.CM.Compartment();
                         tab._editorView = new window.CM.EditorView({
                             doc: data.content,
                             extensions: [
                                 window.CM.basicSetup,
-                                window.CM.oneDark,
+                                ...(lang?.support ? [lang.support] : []),
+                                tab._editorTheme.of(this._editorThemeExt()),
                                 window.CM.EditorView.theme({ '&': { height: '100%' }, '.cm-scroller': { overflow: 'auto' } }),
                             ],
                             parent: container,
@@ -3794,7 +3881,78 @@ function app() {
                         container.innerHTML = `<textarea style="width:100%;height:100%;background:var(--input-bg);color:var(--text-primary);padding:12px;font-family:var(--mono);font-size:13px;border:0;resize:none;outline:none" id="fallback-${tab.id}">${data.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>`;
                     }
                 });
-            } catch (e) { this.showToast(e.message, 'error'); }
+            } catch (e) {
+                // 415 (binary, or not UTF-8) and 413 (over the transfer limit) are
+                // refusals with something useful to say, not failures to report and
+                // forget. They belong on screen next to a Download button.
+                this._editorRefusal(tab, f, e.message);
+            }
+        },
+
+        _humanSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let value = bytes, i = 0;
+            while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+            return i === 0 ? `${value} B` : `${value.toFixed(1)} ${units[i]}`;
+        },
+
+        _editorRefusal(tab, f, message) {
+            if (tab._editorView) { tab._editorView.destroy(); tab._editorView = null; }
+            tab._previewType = null;
+            tab._editorLang = '';
+            tab.editingFile = f;
+            tab._editorNotice = message;
+            this.log('error', message);
+        },
+
+        _editorThemeExt() {
+            // CodeMirror's own default is a light theme, so light is the absence of
+            // one. The editor used to be oneDark unconditionally, which left a black
+            // rectangle in the middle of the light interface.
+            return this.theme === 'light' ? [] : window.CM.oneDark;
+        },
+
+        // Resolution order, from most to least certain about what the file is.
+        async _languageFor(name, content) {
+            const CM = window.CM;
+            if (!CM?.languages || !CM.LanguageDescription) return null;
+            const byName = (n) => CM.languages.find(l => l.name === n);
+
+            let desc = CM.LanguageDescription.matchFilename(CM.languages, name);
+
+            // `nginx.conf.j2`, `settings.py.tmpl`: the suffix says how the file is
+            // produced, not what it is. Peel them off and ask again.
+            let base = name;
+            while (!desc) {
+                const ext = base.includes('.') ? base.split('.').pop().toLowerCase() : '';
+                if (!EDITOR_TEMPLATE_SUFFIXES.includes(ext)) break;
+                base = base.slice(0, -(ext.length + 1));
+                desc = CM.LanguageDescription.matchFilename(CM.languages, base);
+            }
+
+            if (!desc) {
+                const ext = base.includes('.') ? base.split('.').pop().toLowerCase() : '';
+                // A .conf is whatever wrote it; the one everybody has is nginx's.
+                if (ext === 'conf' && /nginx/i.test(name)) desc = byName('Nginx');
+                else if (EDITOR_EXT_ALIASES[ext]) desc = byName(EDITOR_EXT_ALIASES[ext]);
+            }
+
+            // Scripts in /usr/local/bin have no extension at all, which is exactly
+            // what the shebang line is for.
+            if (!desc && content.startsWith('#!')) {
+                const first = content.slice(0, 200).split('\n', 1)[0];
+                for (const [pattern, language] of EDITOR_SHEBANGS) {
+                    if (pattern.test(first)) { desc = byName(language); break; }
+                }
+            }
+
+            if (!desc) return null;
+            try {
+                return { name: desc.name, support: await desc.load() };
+            } catch {
+                // A grammar that will not load is not worth failing the open for.
+                return { name: desc.name, support: null };
+            }
         },
         async saveFile(tab) {
             let content;
@@ -3802,7 +3960,7 @@ function app() {
             else { const ta = document.getElementById('fallback-' + tab.id); content = ta?.value || ''; }
             try { await this.apiCall(`/api/files/${tab.serverId}/write`, { method: 'PUT', body: JSON.stringify({ path: tab.editingFile.path, content }) }); this.showToast('File saved'); } catch (e) { this.showToast(e.message, 'error'); }
         },
-        closeEditor(tab) { if (tab._editorView) { tab._editorView.destroy(); tab._editorView = null; } if (tab._previewUrl) { URL.revokeObjectURL(tab._previewUrl); tab._previewUrl = null; } tab._previewType = null; tab.editingFile = null; },
+        closeEditor(tab) { if (tab._editorView) { tab._editorView.destroy(); tab._editorView = null; } if (tab._previewUrl) { URL.revokeObjectURL(tab._previewUrl); tab._previewUrl = null; } tab._previewType = null; tab._editorLang = ''; tab._editorNotice = ''; tab.editingFile = null; },
         async promptMkdir(tab) { const name = prompt('New folder name:'); if (!name) return; const path = tab.currentPath === '/' ? '/' + name : tab.currentPath + '/' + name; try { await this.apiCall(`/api/files/${tab.serverId}/mkdir`, { method: 'POST', body: JSON.stringify({ path }) }); this.showToast('Directory created'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },
         async promptRename(tab, f) { const n = prompt('New name:', f.name); if (!n || n === f.name) return; const dir = f.path.substring(0, f.path.lastIndexOf('/')); try { await this.apiCall(`/api/files/${tab.serverId}/rename`, { method: 'POST', body: JSON.stringify({ old_path: f.path, new_path: dir + '/' + n }) }); this.showToast('Renamed'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },
         async confirmDeleteFile(tab, f) { if (!confirm(`Delete "${f.name}"?`)) return; try { await this.apiCall(`/api/files/${tab.serverId}/delete?path=${encodeURIComponent(f.path)}`, { method: 'DELETE' }); this.showToast('Deleted'); await this.loadDirectory(tab, tab.currentPath); } catch (e) { this.showToast(e.message, 'error'); } },

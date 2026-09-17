@@ -187,6 +187,16 @@ def test_capture_the_documentation_screenshots(page: Any, shot: Any, lab: dict[s
     page.wait_for_timeout(800)
     shot("sftp")
 
+    # The editor, on a file that has something to highlight. The SFTP tab is already
+    # open on the host's root, so this walks it over rather than opening a second one.
+    page.fill(".path-input", str(lab["files"]))
+    page.press(".path-input", "Enter")
+    page.wait_for_selector(".fz-filelist >> text=deploy.py", timeout=20_000)
+    page.locator(".fz-filelist tbody tr", has_text="deploy.py").first.dblclick()
+    page.wait_for_selector(".fz-lang", timeout=20_000)
+    page.wait_for_timeout(1000)
+    shot("editor")
+
 
 # --------------------------------------------------------------- keyboard focus
 
@@ -277,3 +287,88 @@ def test_a_reconnect_does_not_pull_the_caret_out_of_quick_connect(
     assert page.evaluate("() => document.activeElement.id") == "qc-host"
     page.keyboard.type("!")
     assert page.input_value("#qc-host") == "somewhere.internal!"
+
+
+# ------------------------------------------------------------------ file types
+
+
+def _open_in_editor(page: Any, lab: dict[str, Any], name: str) -> None:
+    _open_sftp(page, path=str(lab["files"]))
+    page.locator(".fz-filelist tbody tr", has_text=name).first.dblclick()
+    page.wait_for_selector(".fz-editor-bar", timeout=20_000)
+
+
+def test_the_editor_highlights_by_file_type(page: Any, lab: dict[str, Any]) -> None:
+    """The editor had no language extension at all, so every file -- a Python
+    script, an nginx config, a log -- was the same undifferentiated grey."""
+    _open_in_editor(page, lab, "deploy.py")
+    page.wait_for_selector(".fz-lang", timeout=20_000)
+    assert page.inner_text(".fz-lang").strip().lower() == "python"
+    assert "import" in page.inner_text(".cm-content")
+    # basicSetup highlights through style-mod, whose class names are generated, so
+    # there is no stable `.tok-keyword` to look for. What is stable is the effect:
+    # with a grammar loaded the line is split into spans that are not all the same
+    # colour as the body text, and without one it is a single run of plain text.
+    page.wait_for_function(_COLOURED_TOKENS, timeout=20_000)
+
+
+def test_a_script_with_no_extension_is_read_from_its_shebang(
+    page: Any, lab: dict[str, Any]
+) -> None:
+    """`/usr/local/bin/healthcheck` has nothing in its name to go on. The shebang
+    is the only thing that says what it is, and it is right there in the file."""
+    _open_in_editor(page, lab, "healthcheck")
+    page.wait_for_selector(".fz-lang", timeout=20_000)
+    assert page.inner_text(".fz-lang").strip().lower() == "shell"
+
+
+def test_a_binary_is_refused_instead_of_offering_to_save_over_it(
+    page: Any, lab: dict[str, Any]
+) -> None:
+    """The data loss: a binary opened as U+FFFD with a Save button next to it, and
+    pressing it rewrote the file as mangled text."""
+    _open_in_editor(page, lab, "service.db")
+    page.wait_for_selector(".fz-editor-notice", timeout=20_000)
+    notice = page.inner_text(".fz-editor-notice")
+    assert "binary" in notice.lower(), notice
+    assert page.get_by_role("button", name="Save").count() == 0, "Save is still offered"
+    assert page.get_by_role("button", name="Download").is_visible()
+
+
+def test_the_editor_follows_the_light_theme(page: Any, lab: dict[str, Any]) -> None:
+    """oneDark was hardcoded, so the light interface had a black rectangle in it."""
+    _open_in_editor(page, lab, "nginx.conf")
+    page.wait_for_selector(".cm-editor", timeout=20_000)
+
+    def editor_is_dark() -> bool:
+        # Whatever the viewer actually sees behind the text: the editor's own
+        # background when a theme paints one, and otherwise the app's, walking up
+        # until something is opaque. Reading `.cm-editor` alone reports
+        # `rgba(0,0,0,0)` for an unthemed editor, which is not "black".
+        return bool(page.evaluate(_EDITOR_IS_DARK))
+
+    assert editor_is_dark(), "the default theme is dark, so the editor should be too"
+    page.get_by_role("button", name="Switch to light theme").click()
+    page.wait_for_timeout(800)
+    assert not editor_is_dark(), "the editor stayed dark in the light theme"
+
+
+_COLOURED_TOKENS = """() => {
+    const content = document.querySelector('.cm-content');
+    if (!content) return false;
+    const base = getComputedStyle(content).color;
+    return [...content.querySelectorAll('.cm-line span')]
+        .some(s => getComputedStyle(s).color !== base);
+}"""
+
+_EDITOR_IS_DARK = """() => {
+    let el = document.querySelector('.cm-editor');
+    while (el) {
+        const parts = getComputedStyle(el).backgroundColor.match(/[\\d.]+/g);
+        if (parts && (parts.length < 4 || Number(parts[3]) > 0)) {
+            return (Number(parts[0]) + Number(parts[1]) + Number(parts[2])) / 3 < 110;
+        }
+        el = el.parentElement;
+    }
+    return false;
+}"""
