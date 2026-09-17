@@ -100,3 +100,74 @@ Non-admins see only their own recordings; admins see everyone's. The recorder is
 
 !!! tip "Compliance"
     The recording captures the full PTY output every participant saw — including pasted commands and environment — in a portable, vendor-independent format. Good enough for many audit/compliance requirements without investing in a heavier SIEM.
+
+## Python versions, and the free-threaded build
+
+webgate is tested on **3.11, 3.12, 3.13 and 3.14**, and the Docker image runs 3.14.
+
+Python 3.14 makes the free-threaded build (`python3.14t`, no GIL) officially
+supported, which raises an obvious question for a gateway holding many sessions.
+It was measured rather than guessed at, and the answer is **no**.
+
+### It installs, but it silently puts the GIL back
+
+The whole dependency stack installs on `python3.14t` — `httptools` has no `cp314t`
+wheel and compiles from source, everything else has one. The full unit suite passes.
+
+But importing webgate used to turn the GIL straight back on:
+
+```
+The global interpreter lock (GIL) has been enabled to load module
+'sqlalchemy.cyextension.collections', which has not declared that it can run
+safely without the GIL.
+```
+
+That is the worst case available: the free-threaded build's slower baseline, with the
+GIL on anyway. SQLAlchemy 2.0.54 declares support and fixes it, and nothing else in
+the stack re-enables it — but it is silent, so it is worth checking after any
+dependency change:
+
+```python
+import sys, webgate.app
+sys._is_gil_enabled()   # must be False on a free-threaded build
+```
+
+### What it costs, single-threaded
+
+Timed on the work webgate actually does, best of three runs:
+
+| Workload | 3.14 | 3.14t | |
+|---|---|---|---|
+| Credential encrypt/decrypt | 226 ms | 243 ms | +7% |
+| ZIP for an SFTP download | 89 ms | 229 ms | **+156%** |
+| API serialisation | 1195 ms | 1388 ms | +16% |
+| The asyncio event loop | 61 ms | 72 ms | +17% |
+
+### What it would buy
+
+Free-threading does what it says — the same CPU work across threads, total work held
+constant:
+
+| Threads | 3.14 (GIL) | 3.14t |
+|---|---|---|
+| 1 | 0.106 s | 0.246 s |
+| 2 | 0.159 s | 0.157 s |
+| 4 | 0.283 s | 0.093 s |
+| 8 | 0.318 s | **0.071 s** |
+
+Two things to read there. The GIL build gets *worse* with threads, which is
+contention doing exactly what it is known for. And the free-threaded build scales
+3.5× from one thread to eight — but from a baseline 2.3× slower, so eight threads
+beat one GIL thread by about 1.5×, not by eight.
+
+### Why that is not worth having
+
+webgate is I/O-bound on a **single asyncio event loop**. It waits on SSH sockets; it
+does not compete for CPU. Nothing in it runs CPU work on threads, so today it would
+take the 2.3× single-threaded penalty and collect none of the scaling.
+
+Getting that 1.5× would mean moving the ZIP and crypto paths onto a thread pool — and
+the scaling model webgate already has is the one free-threading would give: stateless
+workers, a monitor lease so only one sweeps, per-worker session state. Run more
+processes. That works now, on the default build, and it crosses machines, which
+threads do not.

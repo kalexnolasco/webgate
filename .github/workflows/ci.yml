@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         # The floor from requires-python, and what development actually runs on.
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
@@ -129,7 +129,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install mkdocs-material mkdocstrings mkdocstrings-python
       - name: Build the site (strict — a broken link fails here, not on deploy)
         run: mkdocs build --strict

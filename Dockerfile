@@ -1,5 +1,5 @@
 # --- Stage 1: build ---
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -10,7 +10,7 @@ RUN uv sync --frozen --no-dev --no-editable
 COPY src/ src/
 
 # --- Stage 2: runtime ---
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 RUN groupadd -r webgate && useradd -r -g webgate -m webgate
 
