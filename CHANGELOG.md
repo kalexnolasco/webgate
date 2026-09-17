@@ -1,5 +1,85 @@
 # Changelog
 
+## v2.8.0 (2026-09-17) — the editor knows what it is looking at
+
+### Syntax highlighting, by file type
+
+The editor had no language extension at all: `basicSetup` and nothing else, so a
+Python script, an nginx config and a log file were the same undifferentiated grey.
+The documentation had been claiming *"syntax highlighting (oneDark theme)"* the whole
+time, which was the colour scheme for plain text and not highlighting of anything.
+
+Around ninety languages now, through `@codemirror/language-data` — Python, shell,
+JavaScript and TypeScript, JSON, YAML, TOML, SQL, Go, Rust, PHP, Perl, Ruby, Lua,
+PowerShell, Dockerfile, **nginx** and the rest. Each grammar is fetched only the
+first time a file wants it, so a gateway whose users never open a `.rs` never
+downloads the Rust parser.
+
+Four things are tried, in order, and the one that won is shown next to the filename —
+so a file that is not highlighted reads as *not recognised* rather than as a guess:
+
+1. **The filename**, which settles almost everything.
+2. **Template suffixes peeled off**, so `nginx.conf.j2` and `settings.py.tmpl` are
+   highlighted as what they will become.
+3. **Server conventions** the upstream list does not carry: `.conf`, `.cfg`, `.env`,
+   systemd units, apt and yum lists.
+4. **The shebang**, for the scripts in `/usr/local/bin` with no extension at all.
+
+### Opening a binary and pressing Save no longer destroys it
+
+Reading a file for the editor decoded with `errors="replace"`, so an executable, an
+archive or a database came back as a wall of U+FFFD — with a **Save** button beside
+it. Saving wrote those replacement characters back over the real contents. Nothing
+warned anybody, and the file was gone.
+
+Binary files and text that is not UTF-8 are now refused. The file is named, the
+reason is on screen where the file would have been, and a **Download** button is next
+to it. The same panel now handles a file too large for the browser to hold, and one
+over the gateway's transfer limit.
+
+That limit is also the other half of this: `/read` was the one read path with no
+budget, so the editor was the way around the ceiling every other transfer answers to.
+
+### The editor follows the interface theme
+
+`oneDark` was hardcoded, which left a black rectangle in the middle of the light
+interface. It switches with the theme button now, without reopening the file.
+
+### Scrollbars: the app's own styling was cancelling itself
+
+Since Chromium 121, an element that has `scrollbar-color` or `scrollbar-width` has
+its `::-webkit-scrollbar` rules ignored. The stylesheet set both, so Chrome, Brave and
+Edge threw away the 10px rounded thumb and drew the 15px native bar with arrow
+buttons on every scrolling surface. It showed worst on a terminal, where xterm always
+reserves the bar — so a session with no history at all had a scrollbar widget down
+its right-hand side.
+
+Measured rather than assumed, in a real window of each engine:
+
+| | Chromium 153 | Firefox 145 |
+|---|---|---|
+| both, as shipped | 15px | 12px |
+| the fix | **10px** | **6px** |
+
+Firefox keeps the standard properties, which are all it understands, and goes from a
+platform-dependent bar to a consistent thin one.
+
+### Tests
+
+354 → 375. Ten unit tests on what the editor may open, and seven browser tests:
+syntax highlighting, shebang detection, the binary refusal, the editor theme, and
+three on scrollbars including one that measures a real terminal.
+
+`WEBGATE_E2E_HEADED=1` runs the browser suite in a real window — headless Chromium
+draws overlay scrollbars that take no layout space, so anything measuring one has to
+be run that way. The tests say what they skipped rather than passing on nothing.
+
+### Upgrading
+
+Nothing to do beyond the upgrade itself: no schema change, no settings change. One
+behaviour change worth knowing: a file that used to open as garbage in the editor now
+refuses to open, and offers a download instead.
+
 ## v2.7.1 (2026-09-17) — the terminal takes what you type
 
 Two defects that the interface hid rather than showed: in both cases the screen said
