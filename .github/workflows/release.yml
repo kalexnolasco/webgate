@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      is_latest: ${{ steps.v.outputs.is_latest }}
+      docker_tags: ${{ steps.v.outputs.docker_tags }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,6 +41,21 @@ jobs:
           [ "$version" = "$file" ] || { echo "tag does not match VERSION"; exit 1; }
           [ "$version" = "$proj" ] || { echo "tag does not match pyproject.toml"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # Republishing an older tag is something RELEASING.md tells you to do, and it
+          # must not drag `latest`, the GitHub release badge or the demo back with it.
+          git fetch --tags --quiet
+          newest="$(git tag -l 'v*' | sed 's/^v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+          image="kalexnolasco/webgate"
+          if [ "$version" = "$newest" ]; then
+            echo "is_latest=true" >> "$GITHUB_OUTPUT"
+            printf 'docker_tags<<EOF\n%s:%s\n%s:latest\nEOF\n' "$image" "$version" "$image" >> "$GITHUB_OUTPUT"
+            echo "newest tag: latest will point here"
+          else
+            echo "is_latest=false" >> "$GITHUB_OUTPUT"
+            printf 'docker_tags<<EOF\n%s:%s\nEOF\n' "$image" "$version" >> "$GITHUB_OUTPUT"
+            echo "newest tag is $newest: leaving latest, the release badge and the demo alone"
+          fi
 
       - uses: astral-sh/setup-uv@v5
       - name: The changelog has an entry for it
@@ -87,9 +104,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            kalexnolasco/webgate:${{ needs.verify.outputs.version }}
-            kalexnolasco/webgate:latest
+          tags: ${{ needs.verify.outputs.docker_tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -121,8 +136,11 @@ jobs:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: v${{ needs.verify.outputs.version }}
           body_path: notes.md
+          make_latest: ${{ needs.verify.outputs.is_latest }}
 
   demo:
-    needs: github_release
+    needs: [verify, github_release]
+    # Deploying an older tag over a newer demo would be a downgrade nobody asked for.
+    if: needs.verify.outputs.is_latest == 'true'
     uses: ./.github/workflows/demo.yml
     secrets: inherit

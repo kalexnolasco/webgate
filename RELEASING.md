@@ -95,6 +95,12 @@ without cutting a new version: **Actions → Release → Run workflow**, and giv
 existing tag. PyPI will refuse a version it already has, which is correct; the other
 steps are idempotent.
 
+Republishing an **older** tag is safe too. The workflow compares it against the newest
+tag in the repository, and when it is not the newest it publishes the version image
+only — `latest`, the GitHub release badge and the demo are all left where they are.
+Without that, re-running an old release would quietly hand every `docker pull` an
+older webgate.
+
 ## What is checked, and what is not
 
 CI runs tests, lint, formatting, a real Docker start-up, and a strict docs build.
