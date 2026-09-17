@@ -1,5 +1,65 @@
 # Changelog
 
+## v2.7.1 (2026-09-17) — the terminal takes what you type
+
+Two defects that the interface hid rather than showed: in both cases the screen said
+the feature was working and the code that would have done it was unreachable.
+
+### The terminal never took the focus
+
+Open an SSH session and the prompt appeared, the connection bar said connected, and
+every keystroke went nowhere — no echo, no command on Enter. It only started
+responding after a click inside the terminal area, and stopped again on the way back
+from another tab.
+
+xterm reads keystrokes from a hidden textarea, and nothing in the frontend had ever
+called `focus()`. The keys went to `<body>` and `onData` never fired. The socket was
+open throughout, which is why it looked like a backend problem and was not one.
+
+The focus is now handed over on every path that puts a terminal in front of someone:
+
+- **opening one**, after the fit rather than before it;
+- **switching back to its tab** — which also re-fits `split` tabs, missed by the old
+  `=== 'terminal'` check even though a split carries a terminal too;
+- **closing the tab in front of it** and landing on one;
+- **running a snippet**, which had left the focus on the button it was clicked with;
+- **a session coming back** after a drop.
+
+Only the last of those is focus nobody asked for, so it is the only one that defers:
+it leaves the caret where it is if a field, an editor or a dialog has it.
+
+Now that terminals hold the focus, the keyboard shortcuts see an input. That is right
+for Ctrl+N, Ctrl+P and Ctrl+K — readline bindings the shell owns, which is why the
+command palette already had Ctrl+Shift+P. Ctrl+1 means nothing to a shell, so it still
+reaches the app from inside a terminal.
+
+### Snippet parameters and confirmation had been dead since v2.3.0
+
+`runSnippet` was defined twice in the same object, so the later one won — and it was
+the version from before v2.3.0, which sends the command straight to the socket.
+Everything that release added was therefore inert:
+
+- **`{parameter}` placeholders were never filled in.** The literal text `{host}` went
+  to the shell.
+- **`confirm` never asked.** A snippet flagged as needing confirmation — the flag
+  exists precisely for the ones that change a server — ran the moment it was clicked,
+  with no prompt and no undo.
+
+The `!` marker was painted and the tooltip said *asks before running* the whole time.
+
+### Tests
+
+Four browser tests that type at the page and never at the terminal, covering a plain
+SSH tab, coming back to it from the Site Manager, a split tab, and a real reconnection
+landing while the caret is in the Quick Connect field. Three of them fail on v2.7.0
+with the remote prompt on screen and nothing after it.
+
+Browser tests: 9 → 13. Total: 354 → 358.
+
+### Upgrading
+
+Nothing to do beyond the upgrade itself: no schema change, no settings change.
+
 ## v2.7.0 (2026-09-17) — single sign-on
 
 LDAP already existed, but no company running Entra ID, Okta or Google Workspace is
