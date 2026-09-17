@@ -124,6 +124,10 @@ class SharedSessionManager:
         """
         return sum(1 for s in self._by_id.values() if s.owner_username == username and not s.closed)
 
+    def live_count(self) -> int:
+        """Live sessions on this worker, whoever owns them."""
+        return sum(1 for s in self._by_id.values() if not s.closed)
+
     def get_by_id(self, session_id: str) -> SharedSession | None:
         return self._by_id.get(session_id)
 

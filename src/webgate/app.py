@@ -2,9 +2,9 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -14,7 +14,8 @@ from webgate import __version__
 from webgate.agent.routes import router as agent_router
 from webgate.agent.store import load_config
 from webgate.auth import oidc
-from webgate.auth.routes import limiter
+from webgate.auth.models import UserOut
+from webgate.auth.routes import get_current_user, limiter
 from webgate.auth.routes import router as auth_router
 from webgate.auth.service import seed_admin
 from webgate.backup.routes import router as backup_router
@@ -26,6 +27,8 @@ from webgate.files.limits import TooLarge
 from webgate.files.pool import sftp_pool
 from webgate.files.routes import router as files_router
 from webgate.files.sftp_service import NotEditable
+from webgate.metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
+from webgate.metrics import render as render_metrics
 from webgate.recordings.routes import router as recordings_router
 from webgate.runtime_config import store as runtime_settings
 from webgate.runtime_config.routes import router as settings_router
@@ -92,6 +95,18 @@ def create_app() -> FastAPI:
             "instance_id": server_monitor.instance_id,
             "monitor_role": "leader" if server_monitor.is_leader else "follower",
         }
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics(  # pyright: ignore[reportUnusedFunction]
+        session: Annotated[AsyncSession, Depends(get_session)],
+        current_user: Annotated[UserOut, Depends(get_current_user)],
+    ) -> Response:
+        # Admin, and authenticated like everything else -- a scraper uses an API key,
+        # which is revocable and already audited. The exposition names every server
+        # in the registry, which is not something to hand out unauthenticated.
+        if not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Metrics are admin-only")
+        return Response(await render_metrics(session), media_type=METRICS_CONTENT_TYPE)
 
     @app.get("/api/config")
     async def public_config(  # pyright: ignore[reportUnusedFunction]
