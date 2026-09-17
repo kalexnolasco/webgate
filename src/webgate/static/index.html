@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-search@0.15.0/lib/addon-search.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script type="module">
         // `?deps=` here is load-bearing, not decoration. Left alone, each package
@@ -421,6 +422,13 @@
         .fz-flex-col[style*="display: none"] { display: none !important; }
         .fz-flex-row { display: flex !important; flex: 1; min-height: 0; overflow: hidden; }
         .fz-flex-row[style*="display: none"] { display: none !important; }
+        .fz-find { display: flex !important; align-items: center; gap: 6px; flex-shrink: 0; padding: 5px 10px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+        .fz-find[style*="display: none"] { display: none !important; }
+        .fz-find input { flex: 1; max-width: 320px; font-family: var(--mono); font-size: 12px; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text-primary); }
+        .fz-find input:focus { outline: none; border-color: var(--accent); }
+        .fz-find input.miss { border-color: var(--danger); color: var(--danger); }
+        .fz-find .hint { font-size: 11px; color: var(--text-muted); }
+
         /* For the ones that only need the display and keep their own alignment. */
         .fz-flex { display: flex !important; }
         .fz-flex[style*="display: none"] { display: none !important; }
@@ -533,6 +541,7 @@ window._showToastImpl = function(message, type) {
 <g id="i-alert"><path d="M12 3.5 2.5 20h19L12 3.5Z"/><path d="M12 10v4M12 17h.01"/></g>
 <g id="i-refresh"><path d="M20 11a8 8 0 0 0-13.7-5.3L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 13.7 5.3L21 15"/><path d="M21 20v-5h-5"/></g>
 <g id="i-arrow-up"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></g>
+<g id="i-arrow-down"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></g>
 <g id="i-home"><path d="m3 11 9-7 9 7"/><path d="M5.5 9.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/></g>
 <g id="i-lock"><rect x="4.5" y="10" width="15" height="10.5" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></g>
 <g id="i-edit"><path d="M4 20h4L19 9a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5 4 20Z"/></g>
@@ -906,6 +915,21 @@ window._showToastImpl = function(message, type) {
         <!-- ======== TAB CONTENT ======== -->
         <template x-for="tab in tabs" :key="tab.id">
             <div x-show="activeTabId===tab.id && view!=='dashboard'" class="fz-flex-col">
+
+                <!-- Search, for terminal and split tabs. One bar serves both. -->
+                <div x-show="tab.findOpen" class="fz-find">
+                    <svg class="fz-icon fz-icon-sm" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"/></svg>
+                    <input :id="'find-' + tab.id" type="search" x-model="tab.findTerm" placeholder="Find in the scrollback"
+                           :class="tab.findMiss ? 'miss' : ''" aria-label="Find in the terminal"
+                           @input="tab.findMiss = false"
+                           @keydown.enter.prevent.stop="findInTerminal(tab, !$event.shiftKey)"
+                           @keydown.escape.prevent.stop="closeFind(tab)">
+                    <button @click="findInTerminal(tab, false)" class="fz-btn fz-btn-icon" title="Previous match (Shift+Enter)" aria-label="Previous match"><svg class="fz-icon fz-icon-sm" viewBox="0 0 24 24"><use href="#i-arrow-up"/></svg></button>
+                    <button @click="findInTerminal(tab, true)" class="fz-btn fz-btn-icon" title="Next match (Enter)" aria-label="Next match"><svg class="fz-icon fz-icon-sm" viewBox="0 0 24 24"><use href="#i-arrow-down"/></svg></button>
+                    <span class="hint" x-show="tab.findMiss">No match</span>
+                    <span style="flex:1"></span>
+                    <button @click="closeFind(tab)" class="fz-btn fz-btn-ghost fz-btn-icon" title="Close (Esc)" aria-label="Close search"><svg class="fz-icon fz-icon-sm" viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
+                </div>
 
                 <!-- ---- Terminal tab ---- -->
                 <div x-show="tab.type==='terminal'" class="fz-flex-col">
@@ -2990,6 +3014,11 @@ function app() {
             if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'P' || event.key === 'p')) {
                 event.preventDefault(); this.openPalette(); return;
             }
+            // Same reasoning as the palette: Ctrl+F belongs to readline, so search is
+            // on Ctrl+Shift+F and reaches the app from inside a terminal.
+            if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'F' || event.key === 'f')) {
+                event.preventDefault(); this.openFind(); return;
+            }
             // Now that terminals actually hold the focus, `inInput` is true inside one
             // -- which is right for Ctrl+N/P/K, all readline bindings the shell owns.
             // Ctrl+1 means nothing to a shell, so it still reaches the app from there.
@@ -3418,12 +3447,17 @@ function app() {
             container.innerHTML = '';
             const term = new Terminal({ cursorBlink: true, fontSize: 13, fontFamily: '"IBM Plex Mono", ui-monospace, monospace', theme: this.theme === 'light' ? TERM_THEME_LIGHT : TERM_THEME_DARK });
             const fitAddon = new FitAddon.FitAddon();
-            term.loadAddon(fitAddon); term.loadAddon(new WebLinksAddon.WebLinksAddon()); term.open(container);
+            term.loadAddon(fitAddon); term.loadAddon(new WebLinksAddon.WebLinksAddon());
+            // Scrollback is the point of a terminal you leave open all day, and until
+            // now the only way to look through it was to scroll.
+            if (window.SearchAddon) { tab._search = new SearchAddon.SearchAddon(); term.loadAddon(tab._search); }
+            term.open(container);
             tab._term = term; tab._fitAddon = fitAddon;
             // Kept so a dropped socket can be re-opened against the same target.
             tab._wsPath = wsPath; tab._connInfo = connInfo;
             tab._retries = 0; tab._closing = false;
             tab._sessionUp = false; tab._everUp = false; tab._lastError = '';
+            tab.findOpen = false; tab.findTerm = ''; tab.findMiss = false;
             tab._connState = 'connecting';
             // A hidden pane, or one the layout has not reached yet, measures nothing.
             // Fitting to that gives the terminal zero rows, which is neither a size
@@ -3915,6 +3949,35 @@ function app() {
                 // forget. They belong on screen next to a Download button.
                 this._editorRefusal(tab, f, e.message);
             }
+        },
+
+        // Search --------------------------------------------------------------
+        // Ctrl+F is readline's forward-char, so this is Ctrl+Shift+F -- the same
+        // reasoning that put the command palette on Ctrl+Shift+P.
+        openFind() {
+            const tab = this.tabs.find(t => t.id === this.activeTabId);
+            if (!tab?._search || (tab.type !== 'terminal' && tab.type !== 'split')) return;
+            tab.findOpen = true;
+            tab.findMiss = false;
+            this.$nextTick(() => {
+                const input = document.getElementById('find-' + tab.id);
+                input?.focus(); input?.select();
+            });
+        },
+        closeFind(tab) {
+            tab.findOpen = false;
+            tab.findMiss = false;
+            try { tab._search?.clearDecorations?.(); } catch {}
+            this._focusTerminal(tab);
+        },
+        findInTerminal(tab, forward) {
+            const term = (tab.findTerm || '').trim();
+            if (!tab._search || !term) { tab.findMiss = false; return; }
+            const options = { caseSensitive: false, regex: false, wholeWord: false };
+            const found = forward
+                ? tab._search.findNext(term, options)
+                : tab._search.findPrevious(term, options);
+            tab.findMiss = !found;
         },
 
         _humanSize(bytes) {
