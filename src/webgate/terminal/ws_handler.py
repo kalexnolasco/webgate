@@ -141,6 +141,25 @@ async def handle_join_ws(ws: WebSocket, share_token: str, username: str, mode: s
             sess.participants.remove(participant)
 
 
+def _resize_of(message: str) -> tuple[int, int] | None:
+    """The (cols, rows) a resize frame carries, or None if this is terminal input.
+
+    A malformed resize still answers as a resize -- with a size that will be thrown
+    away -- so that a control frame is never typed into somebody's shell instead.
+    """
+    try:
+        parsed: object = json.loads(message)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict) or parsed.get("type") != "resize":  # pyright: ignore[reportUnknownMemberType]
+        return None
+    frame: dict[str, object] = parsed  # pyright: ignore[reportUnknownVariableType]
+    try:
+        return int(str(frame.get("cols", 0))), int(str(frame.get("rows", 0)))
+    except (TypeError, ValueError):
+        return 0, 0
+
+
 async def _client_input_loop(
     ws: WebSocket,
     ssh: SSHSession,
@@ -152,19 +171,26 @@ async def _client_input_loop(
     try:
         while True:
             message = await ws.receive_text()
-            try:
-                raw: object = json.loads(message)
-                if isinstance(raw, dict):
-                    parsed: dict[str, object] = raw  # pyright: ignore[reportUnknownVariableType]
-                    if parsed.get("type") == "resize":
-                        c = parsed.get("cols", 80)
-                        r = parsed.get("rows", 24)
-                        await ssh.resize(int(str(c)), int(str(r)))
-                        continue
-            except (json.JSONDecodeError, KeyError, ValueError):
-                pass
+            size = _resize_of(message)
+            if size is not None:
+                cols, rows = size
+                # A pane that is hidden, or not laid out yet, measures nothing. There
+                # is no such thing as a terminal with no rows, so the far end is not
+                # told about one.
+                if cols > 0 and rows > 0:
+                    try:
+                        await ssh.resize(cols, rows)
+                    except Exception:
+                        # This used to escape into the `except Exception` below, which
+                        # ends the loop -- so one failed resize dropped the session,
+                        # silently. A window that cannot be resized is not a reason to
+                        # take someone's shell away.
+                        logger.warning(
+                            "Could not resize the terminal for %s", username, exc_info=True
+                        )
+                continue
             await sess.write_input(message, username)
     except WebSocketDisconnect:
         pass
     except Exception:
-        pass
+        logger.debug("Terminal input loop for %s ended", username, exc_info=True)
