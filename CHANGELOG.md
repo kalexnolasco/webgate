@@ -1,5 +1,48 @@
 # Changelog
 
+## v2.9.1 (2026-09-17) — Python 3.14
+
+No behaviour changes. The version webgate was being written against was the one
+version nothing tested.
+
+### Tested and shipped on 3.14
+
+Development had been on 3.14 for some time while CI ran 3.11–3.13 and the Docker
+image — what the demo and every deployment actually run — was on 3.13-slim.
+
+- **The CI matrix adds 3.14**, alongside 3.11, 3.12 and 3.13 rather than replacing
+  any of them. `requires-python` stays `>=3.11`.
+- **The image moves to `python:3.14-slim`.**
+
+### SQLAlchemy 2.0.49 → 2.0.54
+
+2.0.49's C extension had not declared that it is safe to run without the GIL, so on
+a free-threaded build importing webgate turned the GIL straight back on — the worst
+case available, since that build is slower single-threaded and you would be paying
+for it and receiving nothing. It announces itself as a `RuntimeWarning` nobody reads.
+
+2.0.54 declares support, and with it nothing left in the stack re-enables it.
+
+### Should you run the free-threaded build?
+
+No, and it was measured rather than guessed at. The whole stack installs on
+`python3.14t` and the full suite passes, but webgate is I/O-bound on a single asyncio
+event loop: it waits on SSH sockets, it does not compete for CPU.
+
+Single-threaded, the free-threaded build costs between 7% and 156% depending on the
+workload. It does scale CPU work across threads — 3.5× from one thread to eight — but
+from a baseline 2.3× slower, and webgate runs no CPU work on threads to begin with.
+
+The numbers, and the scaling table, are in the [advanced
+guide](guide/advanced.md#python-versions-and-the-free-threaded-build). The scaling
+model webgate already has is the one free-threading would offer: stateless workers, a
+monitor lease so only one sweeps, per-worker session state — and it crosses machines,
+which threads do not.
+
+### Upgrading
+
+Nothing to do. Pull the new image, or `pip install -U webgate`.
+
 ## v2.9.0 (2026-09-17) — told, not watched
 
 Four gaps, all of the same shape: webgate already knew the thing, and the only place
