@@ -3124,11 +3124,6 @@ function app() {
             try { await this.apiCall(`/api/snippets/${s.id}`, { method: 'DELETE' }); await this.loadSnippets(); this.showToast('Snippet deleted'); }
             catch (e) { this.showToast(e.message, 'error'); }
         },
-        runSnippet(tab, s) {
-            if (!tab._ws || tab._ws.readyState !== WebSocket.OPEN) { this.showToast('Terminal not connected', 'error'); return; }
-            tab._ws.send(s.command + '\r');
-            this.log('cmd', `Sent snippet "${s.name}"`);
-        },
 
         // Shared sessions
         async shareSession(tab) {
