@@ -81,3 +81,67 @@ def test_the_fix_holds_in_the_light_theme(page: Any) -> None:
             return s.scrollbarColor === 'auto' && s.scrollbarWidth === 'auto';
         })"""
     ), "the light theme reintroduces the conflict"
+
+
+# ---------------------------------------------------------------- page layout
+
+
+def test_a_terminal_does_not_make_the_page_itself_scroll(page: Any, lab: dict[str, Any]) -> None:
+    """Alpine's `x-show` removes the inline `display` when it shows an element --
+    including one written by hand. The terminal panel declared `display:flex` there,
+    so the first time it was shown it became a block, its xterm host stopped being a
+    flex item, and the terminal took the height of its contents instead of the space
+    available. The document grew and the whole page got a scrollbar.
+
+    Short windows are where it shows, so this checks a few.
+    """
+    page.locator(".fz-srv-item", has_text="prod-web-01").first.get_by_role(
+        "button", name="SSH", exact=True
+    ).click()
+    page.wait_for_selector(".xterm-viewport", timeout=30_000)
+    page.wait_for_timeout(2000)
+
+    seen: list[int] = []
+    for height in (250, 392, 700):
+        page.set_viewport_size({"width": 1400, "height": height})
+        page.wait_for_timeout(700)
+        state = page.evaluate(
+            """() => { const d = document.documentElement;
+                const host = document.querySelector('.xterm').parentElement;
+                return { overflow: d.scrollHeight - d.clientHeight,
+                         panel: getComputedStyle(host.parentElement).display,
+                         belowFold: Math.round(host.getBoundingClientRect().bottom)
+                                    - window.innerHeight,
+                         rows: document.querySelectorAll('.xterm-rows > div').length }; }"""
+        )
+        assert state["panel"] == "flex", f"at {height}px the panel is {state['panel']}"
+        assert state["overflow"] == 0, f"at {height}px the page scrolls {state['overflow']}px"
+        assert state["belowFold"] <= 0, f"at {height}px the terminal runs off the bottom"
+        seen.append(state["rows"])
+
+    # A terminal that never re-fits is the same bug wearing a different symptom.
+    assert len(set(seen)) == len(seen), f"the terminal did not re-fit: {seen} rows"
+    assert seen == sorted(seen), f"more room should mean more rows, not {seen}"
+
+
+def test_the_session_survives_being_resized(page: Any, lab: dict[str, Any]) -> None:
+    """Fixing the layout meant the terminal resized for the first time, which meant
+    a `resize` frame reached the backend for the first time. Nothing had ever
+    exercised that path."""
+    page.locator(".fz-srv-item", has_text="prod-web-01").first.get_by_role(
+        "button", name="SSH", exact=True
+    ).click()
+    page.wait_for_selector(".xterm-viewport", timeout=30_000)
+    page.wait_for_timeout(2000)
+    for height in (300, 800, 420):
+        page.set_viewport_size({"width": 1400, "height": height})
+        page.wait_for_timeout(600)
+    page.wait_for_timeout(1500)
+
+    screen = page.locator(".xterm-rows").last.inner_text()
+    assert "Disconnected" not in screen, f"the resize dropped the session:\n{screen}"
+    page.keyboard.type("printf 'RESIZE%s\\n' OK\n")
+    page.wait_for_timeout(2000)
+    assert "RESIZEOK" in page.locator(".xterm-rows").last.inner_text(), (
+        "the shell is not answering after the resize"
+    )

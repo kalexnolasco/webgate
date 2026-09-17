@@ -421,6 +421,9 @@
         .fz-flex-col[style*="display: none"] { display: none !important; }
         .fz-flex-row { display: flex !important; flex: 1; min-height: 0; overflow: hidden; }
         .fz-flex-row[style*="display: none"] { display: none !important; }
+        /* For the ones that only need the display and keep their own alignment. */
+        .fz-flex { display: flex !important; }
+        .fz-flex[style*="display: none"] { display: none !important; }
 
         /* Browser surfaces: scrollbars, selection, caret */
 
@@ -905,7 +908,7 @@ window._showToastImpl = function(message, type) {
             <div x-show="activeTabId===tab.id && view!=='dashboard'" class="fz-flex-col">
 
                 <!-- ---- Terminal tab ---- -->
-                <div x-show="tab.type==='terminal'" style="flex:1;min-height:0;display:flex;flex-direction:column">
+                <div x-show="tab.type==='terminal'" class="fz-flex-col">
                     <div style="padding:4px 8px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;gap:4px;align-items:center;flex-wrap:wrap">
                         <span style="font-size:11px;color:var(--text-muted);font-weight:600;margin-right:4px">Snippets:</span>
                         <template x-for="s in snippets" :key="s.id">
@@ -934,7 +937,7 @@ window._showToastImpl = function(message, type) {
                 </div>
 
                 <!-- ---- Split tab (terminal + files) ---- -->
-                <div x-show="tab.type==='split'" style="flex:1;display:flex;min-height:0">
+                <div x-show="tab.type==='split'" class="fz-flex-row">
                     <div :id="tab.id + '-term'" style="flex:1;min-height:0"></div>
                     <div style="width:4px;background:var(--border);cursor:col-resize;flex-shrink:0"></div>
                     <div :id="tab.id + '-files'" style="flex:1;min-height:0;overflow:auto;background:var(--bg-tertiary);font-size:12px">
@@ -1110,7 +1113,7 @@ window._showToastImpl = function(message, type) {
         </template>
 
         <!-- No tabs placeholder -->
-        <div x-show="view!=='dashboard' && tabs.length===0" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);background:var(--bg-tertiary)">
+        <div x-show="view!=='dashboard' && tabs.length===0" class="fz-flex" style="flex:1;align-items:center;justify-content:center;color:var(--text-muted);background:var(--bg-tertiary)">
             No active sessions
         </div>
     </div>
@@ -1648,7 +1651,7 @@ window._showToastImpl = function(message, type) {
 
                     </div>
 
-                    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap" x-show="agentTab==='chat'">
+                    <div class="fz-flex" style="align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap" x-show="agentTab==='chat'">
                         <label for="ag-model" style="margin:0;font-size:11px">Model</label>
                         <select id="ag-model" x-model="agentModel" style="width:auto;max-width:280px;font-size:12px;height:28px;padding:0 8px">
                             <template x-for="m in agentStatus.models" :key="m.id">
@@ -1781,10 +1784,10 @@ window._showToastImpl = function(message, type) {
                             <input type="checkbox" x-model="serverForm.sftp_enabled" style="width:auto;accent-color:var(--accent)"> Enable SFTP Browser
                         </label>
                     </div>
-                    <label x-show="serverForm.sftp_enabled" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-primary);margin-top:6px">
+                    <label x-show="serverForm.sftp_enabled" class="fz-flex" style="align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-primary);margin-top:6px">
                         <input type="checkbox" x-model="serverForm.sftp_read_only" style="width:auto;accent-color:var(--warning)"> SFTP Read-Only (browse &amp; download only)
                     </label>
-                    <label x-show="agentAvailable" style="display:flex;align-items:center;gap:8px;margin-top:12px">
+                    <label x-show="agentAvailable" class="fz-flex" style="align-items:center;gap:8px;margin-top:12px">
                         <input type="checkbox" x-model="serverForm.agent_enabled" style="width:auto;accent-color:var(--info)"> Allow the diagnostic agent
                     </label>
                     <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px">
@@ -1881,7 +1884,7 @@ window._showToastImpl = function(message, type) {
                                 <span x-show="!u.totp_enabled" style="color:var(--text-muted);font-size:11px">Off</span>
                             </td>
                             <td style="padding:8px 12px">
-                                <div x-show="!u.is_admin" style="display:flex;gap:4px">
+                                <div x-show="!u.is_admin" class="fz-flex" style="gap:4px">
                                     <button @click="editUserGroups(u)" class="fz-btn" style="font-size:11px;padding:1px 4px">Groups</button>
                                     <button x-show="u.totp_enabled" @click="resetUserTotp(u)" class="fz-btn" style="font-size:11px;padding:1px 4px" title="Reset 2FA">2FA</button>
                                     <button @click="confirmDeleteUser(u)" class="fz-btn fz-btn-danger" style="font-size:11px;padding:1px 4px">Del</button>
@@ -3332,7 +3335,7 @@ function app() {
             // the caret lands on it -- and a split tab carries a terminal too, which
             // is why this is not just `=== 'terminal'`.
             if (tab?.type === 'terminal' || tab?.type === 'split') {
-                this.$nextTick(() => { tab._fitAddon?.fit(); this._focusTerminal(tab); });
+                this.$nextTick(() => { tab._fit?.(); this._focusTerminal(tab); });
             }
         },
         closeTab(id) {
@@ -3422,14 +3425,21 @@ function app() {
             tab._retries = 0; tab._closing = false;
             tab._sessionUp = false; tab._everUp = false; tab._lastError = '';
             tab._connState = 'connecting';
+            // A hidden pane, or one the layout has not reached yet, measures nothing.
+            // Fitting to that gives the terminal zero rows, which is neither a size
+            // worth telling the far end about nor one worth measuring from.
+            const fitIfVisible = () => {
+                if (container.clientWidth > 0 && container.clientHeight > 0) fitAddon.fit();
+            };
+            tab._fit = fitIfVisible;
             requestAnimationFrame(() => {
-                fitAddon.fit();
+                fitIfVisible();
                 // After the fit, never before: focusing a terminal that has not been
                 // sized yet puts the caret where the cell is about to stop being.
                 this._focusTerminal(tab);
                 term.onData(data => { if (tab._ws?.readyState === WebSocket.OPEN) tab._ws.send(data); });
-                term.onResize(({ cols, rows }) => { if (tab._ws?.readyState === WebSocket.OPEN) tab._ws.send(JSON.stringify({ type: 'resize', cols, rows })); });
-                const ro = new ResizeObserver(() => fitAddon.fit()); ro.observe(container);
+                term.onResize(({ cols, rows }) => { if (cols > 0 && rows > 0 && tab._ws?.readyState === WebSocket.OPEN) tab._ws.send(JSON.stringify({ type: 'resize', cols, rows })); });
+                const ro = new ResizeObserver(fitIfVisible); ro.observe(container);
                 tab._resizeObserver = ro;
                 this._connectTerminal(tab);
             });
