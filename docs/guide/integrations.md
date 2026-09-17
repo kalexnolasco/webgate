@@ -13,6 +13,40 @@ Admins can register HTTPS endpoints that receive a JSON POST when significant ev
 | `sftp_delete` | Files / folders deleted via the SFTP browser |
 | `server_added` | Admin creates a new server |
 | `server_deleted` | Admin removes a server |
+| `server_offline` | The monitor could not reach a server (see below) |
+| `server_online` | It answered again |
+
+### Being told when a server goes down
+
+The monitor has always known -- it probes every server on a timer -- and it only ever
+painted a dot with what it found, so an outage was noticed by whoever happened to be
+looking at the screen.
+
+`server_offline` fires after **Admin -> Settings -> Monitoring -> Failures before
+alerting** consecutive failed checks, two by default. One lost packet is not an outage,
+and alerting on it is how people learn to ignore alerts. `server_online` fires on the
+first check that succeeds again: waiting to be sure a host is *back* helps nobody.
+
+Only a **change** is announced, so a host that stays down is reported once, not on
+every sweep. A restart does not announce the whole fleet as up -- but a server that is
+already down when the gateway starts is reported, because nobody was told yet.
+
+Both carry the server, its hostname, the error where there is one, and how many checks
+had failed:
+
+```json
+{
+  "event": "server_offline",
+  "data": {
+    "server": "prod-web-01", "hostname": "10.0.0.7", "port": 22,
+    "online": false, "error": "Connection refused",
+    "failed_checks": 2, "checked_at": "2026-09-17T13:40:02+00:00"
+  }
+}
+```
+
+Only the instance holding the monitor lease sweeps, so a multi-instance deployment
+sends one alert, not one per worker.
 
 ### Payload and signing
 
@@ -100,6 +134,42 @@ curl -H "Authorization: Bearer wg_<your-key>" \
 ```
 
 Manage them from the **Keys** button in the top toolbar. Keys inherit the owning user's `allowed_groups` and `is_admin` status. Since v0.5.1, API keys cannot bypass a forced password change (`must_change_password=True`) — the owner has to rotate their password before the key becomes usable.
+
+## Prometheus metrics
+
+`GET /metrics` returns the standard text exposition. It is **admin-only** and
+authenticated like everything else, because it names every server in the registry --
+an API key from **Admin -> API keys** is the right credential for a scraper, since it
+is revocable and shows up in the audit log.
+
+```yaml
+scrape_configs:
+  - job_name: webgate
+    metrics_path: /metrics
+    authorization:
+      credentials: wg_your_api_key_here
+    static_configs:
+      - targets: ["webgate.internal:8443"]
+```
+
+| Metric | |
+|---|---|
+| `webgate_info{version,instance}` | Always 1; the labels are the point |
+| `webgate_monitor_leader` | 1 on the instance running the monitor, 0 elsewhere |
+| `webgate_terminal_sessions` | Live SSH sessions **on this instance** |
+| `webgate_servers_total`, `webgate_users_total` | Registry and account counts |
+| `webgate_server_up{server}` | 1 if the last check reached it |
+| `webgate_server_latency_seconds{server}` | The last successful connection; absent while offline |
+| `webgate_servers_online`, `webgate_servers_offline` | Fleet totals |
+
+Two things to know before building a dashboard on this:
+
+- **Session counts are per instance.** Sessions live in memory beside the PTY they
+  belong to. Sum them across instances.
+- **The fleet gauges come from one instance.** Only the monitor leader has any
+  statuses; the others omit the `webgate_server_*` series entirely rather than
+  reporting zeroes, which would read as a fleet-wide outage. `webgate_monitor_leader`
+  says which instance they came from.
 
 ## Reverse proxy
 

@@ -76,7 +76,33 @@ def lab(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
 
 
 @pytest.fixture(scope="session")
-def server(tmp_path_factory: pytest.TempPathFactory, lab: dict[str, Any]) -> Iterator[str]:
+def lab2(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
+    """A second host, so copying a file between two of them can be tested at all."""
+    root = tmp_path_factory.mktemp("lab2")
+    files = root / "srv"
+    files.mkdir()
+    (files / "already-here.txt").write_text("the destination is not empty\n")
+
+    port = _free_port()
+    proc = subprocess.Popen(
+        [sys.executable, str(REPO / "tests" / "e2e" / "sshlab.py"), str(port), str(root), "lab2"],
+        cwd=files,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    _wait_for(
+        lambda: socket.create_connection(("127.0.0.1", port), timeout=1) and True,
+        f"second ssh lab on {port}",
+    )
+    yield {"port": port, "root": root, "files": files}
+    proc.terminate()
+    proc.wait(timeout=10)
+
+
+@pytest.fixture(scope="session")
+def server(
+    tmp_path_factory: pytest.TempPathFactory, lab: dict[str, Any], lab2: dict[str, Any]
+) -> Iterator[str]:
     """webgate itself, on a throwaway database, seeded the way a small fleet looks."""
     data = tmp_path_factory.mktemp("webgate")
     port = _free_port()
@@ -98,13 +124,13 @@ def server(tmp_path_factory: pytest.TempPathFactory, lab: dict[str, Any]) -> Ite
     base = f"http://127.0.0.1:{port}"
     _wait_for(lambda: httpx.get(f"{base}/api/health", timeout=2).status_code == 200, base)
 
-    _seed(base, lab)
+    _seed(base, lab, lab2)
     yield base
     proc.terminate()
     proc.wait(timeout=10)
 
 
-def _seed(base: str, lab: dict[str, Any]) -> None:
+def _seed(base: str, lab: dict[str, Any], lab2: dict[str, Any]) -> None:
     """A fleet worth looking at: the lab host plus a few that are plainly offline."""
     with httpx.Client(base_url=base, timeout=20) as http:
         token = http.post(
@@ -130,6 +156,22 @@ def _seed(base: str, lab: dict[str, Any]) -> None:
                 "group": "prod",
                 "tags": ["web", "nginx"],
                 "description": "Front-end, behind the bastion",
+            },
+        )
+        # A second reachable host, so a file can actually be copied between two.
+        http.post(
+            "/api/servers",
+            headers=head,
+            json={
+                "name": "prod-web-02",
+                "hostname": "127.0.0.1",
+                "port": lab2["port"],
+                "username": "demo",
+                "auth_method": "password",
+                "password": "demo",
+                "group": "prod",
+                "tags": ["web", "nginx"],
+                "description": "The other front-end",
             },
         )
         for name, host, group, tags in [
@@ -184,6 +226,18 @@ def browser() -> Iterator[Any]:
         instance = p.chromium.launch(headless=headless)
         yield instance
         instance.close()
+
+
+@pytest.fixture(scope="session")
+def admin_token(server: str) -> str:
+    """A token for the API tests, which do not need a browser."""
+    return str(
+        httpx.post(
+            f"{server}/api/auth/login",
+            json={"username": "admin", "password": ADMIN_PASSWORD},
+            timeout=20,
+        ).json()["access_token"]
+    )
 
 
 @pytest.fixture(scope="session")

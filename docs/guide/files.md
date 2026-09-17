@@ -56,6 +56,28 @@ Four things are tried, in order:
 The editor follows the interface theme rather than being dark whatever you have
 chosen.
 
+## Copying between servers
+
+The gateway is already connected to both hosts and already holds the credentials for
+both, so a file can go straight across without a round trip through your own machine.
+
+```
+POST /api/files/{server_id}/copy-to
+{ "source_path": "/etc/nginx/nginx.conf",
+  "target_server_id": 4,
+  "target_path": "/etc/nginx/" }
+```
+
+A `target_path` that names a directory keeps the filename, the way `scp` does. Both
+ends are checked the way every other file operation is: you must be able to see each
+server, each path must be inside what that server allows, the destination must not be
+read-only, and the size answers to the same transfer limit. Directories are refused --
+download one as a ZIP and upload it.
+
+It writes **two** audit entries, `sftp_copy_out` on the source and `sftp_copy_in` on
+the destination, each naming the other end. An incident on either host finds it in its
+own log.
+
 ## What the editor will not open
 
 Some files are safer to leave alone than to open in a text editor, because saving one

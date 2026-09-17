@@ -163,8 +163,9 @@ async def serve(port: int, root: Path, banner: str = "lab") -> None:
 def main() -> None:
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 2222
     root = Path(sys.argv[2]) if len(sys.argv) > 2 else Path.cwd()
+    banner = sys.argv[3] if len(sys.argv) > 3 else "lab"
     try:
-        asyncio.run(serve(port, root))
+        asyncio.run(serve(port, root, banner))
     except (KeyboardInterrupt, SystemExit):
         sys.exit(0)
 

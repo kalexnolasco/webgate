@@ -136,8 +136,8 @@ flowchart TB
 
 | Category | Capabilities |
 |---|---|
-| **Terminal** | xterm.js + asyncssh, multi-tab, resize, copy/paste, **auto-reconnect** with backoff on a dropped link, **shared sessions** with one-click URL, **command snippets** — team-shared, with `{parameters}` and confirm-before-running |
-| **SFTP** | Full file ops + drag & drop upload, **sortable columns**, **multi-select** with batch ZIP download and delete, hidden-file toggle, in-browser editor (CodeMirror 6) with **syntax highlighting for ~90 languages**, PDF/image preview |
+| **Terminal** | xterm.js + asyncssh, multi-tab, resize, copy/paste, **auto-reconnect** with backoff on a dropped link, **shared sessions** with one-click URL, **command snippets** — team-shared, with `{parameters}` and confirm-before-running, **scrollback search** (`Ctrl+Shift+F`) |
+| **SFTP** | Full file ops + drag & drop upload, **sortable columns**, **multi-select** with batch ZIP download and delete, hidden-file toggle, in-browser editor (CodeMirror 6) with **syntax highlighting for ~90 languages**, PDF/image preview, **server-to-server copy** that never touches your machine |
 | **Server Registry** | Groups, tags, password/key auth, encrypted at rest (Fernet), **verified host keys** (TOFU), **favourites and recents**, import/export JSON, **jump host / bastion** chaining |
 | **Access Control** | Admin/user roles, per-server SSH/SFTP toggles, SFTP path restrictions, read-only SFTP mode, group-based visibility |
 | **Auth** | **Single sign-on (OpenID Connect)** — Entra ID, Okta, Google Workspace, Keycloak — with group→role mapping, plus JWT + bcrypt locally, **2FA TOTP**, **API keys** for automation, **LDAP / Active Directory** |
@@ -145,7 +145,7 @@ flowchart TB
 | **Migration** | **Full-state backup and restore** — servers with credentials, users, groups, webhooks and API keys in one passphrase-encrypted file, portable between instances |
 | **AI agent** | Per-server iterative chat over **Ollama** or **OpenRouter**, read-only inspection tools, **works on SFTP-only hosts**, cached results and searchable findings — configured in the admin panel, off until then |
 | **Branding** | White-label the deployment: app name, logo, sign-in image, browser icon, company colours with a palette picker and live preview, light and dark palettes — applied for every user |
-| **Monitoring** | Background SSH connectivity probes, online/offline indicator |
+| **Monitoring** | Background SSH connectivity probes, online/offline indicator, **webhook alerts** when a server goes down or comes back, **Prometheus `/metrics`** |
 | **Deployment** | Multi-stage Docker image, SQLite default or PostgreSQL, runs behind any reverse proxy at any sub-path, **demo mode** for public read-only deployments |
 | **UX** | **Command palette** (`Ctrl+P`), dark/light theme, responsive, vanilla JS + Alpine.js (no npm needed), session persistence across reloads |
 
@@ -154,6 +154,7 @@ flowchart TB
 | Shortcut | Action |
 |---|---|
 | `Ctrl+P` / `Ctrl+Shift+P` | Command palette — fuzzy jump to any server or action |
+| `Ctrl+Shift+F` | Search the terminal scrollback |
 | `Ctrl+K` | Quick Connect |
 | `Ctrl+1` | Site Manager |
 | `Ctrl+N` | New server (admin) |

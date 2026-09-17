@@ -103,19 +103,55 @@ Tracks the development plan for **webgate**. Items are organized by release.
 
 ---
 
+### v2.7.1 — The terminal takes what you type (2026-09-17)
+- Nothing had ever called xterm's `focus()`, so every session swallowed keystrokes
+  until it was clicked. Focus is handed over on all five paths that show a terminal.
+- A duplicate `runSnippet` had been silently disabling snippet parameters and the
+  confirm-before-running prompt since v2.3.0.
+
+### v2.8.0 — The editor knows what it is looking at (2026-09-17)
+- Syntax highlighting for ~90 file types, resolved from the filename, template
+  suffixes, server conventions, then the shebang. Each grammar loaded on demand.
+- Binaries and non-UTF-8 text are refused instead of opening as replacement
+  characters with a Save button beside them.
+- `/read` gets a transfer budget; the editor follows the interface theme.
+- `scrollbar-color` was cancelling the app's own `::-webkit-scrollbar` rules.
+
+### v2.8.1 — The terminal fits the window it is in (2026-09-17)
+- Alpine's `x-show` removes the inline `display`, so the terminal panel stopped being
+  a flex box and the whole page grew a scrollbar.
+- A failed resize escaped into the input loop's outer handler and ended it, dropping
+  the session silently.
+
+### v2.9.0 — Told, not watched (2026-09-17)
+- `server_offline` / `server_online` webhooks, with a configurable threshold. The
+  monitor knew and only ever painted a dot.
+- Prometheus `/metrics`, admin-only.
+- Server-to-server file copy, audited on both ends.
+- Scrollback search in the terminal (`Ctrl+Shift+F`).
+
 ## Planned
 
-### v2.1.x — Next
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| Internationalization (i18n) | Low | UI translations starting with English / Spanish |
+### Next
+| Feature | Effort | Description |
+|---------|--------|-------------|
+| Fleet-wide execution | ~1.5 sessions | Run a snippet across a group, with a per-host result. The registry, the groups, the credentials and the confirm flag all exist already; this is what people reach for `pssh` or Ansible to do |
+| Host health in the monitor | ~1 session | Disk, load and uptime beside the online dot. The sweep already opens an SSH connection, so the marginal cost is one command |
+
+### The compliance pair
+| Feature | Effort | Description |
+|---------|--------|-------------|
+| Access approval (JIT) | ~2 sessions | Entering a production server needs someone to approve it, with a reason and an expiry. The difference between a tool and one that passes an audit |
+| SSH certificate authority | ~3-4 sessions | The answer to the problem that defines the product: today the gateway **stores** the credentials. With a CA it signs short-lived certificates instead, holds no passwords or keys, and a compromise stops handing over the fleet |
 
 ### Later
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| Scheduled commands | Medium | Run a snippet on a cron schedule against one or more servers |
-| Slack / Teams formatter for webhooks | Low | Pre-built payload templates for popular receivers |
-| Browser-shareable file download links | Low | Time-limited signed URLs for SFTP downloads |
+| Feature | Effort | Description |
+|---------|--------|-------------|
+| Streaming transfers | ~1 session | A download is read into memory before being sent on. The size cap prevents the crash but also prevents moving a large file at all |
+| Scheduled commands | ~1 session | Run a snippet on a cron schedule against one or more servers |
+| Internationalization (i18n) | ~1 session | UI translations, starting with English / Spanish |
+| Slack / Teams formatter for webhooks | ~0.5 session | Pre-built payload templates for popular receivers |
+| Browser-shareable file download links | ~0.5 session | Time-limited signed URLs for SFTP downloads |
 
 ---
 
