@@ -79,6 +79,22 @@ class Spec:
 # ------------------------------------------------------------------- validators
 
 
+def _https_url(value: str) -> None:
+    if value and not value.startswith(("https://", "http://localhost", "http://127.0.0.1")):
+        raise InvalidSetting(
+            "Must be an https:// URL. Tokens and codes travel over this, so plain http "
+            "is only acceptable against localhost."
+        )
+
+
+def _must_contain(token: str):
+    def check(value: str) -> None:
+        if value and token not in value.split():
+            raise InvalidSetting(f"Must include {token}")
+
+    return check
+
+
 def _ldap_url(value: str) -> None:
     if value and not value.startswith(("ldap://", "ldaps://")):
         raise InvalidSetting("LDAP URL must start with ldap:// or ldaps://")
@@ -246,6 +262,117 @@ SPECS: tuple[Spec, ...] = (
         kind="int",
         minimum=0,
         maximum=1024 * 1024 * 1024,
+    ),
+    # ----------------------------------------------------------- single sign-on
+    Spec(
+        key="oidc_enabled",
+        section="Single sign-on",
+        label="Enable single sign-on",
+        help=(
+            "Adds a sign-in button that sends people to your identity provider. Local "
+            "accounts and LDAP keep working alongside it."
+        ),
+        kind="bool",
+    ),
+    Spec(
+        key="oidc_display_name",
+        section="Single sign-on",
+        label="Button label",
+        help='What the sign-in button says. Blank shows "single sign-on".',
+        kind="text",
+        placeholder="Acme SSO",
+    ),
+    Spec(
+        key="oidc_issuer",
+        section="Single sign-on",
+        label="Issuer URL",
+        help=(
+            "The provider's base URL. Everything else is read from "
+            "{issuer}/.well-known/openid-configuration, so there is nothing else to copy."
+        ),
+        kind="text",
+        placeholder="https://login.microsoftonline.com/<tenant>/v2.0",
+        check=_https_url,
+    ),
+    Spec(
+        key="oidc_client_id",
+        section="Single sign-on",
+        label="Client ID",
+        help="From the application you registered with the provider.",
+        kind="text",
+    ),
+    Spec(
+        key="oidc_client_secret",
+        section="Single sign-on",
+        label="Client secret",
+        help=(
+            "Stored encrypted, and never returned by the API. Leave blank for a public "
+            "client; the flow uses PKCE either way."
+        ),
+        kind="secret",
+    ),
+    Spec(
+        key="oidc_scopes",
+        section="Single sign-on",
+        label="Scopes",
+        help="Must include openid. Add the scope your provider needs for group claims.",
+        kind="text",
+        placeholder="openid profile email groups",
+        check=_must_contain("openid"),
+    ),
+    Spec(
+        key="oidc_username_claim",
+        section="Single sign-on",
+        label="Username claim",
+        help=(
+            "Which claim becomes the webgate username. Entra ID and Okta send "
+            "preferred_username; some providers only send email."
+        ),
+        kind="text",
+        placeholder="preferred_username",
+    ),
+    Spec(
+        key="oidc_groups_claim",
+        section="Single sign-on",
+        label="Groups claim",
+        help="Which claim carries group membership. Blank means nobody gets any group.",
+        kind="text",
+        placeholder="groups",
+    ),
+    Spec(
+        key="oidc_group_map",
+        section="Single sign-on",
+        label="Group mapping",
+        help=(
+            'JSON, provider group to webgate group: {"infra-oncall": "prod"}. A group '
+            "that is not mapped grants nothing, so a new directory group cannot quietly "
+            "open a server group of the same name."
+        ),
+        kind="text",
+        placeholder='{"infra-oncall": "prod"}',
+        check=_json_object,
+    ),
+    Spec(
+        key="oidc_admin_groups",
+        section="Single sign-on",
+        label="Admin groups",
+        help="JSON list of provider groups whose members become webgate admins.",
+        kind="text",
+        placeholder='["infra-admins"]',
+        check=_json_array,
+    ),
+    Spec(
+        key="oidc_redirect_base",
+        section="Single sign-on",
+        label="Public URL",
+        help=(
+            "Only needed when the gateway cannot work out its own public address -- "
+            "behind a proxy that rewrites the host, say. The redirect URI registered "
+            "with your provider is this plus /api/auth/sso/callback."
+        ),
+        kind="text",
+        placeholder="https://webgate.example.com",
+        check=_https_url,
     ),
     # ---------------------------------------------------------------------- LDAP
     Spec(

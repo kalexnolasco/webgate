@@ -1,5 +1,48 @@
 # Changelog
 
+## v2.7.0 (2026-09-17) — single sign-on
+
+LDAP already existed, but no company running Entra ID, Okta or Google Workspace is
+going to keep a second directory for one tool. It was the first thing anyone asked
+about, and the thing most likely to decide whether webgate gets deployed at all.
+
+### Single sign-on (OpenID Connect)
+
+**Admin → Settings → Single sign-on**, alongside local accounts and LDAP rather than
+instead of them. Register one redirect URI with your provider, fill in the issuer,
+client ID, secret and scopes, and everything else — the endpoints, the signing keys —
+comes from the provider's discovery document.
+
+- **The ID token is actually verified**: signature against the provider's published
+  keys, plus issuer, audience, expiry, and a nonce tied to that one sign-in, so a token
+  captured from another flow cannot be replayed into this one. A token that merely
+  decodes proves nothing.
+- **Authorization code with PKCE**, so it is safe with or without a client secret.
+- **The in-progress sign-in lives in the database**, not in worker memory. The browser
+  can come back to a different worker than the one it left, which is the whole point of
+  the stateless design.
+- **The session token never travels in a URL.** The callback hands the page a one-time
+  code, good for about a minute, which it trades for a session — so nothing sensitive
+  reaches browser history or a proxy log.
+- **A provider group grants nothing until an admin maps it**, exactly as LDAP works. A
+  directory group created next month cannot quietly open a webgate group that happens
+  to share its name. A separate admin-groups list grants admin.
+- Sign-ins are audited as `sso_login`, with the groups granted.
+- Accounts created this way have **no local password** — nothing to reset, nothing to
+  leak.
+
+Twenty-one tests, run against a real identity provider started for the test: it
+publishes a discovery document and a JWKS and signs its own tokens, so the
+verification is exercised rather than mocked away. A token signed with the wrong key,
+issued for another audience, expired, or carrying another sign-in's nonce is refused,
+and each of those is a test.
+
+[Setup, and what to do when nobody gets any groups](https://kalexnolasco.github.io/webgate/guide/sso/).
+
+354 tests: 345 unit, 9 browser.
+
+---
+
 ## v2.6.0 (2026-09-16) — rotating the secret key no longer breaks everything
 
 ### Fixed

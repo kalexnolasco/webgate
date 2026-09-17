@@ -46,6 +46,7 @@ nav:
     - Split View: guide/split.md
     - User Management: guide/users.md
     - Access model (groups, LDAP, tags): guide/access-control.md
+    - Single sign-on (OIDC): guide/sso.md
     - Advanced (jump host, snippets, sharing, recording): guide/advanced.md
     - Integrations (webhooks, LDAP, API keys, reverse proxy): guide/integrations.md
     - Settings (admin panel): guide/settings.md

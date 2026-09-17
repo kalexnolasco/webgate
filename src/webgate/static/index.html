@@ -328,6 +328,10 @@
         .fz-login-box label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; font-weight: 500; }
         .fz-login-box input { width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 14px; font-family: inherit; margin-bottom: 14px; background: var(--input-bg); color: var(--text-primary); }
         .fz-login-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+        .fz-sso { margin-top: 14px; }
+        .fz-sso-or { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: var(--text-muted); font-size: 11px; }
+        .fz-sso-or::before, .fz-sso-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+        .fz-sso-btn { width: 100%; justify-content: center; height: 36px; font-size: 14px; text-decoration: none; }
         .fz-login-hint { text-align: center; margin-top: 12px; font-size: 12px; color: var(--text-muted); }
         .fz-login-error { background: color-mix(in srgb, var(--danger) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border)); color: var(--danger); font-size: 12px; padding: 8px 10px; border-radius: var(--radius-md); margin-bottom: 14px; }
 
@@ -541,6 +545,15 @@ window._showToastImpl = function(message, type) {
                 <span x-text="loggingIn ? 'Signing in…' : (totpRequired ? 'Verify' : 'Sign in')"></span>
             </button>
         </form>
+        <template x-if="ssoEnabled && !totpRequired">
+            <div class="fz-sso">
+                <div class="fz-sso-or"><span>or</span></div>
+                <a :href="BASE + '/api/auth/sso/start'" class="fz-btn fz-sso-btn">
+                    <svg class="fz-icon" viewBox="0 0 24 24"><use href="#i-shield"/></svg>
+                    <span x-text="'Sign in with ' + (ssoName || 'single sign-on')"></span>
+                </a>
+            </div>
+        </template>
         <div class="fz-login-hint" x-show="totpRequired">Enter the 6-digit code from your authenticator app</div>
         <div class="fz-login-hint" x-show="!totpRequired && !demoMode">First run? Sign in with <code style="font-family:var(--mono)">admin</code> / <code style="font-family:var(--mono)">admin</code></div>
     </div>
@@ -2221,7 +2234,7 @@ function app() {
         favorites: JSON.parse(localStorage.getItem('webgate_favorites') || '[]'),
         recents: JSON.parse(localStorage.getItem('webgate_recents') || '[]'),
         palette: { open: false, q: '', index: 0 },
-        loginError: '',
+        loginError: '', ssoEnabled: false, ssoName: '',
         loggingIn: false,
         ctxMenu: { show: false, x: 0, y: 0, tab: null, f: null },
 
@@ -2910,7 +2923,30 @@ function app() {
                 const cfg = await this.apiCall('/api/config');
                 this.demoMode = !!cfg.demo_mode;
                 this.agentAvailable = !!cfg.agent_available;
+                this.ssoEnabled = !!cfg.sso_enabled;
+                this.ssoName = cfg.sso_name || '';
             } catch {}
+
+            // Coming back from the identity provider. The URL carries a one-time code,
+            // never the session token, so nothing sensitive lands in history or a log.
+            const back = new URLSearchParams(location.search);
+            if (back.get('sso_error')) {
+                this.loginError = back.get('sso_error');
+                history.replaceState({}, '', BASE + '/');
+            } else if (back.get('sso')) {
+                const code = back.get('sso');
+                history.replaceState({}, '', BASE + '/');
+                try {
+                    const data = await this.apiCall('/api/auth/sso/exchange', {
+                        method: 'POST', body: JSON.stringify({ code }),
+                    });
+                    this.token = data.access_token;
+                    localStorage.setItem('webgate_token', this.token);
+                } catch (e) {
+                    this.loginError = e.message || 'Single sign-on did not complete';
+                }
+            }
+
             // Pick up ?join=<token>[&mode=ro|rw] from the URL after auth
             const params = new URLSearchParams(location.search);
             this._pendingJoinToken = params.get('join');

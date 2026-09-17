@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from webgate import __version__
 from webgate.agent.routes import router as agent_router
 from webgate.agent.store import load_config
+from webgate.auth import oidc
 from webgate.auth.routes import limiter
 from webgate.auth.routes import router as auth_router
 from webgate.auth.service import seed_admin
@@ -95,7 +96,13 @@ def create_app() -> FastAPI:
         agent_available = False
         if not settings.demo_mode:
             agent_available = (await load_config(session)).enabled
-        return {"demo_mode": settings.demo_mode, "agent_available": agent_available}
+        return {
+            "demo_mode": settings.demo_mode,
+            "agent_available": agent_available,
+            # The sign-in screen needs this before anyone has authenticated.
+            "sso_enabled": oidc.enabled(),
+            "sso_name": oidc.provider_name() if oidc.enabled() else "",
+        }
 
     if settings.demo_mode:
         # In demo mode block any state-changing request on /api/* except an

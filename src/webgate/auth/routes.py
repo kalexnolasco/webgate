@@ -2,8 +2,10 @@ import json
 import secrets
 from datetime import datetime
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -11,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from webgate.audit.models import AuditOut
 from webgate.audit.service import audit_actions, get_audit_log, log_action
+from webgate.auth import oidc
 from webgate.auth.ldap import authenticate_ldap
 from webgate.auth.models import (
     ApiKeyCreate,
@@ -18,6 +21,7 @@ from webgate.auth.models import (
     ApiKeyOut,
     ChangePassword,
     LoginOut,
+    SsoExchange,
     TotpSetupOut,
     TotpStatusOut,
     TotpVerifyIn,
@@ -26,6 +30,7 @@ from webgate.auth.models import (
     UserOut,
     UserUpdateGroups,
 )
+from webgate.auth.oidc import OidcError
 from webgate.auth.service import (
     authenticate_api_key,
     create_access_token,
@@ -46,6 +51,7 @@ from webgate.auth.service import (
     verify_totp,
 )
 from webgate.db.engine import get_session
+from webgate.runtime_config import store as runtime
 from webgate.webhooks.dispatcher import fire as fire_webhook
 
 limiter = Limiter(key_func=get_remote_address)
@@ -205,6 +211,112 @@ async def _record(request: Request, actor: UserOut, action: str, detail: str) ->
         detail=detail,
         ip_address=request.client.host if request.client else "",
     )
+
+
+def _redirect_base(request: Request) -> str:
+    """Where the provider should send the browser back to.
+
+    A configured value wins: behind a proxy that rewrites the host, the app's own view
+    of its address is whatever the proxy forwarded, which may not be reachable.
+    """
+    configured = str(runtime.get("oidc_redirect_base")).strip().rstrip("/")
+    if configured:
+        return configured
+    return str(request.base_url).rstrip("/")
+
+
+@router.get("/sso/start")
+async def sso_start(request: Request, session: SessionDep) -> RedirectResponse:
+    """Send the browser to the identity provider."""
+    try:
+        url = await oidc.begin(session, f"{_redirect_base(request)}/api/auth/sso/callback")
+    except OidcError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/sso/callback")
+async def sso_callback(
+    request: Request,
+    session: SessionDep,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+) -> RedirectResponse:
+    """Where the provider sends the browser back.
+
+    Ends in a redirect either way, because the person is looking at a browser tab and
+    a JSON error body would be the last thing they see.
+    """
+    root = str(request.base_url).rstrip("/")
+
+    def back(message: str) -> RedirectResponse:
+        return RedirectResponse(
+            f"{root}/?sso_error={quote(message[:300])}", status_code=status.HTTP_302_FOUND
+        )
+
+    if error:
+        return back(error_description or f"The provider refused the sign-in: {error}")
+    if not code or not state:
+        return back("The provider did not send a code. Start again.")
+
+    try:
+        flow = await oidc.take_flow(session, state)
+        claims = await oidc.complete(session, code, flow)
+        username, groups, is_admin = oidc.identity(claims)
+    except OidcError as exc:
+        return back(str(exc))
+
+    user = await get_user_by_username(session, username)
+    if user is None:
+        user = await create_user(session, username, secrets.token_urlsafe(32), is_admin=is_admin)
+        # There is no local password to change: the provider is the password.
+        user.must_change_password = False
+    else:
+        user.is_admin = is_admin
+    user.allowed_groups = json.dumps(groups)
+    await session.commit()
+    await session.refresh(user)
+
+    handover = await oidc.issue_handover(session, flow, user.id)
+    await log_action(
+        user.id,
+        user.username,
+        "sso_login",
+        detail=f"groups: {', '.join(groups) or 'none'}{'; admin' if is_admin else ''}",
+        ip_address=request.client.host if request.client else "",
+    )
+    return RedirectResponse(f"{root}/?sso={handover}", status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/sso/exchange", response_model=LoginOut)
+async def sso_exchange(body: SsoExchange, request: Request, session: SessionDep) -> LoginOut:
+    """Trade the one-time code for a session token.
+
+    The token is never put in a URL: it would end up in browser history and in every
+    proxy log between here and the person.
+    """
+    try:
+        user_id = await oidc.redeem_handover(session, body.code)
+    except OidcError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    user = await get_user_by_id(session, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="That account no longer exists"
+        )
+    token = create_access_token({"sub": str(user.id), "username": user.username})
+    await fire_webhook(
+        "user_login",
+        {
+            "username": user.username,
+            "user_id": user.id,
+            "via": "sso",
+            "ip": request.client.host if request.client else "",
+        },
+    )
+    return LoginOut(access_token=token)
 
 
 @router.get("/me", response_model=UserOut)

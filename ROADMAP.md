@@ -96,6 +96,11 @@ Tracks the development plan for **webgate**. Items are organized by release.
 - [x] **A per-account cap on concurrent SSH sessions**
 - [x] **The demo banner no longer covers the interface**, and every diagram in the repository renders legibly on both GitHub grounds
 
+### v2.7.0 — Single sign-on (2026-09-17)
+- [x] **OpenID Connect sign-on** for Entra ID, Okta, Google Workspace, Keycloak and Authentik, with the ID token verified against the provider's keys and a per-sign-in nonce
+- [x] **Provider groups map to webgate groups**, and an unmapped group grants nothing
+- [x] **The session token is handed over as a one-time code**, never in a URL
+
 ---
 
 ## Planned

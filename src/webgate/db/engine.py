@@ -115,6 +115,7 @@ MODEL_MODULES: tuple[str, ...] = (
     "webgate.agent.store",
     "webgate.audit.models",
     "webgate.auth.models",
+    "webgate.auth.oidc",
     "webgate.branding.store",
     "webgate.recordings.models",
     "webgate.runtime_config.store",

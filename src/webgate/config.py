@@ -56,6 +56,19 @@ class Settings(BaseSettings):
     ldap_group_map: str = "{}"  # JSON: {"ldap-group-cn": "webgate-group-name"}
     ldap_admin_groups: str = "[]"  # JSON list of LDAP group CNs that grant admin
 
+    # Single sign-on (OpenID Connect)
+    oidc_enabled: bool = False
+    oidc_display_name: str = ""  # what the sign-in button says
+    oidc_issuer: str = ""  # e.g. https://login.microsoftonline.com/<tenant>/v2.0
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_scopes: str = "openid profile email"
+    oidc_username_claim: str = "preferred_username"
+    oidc_groups_claim: str = "groups"
+    oidc_group_map: str = "{}"  # JSON: {"idp-group": "webgate-group"}
+    oidc_admin_groups: str = "[]"  # JSON list of provider groups that grant admin
+    oidc_redirect_base: str = ""  # public URL, when the app cannot infer it
+
     # Multi-instance HA
     instance_id: str = ""  # Unique per worker; auto-generated UUID if empty
     disable_monitor: bool = False  # Skip leader election; never run server monitor

@@ -140,7 +140,7 @@ flowchart TB
 | **SFTP** | Full file ops + drag & drop upload, **sortable columns**, **multi-select** with batch ZIP download and delete, hidden-file toggle, in-browser editor (CodeMirror 6), PDF/image preview |
 | **Server Registry** | Groups, tags, password/key auth, encrypted at rest (Fernet), **verified host keys** (TOFU), **favourites and recents**, import/export JSON, **jump host / bastion** chaining |
 | **Access Control** | Admin/user roles, per-server SSH/SFTP toggles, SFTP path restrictions, read-only SFTP mode, group-based visibility |
-| **Auth** | JWT + bcrypt locally, **2FA TOTP**, **API keys** for automation, **LDAP / Active Directory** with group→role mapping |
+| **Auth** | **Single sign-on (OpenID Connect)** — Entra ID, Okta, Google Workspace, Keycloak — with group→role mapping, plus JWT + bcrypt locally, **2FA TOTP**, **API keys** for automation, **LDAP / Active Directory** |
 | **Compliance** | **Session recording** to asciinema cast files with browser replay, off by default and opted into per server, **audit log** covering every SFTP operation, registry and account change, searchable by filename, **webhooks** (HMAC-signed) on key events |
 | **Migration** | **Full-state backup and restore** — servers with credentials, users, groups, webhooks and API keys in one passphrase-encrypted file, portable between instances |
 | **AI agent** | Per-server iterative chat over **Ollama** or **OpenRouter**, read-only inspection tools, **works on SFTP-only hosts**, cached results and searchable findings — configured in the admin panel, off until then |
@@ -678,6 +678,7 @@ The demo middleware blocks all writes on `/api/*` (login, terminal share and tot
 | **Servers** | `GET/POST/PUT/DELETE /api/servers`, `POST /api/servers/{id}/test`, `GET /api/servers/groups`, `POST /api/servers/import`, `GET /api/servers/export`, `GET /api/servers/status` |
 | **Terminal** | `WS /api/ws/terminal/{server_id}` (owner), `WS /api/ws/terminal/quick` (one-off), `WS /api/ws/terminal/join/{token}?mode=rw\|ro` (joiner), `POST/DELETE /api/terminal/share/{session_id}` |
 | **Files (SFTP)** | `GET /ls`, `GET /read`, `GET /download`, `GET /download-zip` (one directory), `POST /download-zip` (a chosen selection), `POST /upload`, `PUT /write`, `POST /mkdir`, `POST /rename`, `DELETE /delete`, `POST /chmod`, `GET /stat` (all under `/api/files/{server_id}/`) |
+| **Single sign-on** | `GET /api/auth/sso/start`, `GET /api/auth/sso/callback`, `POST /api/auth/sso/exchange` |
 | **Settings** | `GET /api/settings`, `PUT /api/settings`, `POST /api/settings/reset` (admin only) |
 | **Agent** | `GET/PUT /api/agent/settings`, `POST /api/agent/models`, `POST /api/agent/chat/{server_id}`, `GET/DELETE /api/agent/conversations/{server_id}`, `GET /api/agent/findings` |
 | **Branding** | `GET /api/branding` (public), `PUT/DELETE /api/branding` (admin only) |
@@ -741,6 +742,7 @@ docker compose -f compose.dev.yml up --build
 
 ## Security
 
+- **Single sign-on** verifies the ID token properly: signature against the provider's published keys, plus issuer, audience, expiry and a per-sign-in nonce. The flow uses PKCE, its state lives in the database so it works across workers, and the session token is handed over as a one-time code rather than in a URL
 - **Host keys are verified** — trust on first use. The first connection to a server records the key it presents; every connection after that is checked against it *before authentication runs*, so a mismatch sends nothing. Accepting a changed key is a deliberate, audited admin action. This covers the terminal, SFTP, the connection pool, the status monitor, the agent and jump hosts
 - All SSH passwords and private keys are encrypted at rest with **Fernet** (key derived from `WEBGATE_SECRET_KEY`)
 - **The default secret key is refused.** That key signs every session token and derives the credential encryption key, and its default is published in this repository — a deployment that never changed it will hand a valid admin token to anyone who asks. webgate now stops at startup rather than serving under it, unless it is bound to loopback only

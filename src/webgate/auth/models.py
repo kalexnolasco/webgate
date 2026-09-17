@@ -77,6 +77,10 @@ class UserUpdateGroups(BaseModel):
     allowed_groups: list[str]
 
 
+class SsoExchange(BaseModel):
+    code: str
+
+
 class ChangePassword(BaseModel):
     new_password: str
 
